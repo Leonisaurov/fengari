@@ -46,6 +46,7 @@ const ldebug    = require('./ldebug.js');
 const ldo       = require('./ldo.js');
 const { luaU_dump } = require('./ldump.js');
 const lfunc     = require('./lfunc.js');
+const lgc       = require('./lgc.js');
 const lobject   = require('./lobject.js');
 const lstate    = require('./lstate.js');
 const {
@@ -419,6 +420,7 @@ const lua_setmetatable = function(L, objindex) {
         case LUA_TUSERDATA:
         case LUA_TTABLE: {
             obj.value.metatable = mt;
+            lgc.luaC_checkfinalizer(L, obj.value, mt);
             break;
         }
         default: {
@@ -1144,6 +1146,7 @@ const lua_gc = function (L, what, data) {
             gc_running = true;
             return 0;
         case LUA_GCCOLLECT:
+            lgc.luaC_fullgc(L);
             run_gc();
             return 0;
         case LUA_GCCOUNT: {
@@ -1155,6 +1158,8 @@ const lua_gc = function (L, what, data) {
             return Math.floor((kb - Math.floor(kb)) * 1024);
         }
         case LUA_GCSTEP:
+            if (gc_running)  /* a stopped collector does not step */
+                lgc.luaC_fullgc(L);
             run_gc();
             return 1;  /* a full JS GC cycle always "finishes" */
         case LUA_GCSETPAUSE: {

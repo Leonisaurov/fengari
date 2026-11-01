@@ -89,6 +89,8 @@ class global_State {
         this.version = null;
         this.tmname = new Array(ltm.TMS.TM_N);
         this.mt = new Array(LUA_NUMTAGS);
+        this.finalizable = new Set();  /* objects with a __gc metamethod */
+        this.in_gc = false;            /* running a collector cycle? */
     }
 
 }
@@ -180,6 +182,8 @@ const lua_newstate = function() {
 };
 
 const close_state = function(L) {
+    /* finalizers may run Lua code, so they need a valid stack */
+    require('./lgc.js').luaC_freeallobjects(L);
     freestack(L);
 };
 

@@ -328,6 +328,7 @@ class Udata {
         this.uservalue = new TValue(LUA_TNIL, null);
         this.len = size;
         this.data = Object.create(null); // ignores size argument
+        this.finalized = false; /* marked for finalization already? */
     }
 
 }

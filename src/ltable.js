@@ -111,6 +111,7 @@ class Table {
         this.l = void 0; /* last entry */
         this.metatable = null;
         this.flags = ~0;
+        this.finalized = false; /* marked for finalization already? */
     }
 }
 
@@ -160,6 +161,20 @@ const mark_dead = function(t, hash) {
             t.dead_strong.set(hash, e);
         }
     }
+};
+
+/* Remove an entry that the collector found dead. Unlike mark_dead, this does
+   not keep the key around for a later 'next' call. */
+const luaH_removeentry = function(t, hash, e) {
+    if (e.p) e.p.n = e.n;
+    else t.f = e.n;
+    if (e.n) e.n.p = e.p;
+    else t.l = e.p;
+    e.p = void 0;
+    e.n = void 0;
+    e.key.setdeadvalue();
+    e.value = void 0;
+    t.strong.delete(hash);
 };
 
 const luaH_new = function(L) {
@@ -303,4 +318,5 @@ module.exports.luaH_setfrom = luaH_setfrom;
 module.exports.luaH_setint  = luaH_setint;
 module.exports.luaH_new     = luaH_new;
 module.exports.luaH_next    = luaH_next;
+module.exports.luaH_removeentry = luaH_removeentry;
 module.exports.Table        = Table;

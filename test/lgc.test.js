@@ -1,0 +1,255 @@
+"use strict";
+
+const lua = require('../src/lua.js');
+const lauxlib = require('../src/lauxlib.js');
+const lualib = require('../src/lualib.js');
+const {to_luastring} = require("../src/fengaricore.js");
+
+const run = function(luaCode) {
+    let L = lauxlib.luaL_newstate();
+    if (!L) throw Error("failed to create lua state");
+    lualib.luaL_openlibs(L);
+    if (lauxlib.luaL_loadstring(L, to_luastring(luaCode)) !== lua.LUA_OK)
+        throw new SyntaxError(lua.lua_tojsstring(L, -1));
+    lua.lua_call(L, 0, -1);
+    return L;
+};
+
+test('weak values are cleared when unreachable', () => {
+    let L = run(`
+        local t = setmetatable({}, {__mode = "v"})
+        local x = {}
+        t[1] = x
+        x = nil
+        collectgarbage()
+        return t[1] == nil
+    `);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+});
+
+test('weak keys are cleared when unreachable', () => {
+    let L = run(`
+        local t = setmetatable({}, {__mode = "k"})
+        local k = {}
+        t[k] = 1
+        k = nil
+        collectgarbage()
+        return next(t) == nil
+    `);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+});
+
+test('weak keys and values are both cleared', () => {
+    let L = run(`
+        local t = setmetatable({}, {__mode = "kv"})
+        local k, v = {}, {}
+        t[k] = v
+        k = nil
+        v = nil
+        collectgarbage()
+        return next(t) == nil
+    `);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+});
+
+test('ephemeron entries die with their key', () => {
+    let L = run(`
+        local t = setmetatable({}, {__mode = "k"})
+        local k = {}
+        t[k] = {k}       -- value points back at the key
+        k = nil
+        collectgarbage()
+        return next(t) == nil
+    `);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+});
+
+test('weak tables keep reachable keys and values', () => {
+    let L = run(`
+        local keep = {}
+        local t = setmetatable({}, {__mode = "v"})
+        t[1] = keep
+        local k = {}
+        local kt = setmetatable({}, {__mode = "k"})
+        kt[k] = 1
+        collectgarbage()
+        return t[1] == keep, next(kt) ~= nil
+    `);
+    expect(lua.lua_toboolean(L, -2)).toBe(true);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+});
+
+test('weak values stay alive through closures', () => {
+    let L = run(`
+        local t = setmetatable({}, {__mode = "v"})
+        local function make()
+            local v = {}
+            t[1] = v
+            return function() return v end
+        end
+        local get = make()
+        collectgarbage()
+        return t[1] ~= nil, t[1] == get()
+    `);
+    expect(lua.lua_toboolean(L, -2)).toBe(true);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+});
+
+test('strings and numbers are never removed from weak tables', () => {
+    let L = run(`
+        local t = setmetatable({}, {__mode = "kv"})
+        t["hello"] = "world"
+        t[1] = 2
+        collectgarbage()
+        return t.hello, t[1]
+    `);
+    expect(lua.lua_tojsstring(L, -2)).toBe("world");
+    expect(lua.lua_tointeger(L, -1)).toBe(2);
+});
+
+test('weak tables respect __mode changes and pairs skips cleared entries', () => {
+    let L = run(`
+        local t = {1, 2}
+        collectgarbage()
+        local strong = t[1] ~= nil
+
+        setmetatable(t, {__mode = "v"})
+        t[1] = nil
+        local keep = {}
+        local dead = {}
+        t[1] = keep
+        t[2] = dead
+        dead = nil
+        collectgarbage()
+
+        local n = 0
+        for _ in pairs(t) do n = n + 1 end
+        return strong, t[1] == keep, t[2] == nil, n
+    `);
+    expect(lua.lua_toboolean(L, -4)).toBe(true);
+    expect(lua.lua_toboolean(L, -3)).toBe(true);
+    expect(lua.lua_toboolean(L, -2)).toBe(true);
+    expect(lua.lua_tointeger(L, -1)).toBe(1);
+});
+
+test('collectgarbage("step") runs a cycle while the collector is running', () => {
+    let L = run(`
+        local t = setmetatable({}, {__mode = "v"})
+        local x = {}
+        t[1] = x
+        x = nil
+        collectgarbage("step")
+        return t[1] == nil
+    `);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+});
+
+test('__gc runs once for unreachable tables', () => {
+    let L = run(`
+        local calls = 0
+        local t = setmetatable({}, {__gc = function() calls = calls + 1 end})
+        t = nil
+        collectgarbage()
+        collectgarbage()
+        return calls
+    `);
+    expect(lua.lua_tointeger(L, -1)).toBe(1);
+});
+
+test('__gc does not run for reachable tables', () => {
+    let L = run(`
+        local calls = 0
+        local t = setmetatable({}, {__gc = function() calls = calls + 1 end})
+        collectgarbage()
+        return calls, type(t)
+    `);
+    expect(lua.lua_tointeger(L, -2)).toBe(0);
+    expect(lua.lua_tojsstring(L, -1)).toBe("table");
+});
+
+test('a resurrected object is not finalized twice', () => {
+    let L = run(`
+        local calls, saved = 0, nil
+        local mt = {__gc = function(o) calls = calls + 1; saved = o end}
+        local t = setmetatable({}, mt)
+        t = nil
+        collectgarbage()
+        local first = calls
+        saved = nil
+        collectgarbage()
+        return first, calls
+    `);
+    expect(lua.lua_tointeger(L, -2)).toBe(1);
+    expect(lua.lua_tointeger(L, -1)).toBe(1);
+});
+
+test('errors in __gc propagate out of collectgarbage', () => {
+    let L = run(`
+        local t = setmetatable({}, {__gc = function() error("boom") end})
+        t = nil
+        local ok, err = pcall(collectgarbage)
+        return ok, tostring(err)
+    `);
+    expect(lua.lua_toboolean(L, -2)).toBe(false);
+    expect(lua.lua_tojsstring(L, -1)).toContain("boom");
+});
+
+test('collectgarbage("step") respects a stopped collector', () => {
+    let L = run(`
+        local calls = 0
+        local t = setmetatable({}, {__gc = function() calls = calls + 1 end})
+        t = nil
+        collectgarbage("stop")
+        collectgarbage("step")
+        local after_step = calls
+        collectgarbage("restart")
+        collectgarbage()
+        return after_step, calls
+    `);
+    expect(lua.lua_tointeger(L, -2)).toBe(0);
+    expect(lua.lua_tointeger(L, -1)).toBe(1);
+});
+
+test('__gc runs for unreachable userdata', () => {
+    let L = lauxlib.luaL_newstate();
+    if (!L) throw Error("failed to create lua state");
+    lualib.luaL_openlibs(L);
+
+    let calls = 0;
+    lauxlib.luaL_newmetatable(L, to_luastring("test.gc"));
+    lua.lua_pushcfunction(L, function() {
+        calls++;
+        return 0;
+    });
+    lua.lua_setfield(L, -2, to_luastring("__gc"));
+    lua.lua_pop(L, 1);
+
+    lua.lua_newuserdata(L);
+    lauxlib.luaL_setmetatable(L, to_luastring("test.gc"));
+    lua.lua_pop(L, 1);  /* drop the only reference */
+
+    lua.lua_gc(L, lua.LUA_GCCOLLECT, 0);
+    expect(calls).toBe(1);
+});
+
+test('lua_close finalizes pending objects', () => {
+    let L = lauxlib.luaL_newstate();
+    if (!L) throw Error("failed to create lua state");
+    lualib.luaL_openlibs(L);
+
+    let calls = 0;
+    lauxlib.luaL_newmetatable(L, to_luastring("test.gc.close"));
+    lua.lua_pushcfunction(L, function() {
+        calls++;
+        return 0;
+    });
+    lua.lua_setfield(L, -2, to_luastring("__gc"));
+    lua.lua_pop(L, 1);
+
+    lua.lua_newuserdata(L);
+    lauxlib.luaL_setmetatable(L, to_luastring("test.gc.close"));
+    lua.lua_pop(L, 1);
+
+    lua.lua_close(L);
+    expect(calls).toBe(1);
+});
