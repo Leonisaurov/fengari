@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/fengari.js",
     "./versions": "./src/versions.js",
+    "./versions/*.js": "./src/versions/*.js",
     "./versions/*": "./src/versions/*.js",
     "./src/*": "./src/*",
     "./*": "./src/*",

@@ -342,7 +342,15 @@ const LUA_GCSETPAUSE   = 6;
 const LUA_GCSETSTEPMUL = 7;
 const LUA_GCISRUNNING  = 9;
 
-const { LUAI_MAXSTACK } = require('./luaconf.js');
+const { LUAI_MAXSTACK } = (function() {
+    /* Keep this here instead of requiring luaconf.js: luaconf needs the
+       version constants from this module, and the cycle can leave the
+       registry index undefined when luaconf is loaded first. */
+    const conf = (typeof process !== "undefined" && process.env.FENGARICONF)
+        ? JSON.parse(process.env.FENGARICONF)
+        : {};
+    return { LUAI_MAXSTACK: conf.LUAI_MAXSTACK || 1000000 };
+})();
 const LUA_REGISTRYINDEX = -LUAI_MAXSTACK - 1000;
 
 const lua_upvalueindex = function(i) {
