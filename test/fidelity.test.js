@@ -1,0 +1,149 @@
+"use strict";
+
+const lua = require('../src/lua.js');
+const lauxlib = require('../src/lauxlib.js');
+const lualib = require('../src/lualib.js');
+const {to_luastring} = require("../src/fengaricore.js");
+
+const run = function(luaCode) {
+    let L = lauxlib.luaL_newstate();
+    if (!L) throw Error("failed to create lua state");
+    lualib.luaL_openlibs(L);
+    if (lauxlib.luaL_loadstring(L, to_luastring(luaCode)) !== lua.LUA_OK)
+        throw new SyntaxError(lua.lua_tojsstring(L, -1));
+    lua.lua_call(L, 0, -1);
+    return L;
+};
+
+test('float formatting matches C printf', () => {
+    let L = run(`
+        local cases = {
+            {"%g", 1e-5, "1e-05"},
+            {"%g", 1234567, "1.23457e+06"},
+            {"%g", 1/3, "0.333333"},
+            {"%g", 1e10, "1e+10"},
+            {"%g", 0, "0"},
+            {"%g", -0.0, "-0"},
+            {"%g", math.huge, "inf"},
+            {"%g", -math.huge, "-inf"},
+            {"%.0g", 1.5, "2"},
+            {"%.1g", 1.5, "2"},
+            {"%.3g", 1/3, "0.333"},
+            {"%.10g", 1/3, "0.3333333333"},
+            {"%.0g", 100000, "1e+05"},
+            {"%e", 0, "0.000000e+00"},
+            {"%.2e", 1234, "1.23e+03"},
+            {"%E", 0, "0.000000E+00"},
+            {"%e", 0.0001, "1.000000e-04"},
+            {"%f", 0, "0.000000"},
+            {"%.2f", 1.5, "1.50"},
+            {"%.2f", -0.0, "-0.00"},
+            {"%.2f", 1e21, "1000000000000000000000.00"},
+            {"%10.3g", -0.0, "        -0"},
+            {"%-10.3g", -0.0, "-0        "},
+            {"%010.3g", -0.0, "-000000000"},
+            {"%+g", 1, "+1"},
+            {"% g", 0, " 0"},
+            {"%#g", 0, "0.00000"},
+            {"%#.1g", 1, "1."},
+            {"%#.0e", 1, "1.e+00"},
+            {"%#.0f", 1, "1."},
+            {"%G", 1e10, "1E+10"},
+        }
+        for _, c in ipairs(cases) do
+            local got = string.format(c[1], c[2])
+            if got ~= c[3] then
+                return false, c[1] .. " got '" .. got .. "' expected '" .. c[3] .. "'"
+            end
+        end
+        return true
+    `);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+});
+
+test('%q produces loadable literals', () => {
+    let L = run(`
+        for _, x in ipairs{0.1, 1/3, 1e300, -1e300} do
+            local s = string.format("%q", x)
+            assert(tonumber(s) == x, s)
+        end
+        local z = tonumber(string.format("%q", -0.0))
+        assert(z == 0 and 1/z == -math.huge)
+
+        local s = "a\\nb\\0c\\\\\\"\\r\\t"
+        assert(load("return " .. string.format("%q", s))() == s)
+        assert(#string.format("%s", "a\\0b") == 3)
+        return true
+    `);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+});
+
+test('32-bit integer edge cases', () => {
+    let L = run(`
+        return math.mininteger // -1 == math.mininteger,
+               math.mininteger % -1 == 0,
+               1 << 31 == math.mininteger,
+               1 << 32 == 0,
+               -1 >> 1 == 0x7fffffff,
+               -1 >> 32 == 0,
+               1 >> -1 == 2,
+               tonumber("2147483648") == 2147483648.0,
+               tonumber("0xFFFFFFFF") == -1,
+               tonumber("-2147483649") == -2147483649.0,
+               math.tointeger(2147483648.0) == nil,
+               math.tointeger(-2147483649.0) == nil
+    `);
+    for (let i = 1; i <= 12; i++)
+        expect(lua.lua_toboolean(L, i - 12 - 1)).toBe(true);
+});
+
+test('next and pairs tolerate clearing and updating existing fields', () => {
+    let L = run(`
+        local t = {a = 1, b = 2, c = 3}
+        for k in pairs(t) do t[k] = nil end
+        assert(next(t) == nil)
+
+        local u = {a = 1, b = 2, c = 3}
+        local sum = 0
+        for k, v in pairs(u) do
+            u[k] = v + 1
+            sum = sum + u[k]
+        end
+        assert(sum == 9)
+        return true
+    `);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+});
+
+test('table.sort detects invalid comparators', () => {
+    let L = run(`
+        local ok, err = pcall(table.sort, {1, 2, 3, 4, 5},
+            function() return true end)
+        assert(ok == false)
+        assert(string.find(err, "invalid order function for sorting"))
+
+        -- with three elements PUC also skips the partition check
+        assert(pcall(table.sort, {1, 2, 3}, function() return true end))
+        return true
+    `);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+});
+
+test('error honours level and non-string objects', () => {
+    let L = run(`
+        local function f() error("boom", 2) end
+        local function caller() f() end
+        local ok, err = pcall(caller)
+        assert(err ~= "boom")
+        assert(string.find(err, "boom"))
+
+        local ok0, err0 = pcall(function() error("plain", 0) end)
+        assert(ok0 == false and err0 == "plain")
+
+        local obj = {}
+        local ok1, err1 = pcall(function() error(obj) end)
+        assert(ok1 == false and err1 == obj)
+        return true
+    `);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+});
