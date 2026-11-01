@@ -3,6 +3,7 @@
 Catálogo de trabajo sobre `fengari` **v0.1.5** (commit `ac8c387`, semántica Lua 5.3).
 Estado de partida: 40 suites de Jest, 589 tests que pasan y 21 skips, lint OK, sin build ni typecheck.
 Estado actual tras resolver el P0: 40 suites, 597 tests que pasan y 21 skips, cobertura ~93% de líneas con umbral en CI.
+Estado actual tras tablas débiles y `__gc`: 41 suites, 614 tests que pasan y 20 skips.
 
 **Prioridad:** P0 desbloquea uso real · P1 calidad/rendimiento · P2 deseable · P3 largo plazo.
 **Esfuerzo:** S < 1 día · M 1–5 días · L > 1 semana.
@@ -26,8 +27,8 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 
 ## 1. Núcleo del lenguaje y semántica Lua 5.3
 
-- **Tablas débiles (`__mode`)** — P1, L. Implementar `"k"`, `"v"` y `"kv"` con `WeakMap`/`WeakRef`, incluyendo ephemerons; al limpiar una entrada debe desaparecer de `next`/`pairs`. Punto de partida: `src/ltable.js`, `src/ltm.js`. Hoy el README las declara ausentes y la suite oficial las salta.
-- **`__gc` y finalización** — P1, L. Usar `FinalizationRegistry` para llamar `__gc` de forma best-effort; documentar que no es determinista y que no resucita valores. Requiere no retener el objeto en el registro.
+- [x] **Tablas débiles (`__mode`)** — P1, L. Implementadas `"k"`, `"v"` y `"kv"` con un marcado/barrido propio sobre el grafo Lua, incluidos ephemerons; las entradas limpiadas desaparecen de `next`/`pairs` (`src/lgc.js`, `src/ltable.js`).
+- [x] **`__gc` y finalización** — P1, L. Los objetos con `__gc` se registran al fijar el metatabla, se finalizan una sola vez durante `collectgarbage` y al cerrar el estado, y los errores se propagan como en PUC (`src/lgc.js`, `src/lapi.js`).
 - **Trazas de error (`luaL_traceback`, `debug.traceback`)** — P1, M. Paridad con PUC: niveles, tail calls, funciones C/JS, `error(msg, level)` y `__tostring` del objeto de error. Adjuntar la traza como `cause` cuando un error Lua cruza a JS (`src/lauxlib.js`, `src/ldblib.js`).
 - **Corrutinas** — P1, M. Cubrir yield a través de `pcall`/`xpcall` y metamétodos, propagación de errores, `resume` sobre hilo muerto e `isyieldable`; añadir `coroutine.close` (5.4) si se adopta esa versión (`src/lcorolib.js`, `src/ldo.js`).
 - **Desbordamiento de pila** — P1, S. Traducir `RangeError: Maximum call stack size exceeded` a `"stack overflow"` de Lua, respetar `LUAI_MAXCCALLS`/`LUAI_MAXSTACK` y probar recursión profunda (hay tests oficiales saltados por esto).
@@ -128,7 +129,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 
 1. **Fase 1 — Quick wins (1–2 semanas).** `lua_gc`, `%a`, `exports`/`files`/`engines`, cobertura, CI, scripts, benchmarks y `math.random`.
 2. **Fase 2 — Navegador usable (2–4 semanas).** `io.read/open/lines`, `require` sin XHR, bundle + source maps, tipos TS y API de alto nivel.
-3. **Fase 3 — Fidelidad (3–6 semanas).** Tablas débiles, `__gc`, tracebacks, corrutinas, tests diferenciales, fuzzing y tests de navegador.
+3. **Fase 3 — Fidelidad (3–6 semanas).** Tracebacks, corrutinas avanzadas, tests diferenciales, fuzzing y tests de navegador.
 4. **Fase 4 — Rendimiento y 5.4 (continuo).** Optimizar VM/tablas/strings, evaluar WASM y decidir si se adopta 5.4 con enteros de 64 bits.
 
 ## Cómo medir el éxito
