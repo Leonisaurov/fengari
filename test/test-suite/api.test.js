@@ -1260,7 +1260,7 @@ test("[test-suite] api: testing changing hooks during hooks", () => {
 });
 
 
-test.skip("[test-suite] api: testing errors during GC", () => {
+test("[test-suite] api: testing errors during GC", () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
 
