@@ -3,6 +3,22 @@
   "version": "0.1.5",
   "description": "A Lua VM written in JS ES6 targeting the browser",
   "main": "src/fengari.js",
+  "exports": {
+    ".": "./src/fengari.js",
+    "./src/*": "./src/*",
+    "./*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src/",
+    "README.md",
+    "LICENSE",
+    "NEWS"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "type": "commonjs",
   "directories": {
     "lib": "src",
     "test": "test"
@@ -31,6 +47,7 @@
   "homepage": "https://github.com/fengari-lua/fengari#readme",
   "devDependencies": {
     "eslint": "^9.39.2",
+    "globals": "^17.13.0",
     "jest": "^30.2.0"
   },
   "dependencies": {
