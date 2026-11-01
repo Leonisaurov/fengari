@@ -290,6 +290,129 @@ const lua_number2strx = function(L, fmt, x) {
     return to_luastring(buff);
 };
 
+/* ---- printf-style float formatting for %e/%f/%g ---- */
+
+const signbit = function(x) {
+    f64view.setFloat64(0, x);
+    return (f64view.getUint32(0) >>> 31) === 1;
+};
+
+const exp_suffix = function(exp, upper) {
+    return (upper ? "E" : "e") + (exp < 0 ? "-" : "+") +
+        String(Math.abs(exp)).padStart(2, "0");
+};
+
+/* toFixed switches to exponential notation for |x| >= 1e21 */
+const expand_to_fixed = function(s, precision) {
+    let m = /^(\d+)(?:\.(\d+))?[eE]([-+]?\d+)$/.exec(s);
+    if (!m)
+        return s;
+    let digits = m[1] + (m[2] || "");
+    let point = m[1].length + parseInt(m[3], 10);
+    let intpart, frac;
+    if (point <= 0) {
+        intpart = "0";
+        frac = "0".repeat(-point) + digits;
+    } else if (point >= digits.length) {
+        intpart = digits + "0".repeat(point - digits.length);
+        frac = "";
+    } else {
+        intpart = digits.slice(0, point);
+        frac = digits.slice(point);
+    }
+    frac = frac.padEnd(precision, "0").slice(0, precision);
+    return precision > 0 ? intpart + "." + frac : intpart;
+};
+
+const format_fixed = function(x, precision, alt) {
+    let s = x.toFixed(precision);
+    if (s.indexOf("e") >= 0 || s.indexOf("E") >= 0)
+        s = expand_to_fixed(s, precision);
+    if (alt && precision === 0)
+        s += ".";
+    return s;
+};
+
+const format_scientific = function(x, precision, alt, upper) {
+    let parts = x.toExponential(precision).split("e");
+    let mant = parts[0];
+    if (alt && mant.indexOf(".") < 0)
+        mant += ".";
+    return mant + exp_suffix(parseInt(parts[1], 10), upper);
+};
+
+const trim_general = function(s) {
+    let m = /^([^eE]*)([eE][-+]?\d+)?$/.exec(s);
+    let body = m[1];
+    let exp = m[2] || "";
+    if (body.indexOf(".") >= 0)
+        body = body.replace(/0+$/, "").replace(/\.$/, "");
+    return body + exp;
+};
+
+const format_general = function(x, precision, alt, upper) {
+    if (precision === 0)
+        precision = 1;
+    else if (precision === null)
+        precision = 6;
+
+    if (x === 0) {
+        if (!alt)
+            return "0";
+        return precision > 1 ? "0." + "0".repeat(precision - 1) : "0.";
+    }
+
+    let exp = parseInt(x.toExponential(precision - 1).split("e")[1], 10);
+    let body;
+    if (exp < -4 || exp >= precision) {
+        body = format_scientific(x, precision - 1, alt, upper);
+        if (!alt)
+            body = trim_general(body);
+    } else {
+        body = format_fixed(x, precision - 1 - exp, alt);
+        if (!alt)
+            body = trim_general(body);
+    }
+    return body;
+};
+
+const num2strf = function(x, spec, flags, width, precision) {
+    const negative = signbit(x);
+    const abs = negative ? -x : x;
+    const alt = flags.indexOf("#") >= 0;
+    const upper = spec === "E" || spec === "G";
+    const finite = isFinite(x);
+    let body;
+
+    if (Number.isNaN(x)) {
+        body = "nan";
+    } else if (!finite) {
+        body = "inf";
+    } else if (spec === "f") {
+        body = format_fixed(abs, precision === null ? 6 : precision, alt);
+    } else if (spec === "e" || spec === "E") {
+        body = format_scientific(abs, precision === null ? 6 : precision, alt, upper);
+    } else {
+        body = format_general(abs, precision, alt, upper);
+    }
+
+    if (upper)
+        body = body.toUpperCase();
+
+    const sign = negative ? "-" :
+        (flags.indexOf("+") >= 0 ? "+" : (flags.indexOf(" ") >= 0 ? " " : ""));
+    const full = sign + body;
+    if (width <= full.length)
+        return full;
+
+    const missing = width - full.length;
+    if (flags.indexOf("-") >= 0)
+        return full + " ".repeat(missing);
+    if (finite && flags.indexOf("0") >= 0)
+        return sign + "0".repeat(missing) + body;
+    return " ".repeat(missing) + full;
+};
+
 /*
 ** Maximum size of each formatted item. This maximum size is produced
 ** by format('%.99f', -maxfloat), and is equal to 99 + 3 ('-', '.',
@@ -455,9 +578,11 @@ const str_format = function(L) {
                 }
                 case 'e': case 'E': case 'f':
                 case 'g': case 'G': {
-                    let n = luaL_checknumber(L, arg);
-                    addlenmod(form, to_luastring(LUA_INTEGER_FRMLEN, true));
-                    luaL_addstring(b, to_luastring(sprintf(String.fromCharCode(...form), n)));
+                    let spec = String.fromCharCode(strfrmt[i - 1]);
+                    let opts = parse_format(form);
+                    luaL_addstring(b, to_luastring(num2strf(
+                        luaL_checknumber(L, arg), spec, opts.flags,
+                        opts.width, opts.precision)));
                     break;
                 }
                 case 'q': {
