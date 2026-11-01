@@ -10,6 +10,15 @@ const {
     LUA_REGISTRYINDEX,
     LUA_RIDX_GLOBALS,
     LUA_VERSION_NUM,
+    LUA_GCSTOP,
+    LUA_GCRESTART,
+    LUA_GCCOLLECT,
+    LUA_GCCOUNT,
+    LUA_GCCOUNTB,
+    LUA_GCSTEP,
+    LUA_GCSETPAUSE,
+    LUA_GCSETSTEPMUL,
+    LUA_GCISRUNNING,
     constant_types: {
         LUA_NUMTAGS,
         LUA_TBOOLEAN,
@@ -1101,8 +1110,69 @@ const lua_upvaluejoin = function(L, fidx1, n1, fidx2, n2) {
     ref1.f.upvals[ref1.i] = up2;
 };
 
+/*
+** JavaScript engines do not expose a stoppable or incremental collector, so
+** these settings are tracked for API compatibility only. `collect` and `step`
+** can only request a collection when the host exposes `gc` (e.g. Node started
+** with --expose-gc); otherwise the engine collects on its own schedule.
+*/
+let gc_running = true;
+let gc_pause = 200;
+let gc_stepmul = 200;
+
+const run_gc = function() {
+    if (typeof globalThis !== "undefined" && typeof globalThis.gc === "function")
+        globalThis.gc();
+};
+
+const gc_memory_kb = function() {
+    /* Memory usage of the whole JS heap, not just this Lua state. */
+    if (typeof process !== "undefined" && typeof process.memoryUsage === "function")
+        return process.memoryUsage().heapUsed / 1024;
+    if (typeof performance !== "undefined" && performance.memory)
+        return performance.memory.usedJSHeapSize / 1024;
+    return 0;
+};
+
 // This functions are only there for compatibility purposes
-const lua_gc = function () {};
+const lua_gc = function (L, what, data) {
+    switch (what) {
+        case LUA_GCSTOP:
+            gc_running = false;
+            return 0;
+        case LUA_GCRESTART:
+            gc_running = true;
+            return 0;
+        case LUA_GCCOLLECT:
+            run_gc();
+            return 0;
+        case LUA_GCCOUNT: {
+            let kb = gc_memory_kb();
+            return Math.floor(kb);
+        }
+        case LUA_GCCOUNTB: {
+            let kb = gc_memory_kb();
+            return Math.floor((kb - Math.floor(kb)) * 1024);
+        }
+        case LUA_GCSTEP:
+            run_gc();
+            return 1;  /* a full JS GC cycle always "finishes" */
+        case LUA_GCSETPAUSE: {
+            let old = gc_pause;
+            gc_pause = data|0;
+            return old;
+        }
+        case LUA_GCSETSTEPMUL: {
+            let old = gc_stepmul;
+            gc_stepmul = data|0;
+            return old;
+        }
+        case LUA_GCISRUNNING:
+            return gc_running ? 1 : 0;
+        default:
+            return -1;
+    }
+};
 
 const lua_getallocf = function () {
     console.warn("lua_getallocf is not available");

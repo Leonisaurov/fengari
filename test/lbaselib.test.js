@@ -6,6 +6,43 @@ const lualib = require('../src/lualib.js');
 const {to_luastring} = require("../src/fengaricore.js");
 
 
+test('collectgarbage', () => {
+    let L = lauxlib.luaL_newstate();
+    if (!L) throw Error("failed to create lua state");
+
+    let luaCode = `
+        local count, countb = collectgarbage("count")
+        assert(type(count) == "number" and count >= 0)
+
+        assert(collectgarbage("isrunning") == true)
+        collectgarbage("stop")
+        assert(collectgarbage("isrunning") == false)
+        collectgarbage("restart")
+        assert(collectgarbage("isrunning") == true)
+
+        assert(collectgarbage("step") == true)
+        assert(collectgarbage("collect") == 0)
+
+        local pause = collectgarbage("setpause", 150)
+        assert(pause == 200)
+        assert(collectgarbage("setpause", pause) == 150)
+
+        local stepmul = collectgarbage("setstepmul", 300)
+        assert(stepmul == 200)
+        assert(collectgarbage("setstepmul", stepmul) == 300)
+
+        return true
+    `;
+    {
+        lualib.luaL_openlibs(L);
+        expect(lauxlib.luaL_loadstring(L, to_luastring(luaCode))).toBe(lua.LUA_OK);
+        lua.lua_call(L, 0, -1);
+    }
+
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+});
+
+
 test('print', () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");

@@ -11,10 +11,20 @@ const {
     LUA_TTABLE,
     LUA_VERSION,
     LUA_YIELD,
+    LUA_GCSTOP,
+    LUA_GCRESTART,
+    LUA_GCCOLLECT,
+    LUA_GCCOUNT,
+    LUA_GCCOUNTB,
+    LUA_GCSTEP,
+    LUA_GCSETPAUSE,
+    LUA_GCSETSTEPMUL,
+    LUA_GCISRUNNING,
     lua_call,
     lua_callk,
     lua_concat,
     lua_error,
+    lua_gc,
     lua_getglobal,
     lua_geti,
     lua_getmetatable,
@@ -33,6 +43,7 @@ const {
     lua_pushinteger,
     lua_pushliteral,
     lua_pushnil,
+    lua_pushnumber,
     lua_pushstring,
     lua_pushvalue,
     lua_rawequal,
@@ -200,10 +211,31 @@ const opts = [
     "count", "step", "setpause", "setstepmul",
     "isrunning"
 ].map((e) => to_luastring(e));
+const optsnum = [
+    LUA_GCSTOP, LUA_GCRESTART, LUA_GCCOLLECT,
+    LUA_GCCOUNT, LUA_GCSTEP, LUA_GCSETPAUSE, LUA_GCSETSTEPMUL,
+    LUA_GCISRUNNING
+];
 const luaB_collectgarbage = function(L) {
-    luaL_checkoption(L, 1, "collect", opts);
-    luaL_optinteger(L, 2, 0);
-    luaL_error(L, to_luastring("lua_gc not implemented"));
+    let o = optsnum[luaL_checkoption(L, 1, "collect", opts)];
+    let ex = luaL_optinteger(L, 2, 0);
+    let res = lua_gc(L, o, ex);
+    switch (o) {
+        case LUA_GCCOUNT: {
+            let b = lua_gc(L, LUA_GCCOUNTB, 0);
+            lua_pushnumber(L, res + b/1024);
+            return 1;
+        }
+        case LUA_GCSTEP:
+        case LUA_GCISRUNNING: {
+            lua_pushboolean(L, res);
+            return 1;
+        }
+        default: {
+            lua_pushinteger(L, res);
+            return 1;
+        }
+    }
 };
 
 const luaB_type = function(L) {

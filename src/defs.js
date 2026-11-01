@@ -329,6 +329,19 @@ const LUA_OPLE = 2;
 
 const LUA_MINSTACK = 20;
 
+/*
+** Garbage-collection function and options
+*/
+const LUA_GCSTOP       = 0;
+const LUA_GCRESTART    = 1;
+const LUA_GCCOLLECT    = 2;
+const LUA_GCCOUNT      = 3;
+const LUA_GCCOUNTB     = 4;
+const LUA_GCSTEP       = 5;
+const LUA_GCSETPAUSE   = 6;
+const LUA_GCSETSTEPMUL = 7;
+const LUA_GCISRUNNING  = 9;
+
 const { LUAI_MAXSTACK } = require('./luaconf.js');
 const LUA_REGISTRYINDEX = -LUAI_MAXSTACK - 1000;
 
@@ -389,6 +402,15 @@ module.exports.LUA_MASKCOUNT           = LUA_MASKCOUNT;
 module.exports.LUA_MASKLINE            = LUA_MASKLINE;
 module.exports.LUA_MASKRET             = LUA_MASKRET;
 module.exports.LUA_MINSTACK            = LUA_MINSTACK;
+module.exports.LUA_GCSTOP              = LUA_GCSTOP;
+module.exports.LUA_GCRESTART           = LUA_GCRESTART;
+module.exports.LUA_GCCOLLECT           = LUA_GCCOLLECT;
+module.exports.LUA_GCCOUNT             = LUA_GCCOUNT;
+module.exports.LUA_GCCOUNTB            = LUA_GCCOUNTB;
+module.exports.LUA_GCSTEP              = LUA_GCSTEP;
+module.exports.LUA_GCSETPAUSE          = LUA_GCSETPAUSE;
+module.exports.LUA_GCSETSTEPMUL        = LUA_GCSETSTEPMUL;
+module.exports.LUA_GCISRUNNING         = LUA_GCISRUNNING;
 module.exports.LUA_MULTRET             = -1;
 module.exports.LUA_OPADD               = LUA_OPADD;
 module.exports.LUA_OPBAND              = LUA_OPBAND;
