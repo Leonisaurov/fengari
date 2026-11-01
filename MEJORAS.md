@@ -2,6 +2,7 @@
 
 Catálogo de trabajo sobre `fengari` **v0.1.5** (commit `ac8c387`, semántica Lua 5.3).
 Estado de partida: 40 suites de Jest, 589 tests que pasan y 21 skips, lint OK, sin build ni typecheck.
+Estado actual tras resolver el P0: 40 suites, 597 tests que pasan y 21 skips, cobertura ~93% de líneas con umbral en CI.
 
 **Prioridad:** P0 desbloquea uso real · P1 calidad/rendimiento · P2 deseable · P3 largo plazo.
 **Esfuerzo:** S < 1 día · M 1–5 días · L > 1 semana.
@@ -14,11 +15,11 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - [x] **`collectgarbage`/`lua_gc`**: dejar de lanzar `"lua_gc not implemented"`; aceptar `collect`, `stop`, `restart`, `count`, `step`, `setpause`, `setstepmul`, `isrunning` y devolver valores coherentes con el GC de JS (`src/lbaselib.js`, exportar `lua_gc` en `src/lapi.js`).
 - [x] **`string.format("%a"/"%A")`**: implementar los modificadores de precisión que hoy se rechazan (`src/lstrlib.js`, `str_format`).
 - [x] **Metadatos de paquete**: añadir `exports`, `files`, `engines` y `type` a `package.json`; publicar solo `src/` y documentación. (`repository.directory` no aplica: es la raíz del repo).
-- [ ] **Cobertura**: script `test:coverage` con `jest --coverage` y umbral mínimo; subir el informe en CI.
-- [ ] **CI**: añadir Node 26, cachear dependencias, ejecutar `npm pack` como smoke test y validar que el tarball contiene lo esperado.
-- [ ] **`debug.debug()`**: sustituir la dependencia obligatoria de `readline-sync` por un lector inyectable (Node TTY, `prompt()` del navegador o callback en workers) (`src/ldblib.js`).
+- [x] **Cobertura**: script `test:coverage` con `jest --coverage` y umbral mínimo; subir el informe en CI.
+- [x] **CI**: añadir Node 26, cachear dependencias, ejecutar `npm pack` como smoke test y validar que el tarball contiene lo esperado.
+- [x] **`debug.debug()`**: sustituir la dependencia obligatoria de `readline-sync` por un lector inyectable (Node TTY, `prompt()` del navegador o callback en workers) (`src/ldblib.js`).
 - [x] **`math.random`**: corregida la aritmética del LCG con `Math.imul`; la secuencia es sembrable, determinista y reproducible (`src/lmathlib.js`).
-- [ ] **Scripts**: `test:watch` y `lint:fix` en `package.json`.
+- [x] **Scripts**: `test:watch`, `test:coverage`, `lint:fix` y `check` en `package.json`.
 - [x] **`globals`**: declarado como devDependency; `eslint.config.mjs` lo importa y faltaba en el manifiesto original.
 
 ---
