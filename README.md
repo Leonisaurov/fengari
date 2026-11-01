@@ -71,7 +71,7 @@ In the browser `require` and `package.loadlib` try to find a file by making sync
     - `os.rename`
     - `os.tmpname`
     - `os.execute`
-- `debug.debug()` doesn't work from web workers due to lack of a method to get synchronous user input
+- `debug.debug()` reads from a Node TTY through `readline-sync` or from `window.prompt` in browsers. Web workers and embedders can install a reader with `lualib.lua_setdebugreader(fn)`; without one it raises a Lua error.
 - [Weak tables](http://www.lua.org/manual/5.3/manual.html#2.5.2)
 - `__gc` metamethods
 

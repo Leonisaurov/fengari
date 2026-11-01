@@ -308,3 +308,79 @@ test('debug.getinfo', () => {
     expect(lua.lua_tojsstring(L, -2)).toBe(`Lua`);
     expect(lua.lua_tointeger(L, -1)).toBe(0);
 });
+
+test('debug.debug uses an injected reader', () => {
+    let L = lauxlib.luaL_newstate();
+    if (!L) throw Error("failed to create lua state");
+
+    const lines = ["answer = 42", "cont"];
+    let calls = 0;
+    lualib.lua_setdebugreader(function() {
+        calls++;
+        return lines.length > 0 ? lines.shift() : null;
+    });
+
+    try {
+        let luaCode = `debug.debug(); return answer`;
+        lualib.luaL_openlibs(L);
+        expect(lauxlib.luaL_loadstring(L, to_luastring(luaCode))).toBe(lua.LUA_OK);
+        lua.lua_call(L, 0, -1);
+    } finally {
+        lualib.lua_setdebugreader(null);
+    }
+
+    expect(lua.lua_tointeger(L, -1)).toBe(42);
+    expect(calls).toBe(2);
+});
+
+
+test('debug.debug stops at EOF', () => {
+    let L = lauxlib.luaL_newstate();
+    if (!L) throw Error("failed to create lua state");
+
+    lualib.lua_setdebugreader(function() {
+        return null;
+    });
+
+    try {
+        let luaCode = `debug.debug(); return true`;
+        lualib.luaL_openlibs(L);
+        expect(lauxlib.luaL_loadstring(L, to_luastring(luaCode))).toBe(lua.LUA_OK);
+        lua.lua_call(L, 0, -1);
+    } finally {
+        lualib.lua_setdebugreader(null);
+    }
+
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+});
+
+
+test('debug.debug reports a missing reader', () => {
+    let L = lauxlib.luaL_newstate();
+    if (!L) throw Error("failed to create lua state");
+
+    lualib.lua_setdebugreader(function() {
+        return undefined;
+    });
+
+    try {
+        let luaCode = `
+            local ok, err = pcall(debug.debug)
+            return ok, tostring(err)
+        `;
+        lualib.luaL_openlibs(L);
+        expect(lauxlib.luaL_loadstring(L, to_luastring(luaCode))).toBe(lua.LUA_OK);
+        lua.lua_call(L, 0, -1);
+    } finally {
+        lualib.lua_setdebugreader(null);
+    }
+
+    expect(lua.lua_toboolean(L, -2)).toBe(false);
+    expect(lua.lua_tojsstring(L, -1)).toContain("lua_setdebugreader");
+});
+
+
+test('lua_setdebugreader validates its argument', () => {
+    expect(() => lualib.lua_setdebugreader(42)).toThrow(TypeError);
+    expect(lualib.lua_getdebugreader()).toBe(null);
+});

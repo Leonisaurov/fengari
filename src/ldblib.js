@@ -468,44 +468,70 @@ const dblib = {
     "upvaluejoin":  db_upvaluejoin
 };
 
-let getinput;
-if (typeof process !== "undefined") { // Only with Node
-    const readlineSync = require('readline-sync');
-    readlineSync.setDefaultOptions({
-        prompt: 'lua_debug> '
-    });
-    getinput = function() {
-        return readlineSync.prompt();
-    };
-} else if (typeof window !== "undefined") {
-    /* if in browser use window.prompt. Doesn't work from web workers.
-       See https://developer.mozilla.org/en-US/docs/Web/API/Window/prompt
-    */
-    getinput = function() {
-        let input = prompt("lua_debug>", "");
-        return (input !== null) ? input : "";
-    };
-}
-if (getinput) {
-    dblib.debug = function(L) {
-        for (;;) {
-            let input = getinput();
+/*
+** Input source for debug.debug. Callers can install their own reader (for
+** web workers, hosts with a custom console, tests, etc.); the defaults are
+** readline-sync on Node and window.prompt in a browser.
+*/
+let debug_reader = null;
 
-            if (input === "cont")
-                return 0;
+const lua_setdebugreader = function(reader) {
+    if (reader !== null && typeof reader !== "function")
+        throw new TypeError("debug reader must be a function or null");
+    debug_reader = reader;
+};
 
-            if (input.length === 0)
-                continue;
+const lua_getdebugreader = function() {
+    return debug_reader;
+};
 
-            let buffer = to_luastring(input);
-            if (luaL_loadbuffer(L, buffer, buffer.length, to_luastring("=(debug command)", true))
-                || lua_pcall(L, 0, 0, 0)) {
-                lua_writestringerror(lua_tojsstring(L, -1), "\n");
-            }
-            lua_settop(L, 0);  /* remove eventual returns */
+const default_getinput = function() {
+    if (typeof process !== "undefined" && process.stdin) {
+        let readlineSync;
+        try {
+            readlineSync = require('readline-sync');
+        } catch (e) {
+            return undefined;  /* optional dependency not installed */
         }
-    };
-}
+        readlineSync.setDefaultOptions({
+            prompt: 'lua_debug> '
+        });
+        return readlineSync.prompt();
+    }
+    if (typeof window !== "undefined" && typeof window.prompt === "function") {
+        /* See https://developer.mozilla.org/en-US/docs/Web/API/Window/prompt */
+        let input = window.prompt("lua_debug>", "");
+        return (input !== null) ? input : null;  /* cancel means EOF */
+    }
+    return undefined;  /* no synchronous input available (e.g. web worker) */
+};
+
+dblib.debug = function(L) {
+    for (;;) {
+        let input = (debug_reader !== null) ? debug_reader() : default_getinput();
+
+        if (input === undefined)
+            return luaL_error(L, to_luastring("debug.debug needs an input reader; use lua_setdebugreader"));
+
+        if (input === null)  /* EOF */
+            return 0;
+
+        input = String(input);
+
+        if (input === "cont")
+            return 0;
+
+        if (input.length === 0)
+            continue;
+
+        let buffer = to_luastring(input);
+        if (luaL_loadbuffer(L, buffer, buffer.length, to_luastring("=(debug command)", true))
+            || lua_pcall(L, 0, 0, 0)) {
+            lua_writestringerror(lua_tojsstring(L, -1), "\n");
+        }
+        lua_settop(L, 0);  /* remove eventual returns */
+    }
+};
 
 const luaopen_debug = function(L) {
     luaL_newlib(L, dblib);
@@ -513,3 +539,5 @@ const luaopen_debug = function(L) {
 };
 
 module.exports.luaopen_debug = luaopen_debug;
+module.exports.lua_setdebugreader = lua_setdebugreader;
+module.exports.lua_getdebugreader = lua_getdebugreader;
