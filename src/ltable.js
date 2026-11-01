@@ -33,6 +33,13 @@ const lstate  = require('./lstate.js');
 /* used to prevent conflicts with lightuserdata keys */
 let lightuserdata_hashes = new WeakMap();
 let lgc; /* required lazily to avoid a cycle with lgc.js */
+
+const barrier = function(g, tv) {
+    if (!g || !g.gc_ctx)
+        return;
+    if (!lgc) lgc = require('./lgc.js');
+    lgc.luaC_barrier(g, tv);
+};
 const get_lightuserdata_hash = function(v) {
     let hash = lightuserdata_hashes.get(v);
     if (!hash) {
@@ -113,6 +120,7 @@ class Table {
         this.metatable = null;
         this.flags = ~0;
         this.finalized = false; /* marked for finalization already? */
+        this.g = L.l_G;         /* for write barriers in luaH_setint */
     }
 }
 
@@ -214,6 +222,8 @@ const luaH_setint = function(t, key, value) {
         mark_dead(t, hash);
         return;
     }
+    if (t.g && t.g.gc_ctx)
+        barrier(t.g, value);
     let e = t.strong.get(hash);
     if (e) {
         let tv = e.value;
@@ -231,6 +241,10 @@ const luaH_setfrom = function(L, t, key, value) {
     if (value.ttisnil()) { /* delete */
         mark_dead(t, hash);
         return;
+    }
+    if (t.g && t.g.gc_ctx) {
+        barrier(t.g, key);
+        barrier(t.g, value);
     }
 
     let e = t.strong.get(hash);

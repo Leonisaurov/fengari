@@ -4,22 +4,22 @@
 ** Collector support for weak tables, finalizers and memory accounting.
 **
 ** JavaScript's collector cannot observe Lua liveness synchronously, so
-** collectgarbage runs a mark/sweep over the Lua object graph:
+** Fengari runs a mark/sweep over the Lua object graph:
 **   - weak keys/values are not traversed as strong edges,
 **   - ephemeron tables (weak keys, strong values) are iterated to a fixpoint,
 **   - entries whose weak side is unreachable are removed,
 **   - unreachable objects marked with __gc are finalized once.
 **
-** Full cycles (collect, automatic collection, state close) are atomic.
-** collectgarbage("step") starts with an atomic mark and then clears weak
-** entries and runs finalizers in bounded batches, so the expensive part can
-** be spread over several calls. Objects must be anchored in the Lua state
+** A full cycle (collect, automatic collection, state close) is atomic.
+** collectgarbage("step") marks incrementally: the work list is processed in
+** bounded batches, roots/upvalues/hilo stacks are re-scanned between steps and
+** table/metatable/uservalue writes go through a write barrier. Only the final
+** ephemeron fixpoint is atomic. Objects must be anchored in the Lua state
 ** (stack, registry, upvalue, table) to count as reachable, like C pointers.
 */
 
 const {
-    LUA_TTABLE,
-    LUA_TUSERDATA,
+    constant_types: { LUA_TTABLE, LUA_TUSERDATA },
     luastring_indexOf,
     thread_status: { LUA_OK },
     to_luastring
@@ -32,16 +32,18 @@ const ltm     = require('./ltm.js');
 
 const WEAK_KEYS   = 1;
 const WEAK_VALUES = 2;
+const MARK_INFINITY = Infinity;
 
 /* rough per-object sizes, used only by collectgarbage("count") */
-const TVALUE_SIZE     = 16;
-const TABLE_OVERHEAD  = 56;
-const ENTRY_SIZE      = 40;
+const TVALUE_SIZE      = 16;
+const TABLE_OVERHEAD   = 56;
+const ENTRY_SIZE       = 40;
 const CLOSURE_OVERHEAD = 40;
-const UDATA_OVERHEAD  = 32;
-const STRING_OVERHEAD = 24;
-const THREAD_OVERHEAD = 120;
-const PROTO_OVERHEAD  = 96;
+const UDATA_OVERHEAD   = 32;
+const STRING_OVERHEAD  = 24;
+const THREAD_OVERHEAD  = 120;
+const CALLINFO_SIZE    = 80;
+const PROTO_OVERHEAD   = 96;
 
 const table_mode = function(L, t, modes) {
     let mode = modes.get(t);
@@ -71,15 +73,19 @@ const iscollectable = function(tv) {
 
 const object_size = function(o) {
     if (o instanceof ltable.Table)
-        return TABLE_OVERHEAD + o.strong.size * ENTRY_SIZE;
+        return TABLE_OVERHEAD + (o.strong.size + o.dead_strong.size) * ENTRY_SIZE;
     if (o instanceof lobject.Udata)
         return UDATA_OVERHEAD + o.len;
     if (o instanceof lobject.LClosure)
         return CLOSURE_OVERHEAD + o.nupvalues * TVALUE_SIZE;
     if (o instanceof lobject.CClosure)
         return CLOSURE_OVERHEAD + o.nupvalues * TVALUE_SIZE;
-    if (o instanceof lstate.lua_State)
-        return THREAD_OVERHEAD + (o.stack ? o.stack.length * TVALUE_SIZE : 0);
+    if (o instanceof lstate.lua_State) {
+        let cis = 0;
+        for (let ci = o.base_ci; ci; ci = ci.next) cis++;
+        return THREAD_OVERHEAD + (o.stack ? o.stack.length * TVALUE_SIZE : 0) +
+            cis * CALLINFO_SIZE;
+    }
     if (o instanceof lfunc.Proto)
         return PROTO_OVERHEAD + o.code.length * 4 + o.k.length * TVALUE_SIZE +
             o.p.length * 8 + o.lineinfo.length * 4 + o.upvalues.length * 8 +
@@ -88,11 +94,10 @@ const object_size = function(o) {
 };
 
 /*
-** Build the reachable set. When include_strings is true, strings referenced
-** by live values are tracked too (for memory accounting); they are never
-** considered dead for weak-table purposes.
+** Build a marking context. include_strings also records strings reachable
+** from live values (for memory accounting); strings are never weak-collected.
 */
-const mark_phase = function(L, include_strings) {
+const create_context = function(L, include_strings) {
     const g = L.l_G;
     const ctx = {
         marked: new Set(),
@@ -102,10 +107,19 @@ const mark_phase = function(L, include_strings) {
         weak_tables: [],
         weak_seen: new Set(),
         ephemerons: [],
+        closures: [],
+        threads: [],
+        udatas: [],
         weak_index: 0,
         weak_iter: null,
         finalize: [],
-        finalize_index: 0
+        finalize_index: 0,
+        phase: "mark"
+    };
+
+    const mark_string = function(s) {
+        if (ctx.strings && s)
+            ctx.strings.add(s);
     };
 
     const mark_object = function(o) {
@@ -122,8 +136,7 @@ const mark_phase = function(L, include_strings) {
 
     const mark_tvalue = function(tv) {
         if (tv.ttisstring()) {
-            if (ctx.strings)
-                ctx.strings.add(tv.value);
+            mark_string(tv.value);
             return;
         }
         if (iscollectable(tv))
@@ -132,6 +145,32 @@ const mark_phase = function(L, include_strings) {
 
     const is_alive = function(tv) {
         return !iscollectable(tv) || ctx.marked.has(tv.value);
+    };
+
+    const closure_refs = function(f) {
+        mark_object(f.p);
+        for (const up of f.upvals || []) {
+            if (up) mark_tvalue(up);
+        }
+        for (const up of f.upvalue || []) {
+            if (up) mark_tvalue(up);
+        }
+    };
+
+    const udata_refs = function(u) {
+        mark_table(u.metatable);
+        mark_tvalue(u.uservalue);
+    };
+
+    const thread_refs = function(L1) {
+        if (L1.stack) {
+            for (let i = 0; i < L1.top; i++) {
+                const tv = L1.stack[i];
+                if (tv) mark_tvalue(tv);
+            }
+        }
+        for (let ci = L1.ci; ci; ci = ci.previous)
+            if (ci.func) mark_tvalue(ci.func);
     };
 
     const traverse_table = function(t) {
@@ -157,33 +196,6 @@ const mark_phase = function(L, include_strings) {
         }
     };
 
-    const traverse_udata = function(u) {
-        mark_table(u.metatable);
-        mark_tvalue(u.uservalue);
-    };
-
-    const traverse_lclosure = function(f) {
-        mark_object(f.p);
-        for (const up of f.upvals)
-            if (up) mark_tvalue(up);
-    };
-
-    const traverse_cclosure = function(f) {
-        for (const up of f.upvalue)
-            if (up) mark_tvalue(up);
-    };
-
-    const traverse_thread = function(L1) {
-        if (L1.stack) {
-            for (let i = 0; i < L1.top; i++) {
-                const tv = L1.stack[i];
-                if (tv) mark_tvalue(tv);
-            }
-        }
-        for (let ci = L1.ci; ci; ci = ci.previous)
-            if (ci.func) mark_tvalue(ci.func);
-    };
-
     const traverse_proto = function(p) {
         for (const tv of p.k)
             mark_tvalue(tv);
@@ -191,24 +203,38 @@ const mark_phase = function(L, include_strings) {
             mark_object(sub);
         if (p.cache)
             mark_object(p.cache);
+        if (ctx.strings) {
+            mark_string(p.source);
+            for (const uv of p.upvalues)
+                if (uv.name) mark_string(uv.name);
+            for (const lv of p.locvars)
+                if (lv.varname) mark_string(lv.varname);
+        }
     };
 
-    const drain = function() {
-        while (ctx.work.length > 0) {
+    const drain = function(budget) {
+        let processed = 0;
+        while (ctx.work.length > 0 && processed < budget) {
             const o = ctx.work.pop();
+            processed++;
             if (o instanceof ltable.Table)
                 traverse_table(o);
-            else if (o instanceof lobject.Udata)
-                traverse_udata(o);
-            else if (o instanceof lobject.LClosure)
-                traverse_lclosure(o);
-            else if (o instanceof lobject.CClosure)
-                traverse_cclosure(o);
-            else if (o instanceof lstate.lua_State)
-                traverse_thread(o);
-            else if (o instanceof lfunc.Proto)
+            else if (o instanceof lobject.Udata) {
+                ctx.udatas.push(o);
+                udata_refs(o);
+            } else if (o instanceof lobject.LClosure) {
+                ctx.closures.push(o);
+                closure_refs(o);
+            } else if (o instanceof lobject.CClosure) {
+                ctx.closures.push(o);
+                closure_refs(o);
+            } else if (o instanceof lstate.lua_State) {
+                ctx.threads.push(o);
+                thread_refs(o);
+            } else if (o instanceof lfunc.Proto)
                 traverse_proto(o);
         }
+        return processed;
     };
 
     const drain_ephemerons = function() {
@@ -221,7 +247,7 @@ const mark_phase = function(L, include_strings) {
                         mark_tvalue(entry.value);
                 }
             }
-            drain();
+            drain(MARK_INFINITY);
         } while (ctx.marked.size !== previous);
     };
 
@@ -231,26 +257,50 @@ const mark_phase = function(L, include_strings) {
         mark_tvalue(g.l_registry);
         for (const mt of g.mt)
             mark_table(mt);
+        if (ctx.strings) {
+            for (const s of g.tmname)
+                if (s) mark_string(s);
+        }
     };
 
-    /* Re-scan roots between incremental steps so values anchored while the
-       collector was suspended are not treated as dead. */
-    ctx.remark = function() {
+    const finish_mark = function() {
+        drain_ephemerons();
+        ctx.finalize = [];
+        for (const obj of g.finalizable) {
+            if (!ctx.marked.has(obj))
+                ctx.finalize.push(obj);
+        }
+        ctx.finalize.reverse();
+        ctx.phase = "sweep";
+    };
+
+    ctx.mark_object = mark_object;
+    ctx.mark_tvalue = mark_tvalue;
+    ctx.drain = drain;
+    ctx.finish_mark = finish_mark;
+    ctx.barrier = function(tv) {
+        mark_tvalue(tv);
+    };
+    /* Re-scan mutable roots between incremental steps (without draining the
+       pending work list, so marking stays bounded). */
+    ctx.rescan = function() {
         mark_roots();
-        drain();
+        for (let i = 0; i < ctx.closures.length; i++)
+            closure_refs(ctx.closures[i]);
+        for (let i = 0; i < ctx.threads.length; i++)
+            thread_refs(ctx.threads[i]);
+        for (let i = 0; i < ctx.udatas.length; i++)
+            udata_refs(ctx.udatas[i]);
+    };
+    /* Full re-scan for the sweep phase: the delta must be marked before any
+       further entry is cleared. */
+    ctx.remark = function() {
+        ctx.rescan();
+        drain(MARK_INFINITY);
         drain_ephemerons();
     };
 
     mark_roots();
-    drain();
-    drain_ephemerons();
-
-    for (const obj of g.finalizable) {
-        if (!ctx.marked.has(obj))
-            ctx.finalize.push(obj);
-    }
-    ctx.finalize.reverse();
-
     return ctx;
 };
 
@@ -302,7 +352,9 @@ const luaC_fullgc = function(L) {
     g.in_gc = true;
     let ctx;
     try {
-        ctx = mark_phase(L, false);
+        ctx = create_context(L, false);
+        ctx.drain(MARK_INFINITY);
+        ctx.finish_mark();
         clear_weak_entries(ctx);
         run_pending_finalizers(L, ctx, true);
     } finally {
@@ -312,8 +364,8 @@ const luaC_fullgc = function(L) {
 };
 
 /*
-** Incremental cycle: atomic mark, then bounded weak-clearing/finalization.
-** Returns true when the cycle is complete.
+** Incremental cycle: bounded marking, then bounded weak-clearing and
+** finalization. Returns true when the cycle is complete.
 */
 const luaC_step = function(L) {
     const g = L.l_G;
@@ -326,13 +378,22 @@ const luaC_step = function(L) {
     try {
         let ctx = g.gc_ctx;
         if (!ctx) {
-            ctx = mark_phase(L, false);
+            ctx = create_context(L, false);
             g.gc_ctx = ctx;
+        } else if (ctx.phase === "mark") {
+            ctx.rescan();
         } else {
             ctx.remark();
         }
 
         let budget = Math.max(10, g.gc_stepmul|0);
+
+        if (ctx.phase === "mark") {
+            budget -= ctx.drain(budget);
+            if (ctx.work.length > 0)
+                return false;
+            ctx.finish_mark();
+        }
 
         while (budget > 0 && ctx.weak_index < ctx.weak_tables.length) {
             const t = ctx.weak_tables[ctx.weak_index];
@@ -366,7 +427,8 @@ const luaC_step = function(L) {
             budget--;
         }
 
-        if (ctx.weak_index >= ctx.weak_tables.length &&
+        if (ctx.phase === "sweep" &&
+            ctx.weak_index >= ctx.weak_tables.length &&
             ctx.finalize_index >= ctx.finalize.length) {
             g.gc_ctx = null;
             reset_threshold(L, ctx);
@@ -376,6 +438,19 @@ const luaC_step = function(L) {
     } finally {
         g.in_gc = false;
     }
+};
+
+/* Write barrier used while an incremental cycle is active. */
+const luaC_barrier = function(g, tv) {
+    const ctx = g.gc_ctx;
+    if (ctx)
+        ctx.barrier(tv);
+};
+
+const luaC_barrier_object = function(g, o) {
+    const ctx = g.gc_ctx;
+    if (ctx && o)
+        ctx.mark_object(o);
 };
 
 /* Called by allocations: trigger a full cycle after a budget of new objects. */
@@ -397,7 +472,9 @@ const luaC_count = function(L) {
     if (g.in_gc)
         return g.gc_count === null ? 0 : g.gc_count;
 
-    const ctx = mark_phase(L, true);
+    const ctx = create_context(L, true);
+    ctx.drain(MARK_INFINITY);
+    ctx.finish_mark();
     let bytes = 0;
     for (const o of ctx.marked)
         bytes += object_size(o);
@@ -420,6 +497,7 @@ const run_finalizer = function(L, obj, propagate) {
 
     /* required lazily to avoid a cycle: lapi requires this module */
     const lapi = require('./lapi.js');
+    const ldo = require('./ldo.js');
     if (!lapi.lua_checkstack(L, 2))
         return;
 
@@ -428,7 +506,11 @@ const run_finalizer = function(L, obj, propagate) {
     L.stack[L.top++] = new lobject.TValue(
         obj instanceof ltable.Table ? LUA_TTABLE : LUA_TUSERDATA, obj);
 
-    const status = lapi.lua_pcall(L, 1, 0, 0);
+    /* same path as PUC's GCTM: call the finalizer without an extra frame */
+    const dothecall = function(L1) {
+        ldo.luaD_callnoyield(L1, L1.top - 2, 0);
+    };
+    const status = ldo.luaD_pcall(L, dothecall, null, top, 0);
     if (status !== LUA_OK) {
         if (propagate) {
             let msg = lapi.lua_tostring(L, -1);
@@ -481,9 +563,11 @@ const luaC_freeallobjects = function(L) {
     }
 };
 
-module.exports.luaC_allocated      = luaC_allocated;
-module.exports.luaC_checkfinalizer = luaC_checkfinalizer;
-module.exports.luaC_count          = luaC_count;
-module.exports.luaC_freeallobjects = luaC_freeallobjects;
-module.exports.luaC_fullgc         = luaC_fullgc;
-module.exports.luaC_step           = luaC_step;
+module.exports.luaC_allocated       = luaC_allocated;
+module.exports.luaC_barrier         = luaC_barrier;
+module.exports.luaC_barrier_object  = luaC_barrier_object;
+module.exports.luaC_checkfinalizer  = luaC_checkfinalizer;
+module.exports.luaC_count           = luaC_count;
+module.exports.luaC_freeallobjects  = luaC_freeallobjects;
+module.exports.luaC_fullgc          = luaC_fullgc;
+module.exports.luaC_step            = luaC_step;

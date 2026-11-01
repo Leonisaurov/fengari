@@ -423,6 +423,8 @@ const lua_setmetatable = function(L, objindex) {
         case LUA_TTABLE: {
             obj.value.metatable = mt;
             lgc.luaC_checkfinalizer(L, obj.value, mt);
+            if (mt && L.l_G.gc_ctx)
+                lgc.luaC_barrier_object(L.l_G, mt);
             break;
         }
         default: {
@@ -591,6 +593,8 @@ const lua_setupvalue = function(L, funcindex, n) {
         let name = aux.name;
         let val = aux.val;
         val.setfrom(L.stack[L.top-1]);
+        if (L.l_G.gc_ctx)
+            lgc.luaC_barrier(L.l_G, val);
         delete L.stack[--L.top];
         return name;
     }
@@ -960,6 +964,8 @@ const lua_setuservalue = function(L, idx) {
     let o = index2addr(L, idx);
     api_check(L, o.ttisfulluserdata(), "full userdata expected");
     o.value.uservalue.setfrom(L.stack[L.top - 1]);
+    if (L.l_G.gc_ctx)
+        lgc.luaC_barrier(L.l_G, o.value.uservalue);
     delete L.stack[--L.top];
 };
 
@@ -1113,6 +1119,8 @@ const lua_upvaluejoin = function(L, fidx1, n1, fidx2, n2) {
     let ref2 = getupvalref(L, fidx2, n2);
     let up2 = ref2.f.upvals[ref2.i];
     ref1.f.upvals[ref1.i] = up2;
+    if (L.l_G.gc_ctx)
+        lgc.luaC_barrier(L.l_G, up2);
 };
 
 /*

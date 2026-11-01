@@ -193,6 +193,85 @@ test('collectgarbage("step") is incremental and eventually completes', () => {
     expect(lua.lua_toboolean(L, -1)).toBe(true);
 });
 
+test('incremental marking processes a large graph in chunks', () => {
+    let L = run(`
+        local keep = {}
+        for i = 1, 3000 do keep[i] = {i} end
+        assert(collectgarbage("setstepmul", 10) == 200)
+        local first = collectgarbage("step")
+        local done = first
+        local steps = 1
+        while not done and steps < 5000 do
+            done = collectgarbage("step")
+            steps = steps + 1
+        end
+        return first, done, steps, keep[1][1], keep[3000][1]
+    `);
+    expect(lua.lua_toboolean(L, -5)).toBe(false);
+    expect(lua.lua_toboolean(L, -4)).toBe(true);
+    expect(lua.lua_tointeger(L, -3)).toBeGreaterThan(10);
+    expect(lua.lua_tointeger(L, -2)).toBe(1);
+    expect(lua.lua_tointeger(L, -1)).toBe(3000);
+});
+
+test('incremental marking keeps values written through a barrier', () => {
+    let L = run(`
+        local bulk = {}
+        for i = 1, 3000 do bulk[i] = {} end
+
+        local weak = setmetatable({}, {__mode = "v"})
+        local x = {}
+        weak[1] = x
+        x = nil
+
+        collectgarbage("setstepmul", 10)
+        collectgarbage("step")       -- marking is still in progress
+
+        local t = weak[1]            -- retrieve before sweeping
+        _G.KEEP = t                  -- write into the (already marked) globals
+        t = nil                      -- drop it from the stack
+
+        local done = false
+        while not done do done = collectgarbage("step") end
+
+        local ok = _G.KEEP ~= nil and weak[1] == _G.KEEP
+        _G.KEEP = nil
+        return ok
+    `);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+});
+
+test('incremental marking keeps resurrected finalizable objects', () => {
+    let L = run(`
+        local bulk = {}
+        for i = 1, 3000 do bulk[i] = {} end
+
+        local saved = nil
+        local mt = {__gc = function(o) saved = o end}
+        local weak = setmetatable({}, {__mode = "v"})
+        local t = setmetatable({}, mt)
+        weak[1] = t
+        t = nil
+
+        collectgarbage("setstepmul", 10)
+        collectgarbage("step")
+
+        local tmp = weak[1]
+        _G.KEEP = tmp
+        tmp = nil
+
+        local done = false
+        while not done do done = collectgarbage("step") end
+        local survived = _G.KEEP ~= nil and saved == nil
+
+        _G.KEEP = nil
+        collectgarbage()
+        return survived, saved ~= nil
+    `);
+    expect(lua.lua_toboolean(L, -2)).toBe(true);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+});
+
 test('collectgarbage("count") tracks live Lua memory', () => {
     let L = run(`
         local before = collectgarbage("count")
@@ -313,15 +392,34 @@ test('collectgarbage("step") respects a stopped collector', () => {
     expect(lua.lua_tointeger(L, -1)).toBe(1);
 });
 
+test('__gc receives the object being collected', () => {
+    let L = run(`
+        local typ, same
+        local t = setmetatable({marker = 42}, {
+            __gc = function(o)
+                typ = type(o)
+                same = (o.marker == 42)
+            end
+        })
+        t = nil
+        collectgarbage()
+        return typ, same
+    `);
+    expect(lua.lua_tojsstring(L, -2)).toBe("table");
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+});
+
 test('__gc runs for unreachable userdata', () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
     lualib.luaL_openlibs(L);
 
     let calls = 0;
+    let argtype = null;
     lauxlib.luaL_newmetatable(L, to_luastring("test.gc"));
-    lua.lua_pushcfunction(L, function() {
+    lua.lua_pushcfunction(L, function(Ln) {
         calls++;
+        argtype = lua.lua_type(Ln, 1);
         return 0;
     });
     lua.lua_setfield(L, -2, to_luastring("__gc"));
@@ -333,6 +431,7 @@ test('__gc runs for unreachable userdata', () => {
 
     lua.lua_gc(L, lua.LUA_GCCOLLECT, 0);
     expect(calls).toBe(1);
+    expect(argtype).toBe(lua.LUA_TUSERDATA);
 });
 
 test('lua_close finalizes pending objects', () => {
