@@ -78,6 +78,80 @@ test('%q produces loadable literals', () => {
     expect(lua.lua_toboolean(L, -1)).toBe(true);
 });
 
+test('locale controls the decimal separator', () => {
+    let L = run(`
+        local set = os.setlocale("de-DE")
+        if set then
+            assert(string.format("%.2f", 1.5) == "1,50")
+            assert(string.format("%a", 1.5) == "0x1,8p+0")
+            assert(string.format("%q", 1.5) == "0x1.8p+0")
+            assert(os.setlocale(nil) == "de-DE")
+        end
+        assert(os.setlocale("C") == "C")
+        assert(string.format("%.2f", 1.5) == "1.50")
+        assert(os.setlocale("not_a_real_locale") == nil)
+        return true
+    `);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+});
+
+test('tracebacks include messages and stack frames', () => {
+    let L = run(`
+        local function inner() error("boom") end
+        local ok, tb = xpcall(inner, debug.traceback)
+        assert(ok == false)
+        assert(string.find(tb, "boom"))
+        assert(string.find(tb, "stack traceback"))
+
+        local tb2 = debug.traceback("msg", 2)
+        assert(string.find(tb2, "msg"))
+
+        local co = coroutine.create(function() coroutine.yield() end)
+        coroutine.resume(co)
+        local tb3 = debug.traceback(co, "co-msg")
+        assert(string.find(tb3, "co-msg", 1, true))
+        return true
+    `);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+});
+
+test('string.pack, utf8 and load edge cases', () => {
+    let L = run(`
+        local s = string.pack("!4i1i4", 1, 2)
+        assert(#s == 8)
+        local a, b = string.unpack("!4i1i4", s)
+        assert(a == 1 and b == 2)
+        assert(#string.pack("s4", "hello") == 9)
+        assert(not pcall(string.unpack, "i4", "xx"))
+
+        assert(utf8.len("\\255") == nil)
+        assert(utf8.len("héllo") == 5)
+        local s2 = utf8.char(0x1F600)
+        assert(utf8.codepoint(s2) == 0x1F600)
+
+        local f, err = load("\\27Lua garbage", "x", "b")
+        assert(f == nil and type(err) == "string")
+        local f2, err2 = load("return 1", "x", "b")
+        assert(f2 == nil and string.find(err2, "text chunk"))
+        assert(load("return 42", "x", "t")() == 42)
+        return true
+    `);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+});
+
+test('os.date handles far dates and time normalisation', () => {
+    let L = run(`
+        assert(os.date("!%Y-%m-%d", 0) == "1970-01-01")
+        assert(os.date("!%Y", 2147483647) == "2038")
+        local t = os.time({year = 2100, month = 1, day = 1, hour = 12})
+        assert(type(t) == "number")
+        local d = os.date("!*t", 0)
+        assert(d.year == 1970 and d.month == 1 and d.day == 1 and d.yday == 1)
+        return true
+    `);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+});
+
 test('32-bit integer edge cases', () => {
     let L = run(`
         return math.mininteger // -1 == math.mininteger,
