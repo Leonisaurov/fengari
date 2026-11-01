@@ -39,7 +39,9 @@ const { to_luastring } = require("./fengaricore.js");
 let rand_state;
 /* use same parameters as glibc LCG */
 const l_rand = function() {
-    rand_state = (1103515245 * rand_state + 12345) & 0x7fffffff;
+    /* Math.imul keeps the multiplication exact in 32-bit; a plain `*` loses
+       precision once the state no longer fits in 53 bits. */
+    rand_state = (Math.imul(1103515245, rand_state) + 12345) & 0x7fffffff;
     return rand_state;
 };
 const l_srand = function(x) {

@@ -146,6 +146,32 @@ test('math.random', () => {
 });
 
 
+test('math.randomseed', () => {
+    let L = lauxlib.luaL_newstate();
+    if (!L) throw Error("failed to create lua state");
+
+    let luaCode = `
+        math.randomseed(42)
+        local a, b, c = math.random(), math.random(), math.random()
+        math.randomseed(42)
+        local d, e, f = math.random(), math.random(), math.random()
+        return a == d and b == e and c == f, a, b, c
+    `;
+    {
+        lualib.luaL_openlibs(L);
+        expect(lauxlib.luaL_loadstring(L, to_luastring(luaCode))).toBe(lua.LUA_OK);
+        lua.lua_call(L, 0, -1);
+    }
+
+    expect(lua.lua_toboolean(L, -4)).toBe(true);
+    /* Values from the exact 31-bit LCG; the old float implementation drifted
+       from these after the second draw. */
+    expect(lua.lua_tonumber(L, -3)).toBe(0.5198187492787838);
+    expect(lua.lua_tonumber(L, -2)).toBe(0.46597642498090863);
+    expect(lua.lua_tonumber(L, -1)).toBe(0.7770372582599521);
+});
+
+
 test('math.sqrt', () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
