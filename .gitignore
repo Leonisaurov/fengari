@@ -30,6 +30,12 @@ build/Release
 node_modules
 jspm_packages
 
+# pnpm lockfile is local-only; yarn.lock is the source of truth (see README)
+pnpm-lock.yaml
+
+# Local design notes, not part of the published project
+HMR.md
+
 # Optional npm cache directory
 .npm
 
