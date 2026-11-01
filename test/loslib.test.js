@@ -128,6 +128,37 @@ test('os.time normalisation of table', () => {
 });
 
 
+test('os.date UTC and %j', () => {
+    let L = lauxlib.luaL_newstate();
+    if (!L) throw Error("failed to create lua state");
+
+    let luaCode = `
+        local t = os.date("!*t", 0)
+        return os.date("!%Y-%m-%dT%H:%M:%SZ", 0),
+               os.date("!%j", 0),
+               os.date("!%Z %z", 0),
+               os.date("%j", os.time({ day = 20, month = 2, year = 2018 })),
+               t.year, t.month, t.day, t.hour, t.wday, t.yday
+    `;
+    {
+        lualib.luaL_openlibs(L);
+        expect(lauxlib.luaL_loadstring(L, to_luastring(luaCode))).toBe(lua.LUA_OK);
+        lua.lua_call(L, 0, -1);
+    }
+
+    expect(lua.lua_tojsstring(L, -10)).toBe("1970-01-01T00:00:00Z");
+    expect(lua.lua_tojsstring(L, -9)).toBe("001");
+    expect(lua.lua_tojsstring(L, -8)).toBe("UTC +0000");
+    expect(lua.lua_tojsstring(L, -7)).toBe("051");
+    expect(lua.lua_tointeger(L, -6)).toBe(1970);  /* year */
+    expect(lua.lua_tointeger(L, -5)).toBe(1);     /* month */
+    expect(lua.lua_tointeger(L, -4)).toBe(1);     /* day */
+    expect(lua.lua_tointeger(L, -3)).toBe(0);     /* hour */
+    expect(lua.lua_tointeger(L, -2)).toBe(5);     /* wday: Thursday */
+    expect(lua.lua_tointeger(L, -1)).toBe(1);     /* yday */
+});
+
+
 test('os.setlocale', () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
