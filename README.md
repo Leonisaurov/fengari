@@ -64,12 +64,12 @@ In the browser `require` and `package.loadlib` try to find a file by making sync
 
 ### Weak tables and finalizers
 
-Weak tables (`__mode` = `"k"`, `"v"` or `"kv"`, including ephemerons) and `__gc` finalizers are implemented. Because JavaScript's collector cannot expose Lua liveness synchronously, Fengari runs a mark/sweep pass over the Lua object graph during `collectgarbage("collect")`/`"step"` and when the state is closed. The pass is not incremental and does not run on its own. Only values reachable from the Lua state count as live, so host-held values must be anchored in the registry or on the stack, as with C pointers in PUC Lua.
+Weak tables (`__mode` = `"k"`, `"v"` or `"kv"`, including ephemerons) and `__gc` finalizers are implemented. Because JavaScript's collector cannot expose Lua liveness synchronously, Fengari runs a mark/sweep pass over the Lua object graph. A full cycle runs on `collectgarbage("collect")` and when the state is closed; `collectgarbage("step")` marks atomically and then clears weak entries and runs finalizers in bounded batches. Automatic cycles also run after an allocation budget when weak tables or pending finalizers exist (`setpause` scales the budget). The pass is not fully incremental: its mark phase is still atomic. Only values reachable from the Lua state count as live, so host-held values must be anchored in the registry or on the stack, as with C pointers in PUC Lua. `collectgarbage("count")` reports an estimate of the live Lua objects, not the JavaScript heap.
 
 
 ### _Missing_ features
 
-- `lua_gc`/`collectgarbage`: the API is accepted for compatibility, but Fengari relies on the JS garbage collector. `stop`, `restart`, `setpause` and `setstepmul` are advisory only, `count` reports the JS heap, and `collect`/`step` can only force a JS collection when the host exposes `gc` (e.g. Node started with `--expose-gc`). `collect`/`step` also run the Lua weak-table and `__gc` passes described above.
+- `lua_gc`/`collectgarbage`: the API is implemented on top of a Lua-side mark/sweep. `collect` runs a full cycle, `step` spreads weak clearing and finalization over several calls, and `count` reports the approximate size of live Lua objects (not the JS heap). Weak tables and pending finalizers trigger automatic cycles after an allocation budget, controlled by `setpause`; `setstepmul` controls the work done per step. A full `collect` also asks the host JS collector to run when it exposes `gc` (e.g. Node with `--expose-gc`).
 - The following functions are only available in Node:
     - The entire `io` lib
     - `os.remove`
