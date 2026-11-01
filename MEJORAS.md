@@ -102,19 +102,19 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 
 ## 5. Calidad, tests y tooling
 
-- **Cobertura con umbral** — P0, S. `jest --coverage`, reporte en CI y no bajar el porcentaje en cada PR.
-- **Activar tests saltados** — P1, M. GC, `io.read`, pila profunda y límites de memoria (`test/test-suite/api.test.js` y otros). Cada feature nueva debería eliminar sus `test.skip`.
+- [x] **Cobertura con umbral** — `jest --coverage`, reporte en CI y umbral global (90% statements/funciones/líneas, 85% ramas).
+- **Activar tests saltados** — P1, M. Quedan 20: 12 de API (harness `T`, límites de memoria, userdata internos), 3 de fixtures externos, 2 de internals de tabla, 1 locale, 1 `require` del sistema y 1 bucle enorme. Los de API requieren adaptarlos al harness JS, no al GC.
 - **Tests de navegador** — P1, M. Playwright contra el bundle: XHR/`require`, workers, `debug.debug` y APIs ausentes en Node.
 - **Tests diferenciales contra PUC Lua 5.3** — P1, M. Ejecutar el mismo corpus y comparar stdout, errores y códigos de salida; detectar divergencias de semántica.
 - **Fuzzing del parser y `lundump`** — P1, M. Bytes aleatorios y chunks malformados no deben tumbar el proceso; usar un corpus semilla y límites de tiempo.
-- **CI más completa** — P1, S. Node 26, caché, `npm pack`, matriz de gestores (yarn/pnpm) y workflow de publicación.
-- **Scripts de desarrollo** — P0, S. `test:watch`, `test:coverage`, `lint:fix` y un `check` que encadene lint + tests.
+- [x] **CI más completa** — Node 20–26, caché de yarn, `--frozen-lockfile`, cobertura y validación del tarball. Queda un workflow de publicación.
+- [x] **Scripts de desarrollo** — `test:watch`, `test:coverage`, `lint:fix` y `check`.
 - **Typecheck** — P2, M. `tsc --checkJs` sobre `src/` con `// @ts-check` gradual; los errores encontrados suelen revelar bugs reales.
 - **Documentación** — P1, M. Referencia de API generada desde JSDoc, guía de inicio en navegador, ejemplos (REPL, host de plugins, bucle de juego) y guía de migración desde Lua C.
 - **Contribución** — P2, S. `CONTRIBUTING.md`, plantillas de issue/PR, `SECURITY.md` y código de conducta.
 - **Changelog** — P2, S. Automatizar `NEWS` desde commits etiquetados y documentar el proceso de release.
-- **Higiene de dependencias** — P2, S. Hacer `readline-sync` opcional/lazy, revisar `tmp` y `sprintf-js`, y añadir auditoría periódica.
-- **Política de lockfiles** — P1, S. CI usa `yarn.lock`; hoy conviven con `pnpm-lock.yaml`. Elegir uno, documentarlo y evitar que se desincronicen.
+- **Higiene de dependencias** — P2, S. Revisar `tmp` y `sprintf-js` y añadir auditoría periódica (`readline-sync` ya es opcional en tiempo de ejecución).
+- [x] **Política de lockfiles** — `yarn.lock` es la fuente de verdad, `pnpm-lock.yaml` está ignorado y CI instala con `--frozen-lockfile`.
 - **Tamaño del paquete** — P2, M. Medir `npm pack`, cargar librerías bajo demanda y eliminar código Node del bundle de navegador.
 
 ---
@@ -123,7 +123,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 
 - [x] **Registro de implementaciones** — `versions.register/get/list/setDefault/features`, `luaL_newstate(version)` y `FENGARICONF.LUA_VERSION`; hooks `openlibs` y `loadbufferx` (`src/versions.js`).
 - [x] **Perfiles 5.1 y 5.2 de superficie de librerías** — `bit32`, aliases y eliminación de APIs 5.3, `package.loaders`, `getfenv`, `math.*` compatibles (`src/versions/`, `src/lbitlib.js`).
-- **Semántica completa 5.1/5.2** — P2, L. Falta un parser/VM y semántica numérica por versión: enteros 5.3, operadores bit a bit, `//`, `goto`, entornos 5.1 y `setfenv`/`module`.
+- **Semántica completa 5.1/5.2** — P2, L. Los perfiles solo cubren librerías. Verificado: 5.1/5.2 siguen aceptando `//`, `&` y `<<`; 5.1 acepta `goto`; `tostring(1.0)` sigue dando `"1.0"`; `getfenv` existe pero `setfenv`/`module` no. Falta lexer/parser por versión, modelo numérico double para 5.1/5.2, entornos por función, `undump` por versión y APIs menores (`newproxy`, `table.setn`, `os.exit` booleano, `load` con lector en 5.1).
 
 ## 7. Lua 5.4 y futuro
 
@@ -136,12 +136,22 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 
 ---
 
+## Límites conocidos actuales
+
+- **Versiones**: el parser/VM es 5.3; los perfiles 5.1/5.2 ajustan la superficie de librerías, no la sintaxis ni el modelo numérico. `setfenv`/`module` no están disponibles.
+- **GC**: `count` usa tamaños estimados por tipo; `collect` es atómico y solo `step` es incremental. Los valores retenidos únicamente por JS no cuentan como raíces.
+- **Fidelidad**: locale solo cubre el separador decimal (`ctype`/collation siguen en "C"); `%q` para `inf`/`nan` mantiene el estilo 5.3; los tracebacks no garantizan paridad exacta de marcos C/JS.
+- **Navegador**: `require`/`package.loadlib` usan XHR síncrono; no hay tests reales de navegador/workers.
+
+---
+
 ## Roadmap sugerido
 
-1. **Fase 1 — Quick wins (1–2 semanas).** `lua_gc`, `%a`, `exports`/`files`/`engines`, cobertura, CI, scripts, benchmarks y `math.random`.
-2. **Fase 2 — Navegador usable (2–4 semanas).** `io.read/open/lines`, `require` sin XHR, bundle + source maps, tipos TS y API de alto nivel.
-3. **Fase 3 — Fidelidad (3–6 semanas).** Tracebacks, corrutinas avanzadas, tests diferenciales, fuzzing y tests de navegador.
-4. **Fase 4 — Rendimiento y 5.4 (continuo).** Optimizar VM/tablas/strings, evaluar WASM y decidir si se adopta 5.4 con enteros de 64 bits.
+1. **Fase 1 — Completada.** P0, tablas débiles/`__gc`, GC automático/incremental, `count` real, fidelidad de floats/locale/tracebacks, perfiles de versión y tooling.
+2. **Fase 2 — Versiones reales (4–8 semanas).** Lexer/parser y modelo numérico por versión, entornos por función (`setfenv`/`module`), `undump` por versión y APIs menores de 5.1/5.2.
+3. **Fase 3 — Navegador (2–4 semanas).** `require` asíncrono/sin XHR, bundle con source maps, tests Playwright y workers.
+4. **Fase 4 — Medición (continuo).** `bench/`, diferencial automático contra PUC, fuzzing y después optimización de VM/tablas/strings.
+5. **Fase 5 — Largo plazo.** Lua 5.4, enteros de 64 bits con `BigInt`, WASM/FFI.
 
 ## Cómo medir el éxito
 

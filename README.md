@@ -111,7 +111,7 @@ versions.features(L);     // { integers, bitwise, goto, env, utf8, bit32, ... }
 
 A version module is an object with `name`, `version` (`{major, minor, release, num, string}`), `features`, and optional `openlibs(L)` and `loadbufferx(L, buff, size, name, mode)` hooks. `versions.register(impl)` adds a custom implementation.
 
-The bundled profiles change the library surface: 5.2 installs `bit32`, removes `utf8`, `string.pack` and other 5.3 APIs; 5.1 adds `unpack`, `loadstring`, `getfenv`, `table.maxn`, `string.gfind`, `package.loaders` and the deprecated `math.*` helpers, and removes 5.2/5.3 APIs. The lexer, parser and VM still implement Lua 5.3 semantics, so syntax-level differences (bitwise operators, integer division, `goto`, 5.1 environments) require a full implementation via the `loadbufferx` hook. `setfenv`/`module` are not provided by the 5.1 profile because they need per-function environments, and locale support covers the decimal separator only (collation and character classes remain C-only).
+The bundled profiles change the library surface: 5.2 installs `bit32`, removes `utf8`, `string.pack` and other 5.3 APIs; 5.1 adds `unpack`, `loadstring`, `getfenv`, `table.maxn`, `string.gfind`, `package.loaders` and the deprecated `math.*` helpers, and removes 5.2/5.3 APIs. The lexer, parser and VM still implement Lua 5.3 semantics (including the integer subtype), so syntax-level and number-model differences require a full implementation via the `loadbufferx` hook. `setfenv`/`module` are not provided by the 5.1 profile because they need per-function environments, and locale support covers the decimal separator only (collation and character classes remain C-only).
 
 
 ## Extensions
