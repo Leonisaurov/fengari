@@ -164,11 +164,9 @@ const LUA_NUMBER_FRMLEN = "";
 const LUA_INTEGER_FMT = `%${LUA_INTEGER_FRMLEN}d`;
 const LUA_NUMBER_FMT  = "%.14g";
 
-const lua_getlocaledecpoint = function() {
-    /* we hard-code the decimal point to '.' as a user cannot change the
-       locale in most JS environments, and in that you can, a multi-byte
-       locale is common.
-    */
+const lua_getlocaledecpoint = function(L) {
+    if (L && L.l_G && L.l_G.locale_decimal)
+        return L.l_G.locale_decimal.charCodeAt(0);
     return 46 /* '.'.charCodeAt(0) */;
 };
 
@@ -203,6 +201,7 @@ const ldexp = function(mantissa, exponent) {
 module.exports.LUAI_MAXSTACK          = LUAI_MAXSTACK;
 module.exports.LUA_COMPAT_FLOATSTRING = LUA_COMPAT_FLOATSTRING;
 module.exports.LUA_IDSIZE             = LUA_IDSIZE;
+module.exports.LUA_VERSION            = conf.LUA_VERSION || "5.3";
 module.exports.LUA_INTEGER_FMT        = LUA_INTEGER_FMT;
 module.exports.LUA_INTEGER_FRMLEN     = LUA_INTEGER_FRMLEN;
 module.exports.LUA_MAXINTEGER         = LUA_MAXINTEGER;

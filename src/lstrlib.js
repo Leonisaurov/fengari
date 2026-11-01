@@ -282,9 +282,21 @@ const pad = function(body, signlen, width, flags) {
     return " ".repeat(missing) + body;
 };
 
-const lua_number2strx = function(L, fmt, x) {
+const localize_decimal = function(L, s) {
+    let i = s.indexOf(".");
+    if (i < 0)
+        return s;
+    let point = String.fromCharCode(lua_getlocaledecpoint(L));
+    if (point === ".")
+        return s;
+    return s.substring(0, i) + point + s.substring(i + 1);
+};
+
+const lua_number2strx = function(L, fmt, x, force_dot) {
     let opts = parse_format(fmt);
     let buff = num2straux(x, opts.precision, opts.flags, opts.width);
+    if (!force_dot)
+        buff = localize_decimal(L, buff);
     if (fmt[fmt.length - 1] === 65 /* 'A'.charCodeAt(0) */)
         buff = buff.toUpperCase();
     return to_luastring(buff);
@@ -376,7 +388,7 @@ const format_general = function(x, precision, alt, upper) {
     return body;
 };
 
-const num2strf = function(x, spec, flags, width, precision) {
+const num2strf = function(L, x, spec, flags, width, precision) {
     const negative = signbit(x);
     const abs = negative ? -x : x;
     const alt = flags.indexOf("#") >= 0;
@@ -398,6 +410,8 @@ const num2strf = function(x, spec, flags, width, precision) {
 
     if (upper)
         body = body.toUpperCase();
+
+    body = localize_decimal(L, body);
 
     const sign = negative ? "-" :
         (flags.indexOf("+") >= 0 ? "+" : (flags.indexOf(" ") >= 0 ? " " : ""));
@@ -466,9 +480,9 @@ const addquoted = function(b, s, len) {
 /*
 ** Ensures the 'buff' string uses a dot as the radix character.
 */
-const checkdp = function(buff) {
+const checkdp = function(L, buff) {
     if (luastring_indexOf(buff, 46 /* ('.').charCodeAt(0) */) < 0) {  /* no dot? */
-        let point = lua_getlocaledecpoint();  /* try locale point */
+        let point = lua_getlocaledecpoint(L);  /* try locale point */
         let ppoint = luastring_indexOf(buff, point);
         if (ppoint) buff[ppoint] = 46 /* ('.').charCodeAt(0) */;  /* change it to a dot */
     }
@@ -485,8 +499,8 @@ const addliteral = function(L, b, arg) {
             let buff;
             if (!lua_isinteger(L, arg)) {  /* float? */
                 let n = lua_tonumber(L, arg);  /* write as hexa ('%a') */
-                buff = lua_number2strx(L, to_luastring(`%${LUA_INTEGER_FRMLEN}a`), n);
-                checkdp(buff);  /* ensure it uses a dot */
+                buff = lua_number2strx(L, to_luastring(`%${LUA_INTEGER_FRMLEN}a`), n, true);
+                checkdp(L, buff);  /* ensure it uses a dot */
             } else {  /* integers */
                 let n = lua_tointeger(L, arg);
                 let format = (n === LUA_MININTEGER)  /* corner case? */
@@ -581,7 +595,7 @@ const str_format = function(L) {
                     let spec = String.fromCharCode(strfrmt[i - 1]);
                     let opts = parse_format(form);
                     luaL_addstring(b, to_luastring(num2strf(
-                        luaL_checknumber(L, arg), spec, opts.flags,
+                        L, luaL_checknumber(L, arg), spec, opts.flags,
                         opts.width, opts.precision)));
                     break;
                 }

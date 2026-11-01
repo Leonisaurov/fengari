@@ -42,6 +42,10 @@ const {
     luaL_pushresult
 } = require('./lauxlib.js');
 const {
+    LUA_MAXINTEGER,
+    LUA_MININTEGER
+} = require('./luaconf.js');
+const {
     luastring_eq,
     to_jsstring,
     to_luastring
@@ -455,7 +459,11 @@ const os_time = function(L) {
         setallfields(L, t);
     }
 
-    lua_pushinteger(L, Math.floor(t / 1000));
+    let secs = Math.floor(t / 1000);
+    if (secs >= LUA_MININTEGER && secs <= LUA_MAXINTEGER)
+        lua_pushinteger(L, secs);
+    else
+        lua_pushnumber(L, secs);  /* outside the 32-bit integer range */
     return 1;
 };
 
@@ -475,18 +483,60 @@ const os_difftime = function(L) {
 const catnames = ["all", "collate", "ctype", "monetary", "numeric", "time"].map((lc) => to_luastring(lc));
 const C = to_luastring("C");
 const POSIX = to_luastring("POSIX");
+const normalize_locale = function(name) {
+    return name.split(".")[0].split("@")[0].replace(/_/g, "-");
+};
+
+const locale_decimal = function(tag) {
+    if (typeof Intl === "undefined" || typeof Intl.NumberFormat !== "function")
+        return null;
+    try {
+        if (Intl.NumberFormat.supportedLocalesOf([tag]).length === 0)
+            return null;
+        let parts = new Intl.NumberFormat(tag).formatToParts(1.5);
+        for (const part of parts) {
+            if (part.type === "decimal")
+                return part.value;
+        }
+        return ".";
+    } catch (e) {
+        return null;
+    }
+};
+
 const os_setlocale = function(L) {
+    const g = L.l_G;
     const l = luaL_optstring(L, 1, null);
     luaL_checkoption(L, 2, "all", catnames);
-    /* It is not possible to set the JS-VM wide locale, so we say that we only
-       know the C locale. The "POSIX" locale is defined in
-       IEEE Std 1003.1-2017 Section 7.2 as equivalent to "C" */
-    lua_pushstring(L, (
-        l === null /* passing nil returns the current locale; which is "C" */
-        || l.length == 0 /* empty string resets to the default locale; which is "C" */
-        || luastring_eq(l, C) /* user passed "C" */
-        || luastring_eq(l, POSIX) /* user passed "POSIX", equivalent to "C" */
-    ) ? C : null);
+
+    if (l === null) {  /* query the current locale */
+        lua_pushstring(L, to_luastring(g.locale));
+        return 1;
+    }
+    if (l.length === 0 || luastring_eq(l, C) || luastring_eq(l, POSIX)) {
+        /* empty string resets to the default; POSIX is equivalent to C */
+        g.locale = "C";
+        g.locale_decimal = ".";
+        lua_pushstring(L, C);
+        return 1;
+    }
+
+    let name;
+    try {
+        name = to_jsstring(l);
+    } catch (e) {
+        lua_pushnil(L);
+        return 1;
+    }
+    let decimal = locale_decimal(normalize_locale(name));
+    if (decimal === null) {
+        lua_pushnil(L);  /* locale not available */
+        return 1;
+    }
+
+    g.locale = name;
+    g.locale_decimal = decimal;
+    lua_pushstring(L, l);
     return 1;
 };
 
