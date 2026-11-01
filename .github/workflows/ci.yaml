@@ -13,7 +13,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [20.x, 22.x, 24.x, 25.x]
+        node-version: [20.x, 22.x, 24.x, 25.x, 26.x]
 
     steps:
     - uses: actions/checkout@v6
@@ -23,8 +23,35 @@ jobs:
         node-version: ${{ matrix.node-version }}
         cache: 'yarn'
     - name: Install dependencies
-      run: yarn
-    - run: yarn lint
-    - run: yarn test --maxWorkers=$(nproc)
+      run: yarn --frozen-lockfile
+    - name: Lint
+      run: yarn lint
+    - name: Test
+      if: matrix.node-version != '24.x'
+      run: yarn test --maxWorkers=$(nproc)
       env:
         FENGARICONF: '{"LUAI_MAXSTACK":100000}'
+    - name: Coverage
+      if: matrix.node-version == '24.x'
+      run: yarn test:coverage --maxWorkers=$(nproc)
+      env:
+        FENGARICONF: '{"LUAI_MAXSTACK":100000}'
+    - name: Upload coverage
+      if: matrix.node-version == '24.x'
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage
+        path: coverage/
+        retention-days: 7
+    - name: Validate package tarball
+      if: matrix.node-version == '24.x'
+      run: |
+        npm pack --pack-destination "$RUNNER_TEMP"
+        TARBALL=$(ls "$RUNNER_TEMP"/fengari-*.tgz)
+        tar -tzf "$TARBALL" | sort > "$RUNNER_TEMP/tarball.txt"
+        grep -qx 'package/src/fengari.js' "$RUNNER_TEMP/tarball.txt"
+        grep -qx 'package/package.json' "$RUNNER_TEMP/tarball.txt"
+        if grep -q '^package/test/' "$RUNNER_TEMP/tarball.txt"; then
+          echo "::error::test/ must not be published"
+          exit 1
+        fi
