@@ -237,7 +237,7 @@ const create_context = function(L, include_strings) {
         return processed;
     };
 
-    const drain_ephemerons = function() {
+    const drain_ephemerons_atomic = function() {
         let previous;
         do {
             previous = ctx.marked.size;
@@ -263,8 +263,7 @@ const create_context = function(L, include_strings) {
         }
     };
 
-    const finish_mark = function() {
-        drain_ephemerons();
+    const finish_sweep_start = function() {
         ctx.finalize = [];
         for (const obj of g.finalizable) {
             if (!ctx.marked.has(obj))
@@ -274,10 +273,46 @@ const create_context = function(L, include_strings) {
         ctx.phase = "sweep";
     };
 
+    const start_ephemerons = function() {
+        ctx.phase = "ephemeron";
+        ctx.eph_index = 0;
+        ctx.eph_iter = null;
+        ctx.eph_before = ctx.marked.size;
+    };
+
+    const ephemeron_step = function(budget) {
+        let used = 0;
+        while (used < budget && ctx.eph_index < ctx.ephemerons.length) {
+            const t = ctx.ephemerons[ctx.eph_index];
+            if (!ctx.eph_iter)
+                ctx.eph_iter = t.strong.entries();
+            const next = ctx.eph_iter.next();
+            if (next.done) {
+                ctx.eph_iter = null;
+                ctx.eph_index++;
+                continue;
+            }
+            const entry = next.value[1];
+            if (is_alive(entry.key) &&
+                iscollectable(entry.value) &&
+                !ctx.marked.has(entry.value.value))
+                mark_tvalue(entry.value);
+            used++;
+            used += drain(budget - used);
+        }
+        return {
+            used,
+            done: ctx.eph_index >= ctx.ephemerons.length
+        };
+    };
+
     ctx.mark_object = mark_object;
     ctx.mark_tvalue = mark_tvalue;
     ctx.drain = drain;
-    ctx.finish_mark = finish_mark;
+    ctx.drain_ephemerons_atomic = drain_ephemerons_atomic;
+    ctx.finish_sweep_start = finish_sweep_start;
+    ctx.start_ephemerons = start_ephemerons;
+    ctx.ephemeron_step = ephemeron_step;
     ctx.barrier = function(tv) {
         mark_tvalue(tv);
     };
@@ -297,7 +332,7 @@ const create_context = function(L, include_strings) {
     ctx.remark = function() {
         ctx.rescan();
         drain(MARK_INFINITY);
-        drain_ephemerons();
+        drain_ephemerons_atomic();
     };
 
     mark_roots();
@@ -354,7 +389,8 @@ const luaC_fullgc = function(L) {
     try {
         ctx = create_context(L, false);
         ctx.drain(MARK_INFINITY);
-        ctx.finish_mark();
+        ctx.drain_ephemerons_atomic();
+        ctx.finish_sweep_start();
         clear_weak_entries(ctx);
         run_pending_finalizers(L, ctx, true);
     } finally {
@@ -392,7 +428,19 @@ const luaC_step = function(L) {
             budget -= ctx.drain(budget);
             if (ctx.work.length > 0)
                 return false;
-            ctx.finish_mark();
+            ctx.start_ephemerons();
+        }
+
+        if (ctx.phase === "ephemeron") {
+            const res = ctx.ephemeron_step(Math.max(1, budget));
+            budget -= res.used;
+            if (!res.done)
+                return false;
+            if (ctx.marked.size !== ctx.eph_before) {
+                ctx.start_ephemerons();  /* another pass may mark more values */
+                return false;
+            }
+            ctx.finish_sweep_start();
         }
 
         while (budget > 0 && ctx.weak_index < ctx.weak_tables.length) {
@@ -474,7 +522,8 @@ const luaC_count = function(L) {
 
     const ctx = create_context(L, true);
     ctx.drain(MARK_INFINITY);
-    ctx.finish_mark();
+    ctx.drain_ephemerons_atomic();
+    ctx.finish_sweep_start();
     let bytes = 0;
     for (const o of ctx.marked)
         bytes += object_size(o);

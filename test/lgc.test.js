@@ -272,6 +272,34 @@ test('incremental marking keeps resurrected finalizable objects', () => {
     expect(lua.lua_toboolean(L, -1)).toBe(true);
 });
 
+test('incremental ephemeron passes keep chains alive', () => {
+    let L = run(`
+        local t = setmetatable({}, {__mode = "k"})
+        local keys = {}
+        for i = 1, 200 do keys[i] = {} end
+        for i = 1, 199 do t[keys[i]] = {keys[i + 1]} end
+        t[keys[200]] = {}
+        _G.KEEP = keys[1]
+        keys = nil
+
+        collectgarbage("setstepmul", 5)
+        local done = false
+        local steps = 0
+        while not done and steps < 5000 do
+            done = collectgarbage("step")
+            steps = steps + 1
+        end
+
+        local count = 0
+        for _ in pairs(t) do count = count + 1 end
+        _G.KEEP = nil
+        return done, steps, count
+    `);
+    expect(lua.lua_toboolean(L, -3)).toBe(true);
+    expect(lua.lua_tointeger(L, -2)).toBeGreaterThan(1);
+    expect(lua.lua_tointeger(L, -1)).toBe(200);
+});
+
 test('collectgarbage("count") tracks live Lua memory', () => {
     let L = run(`
         local before = collectgarbage("count")
