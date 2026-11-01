@@ -326,7 +326,7 @@ class Udata {
 
         this.metatable = null;
         this.uservalue = new TValue(LUA_TNIL, null);
-        this.len = size;
+        this.len = (typeof size === "number" && isFinite(size)) ? size : 0;
         this.data = Object.create(null); // ignores size argument
         this.finalized = false; /* marked for finalization already? */
     }

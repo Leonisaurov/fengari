@@ -22,8 +22,13 @@ class Proto {
     }
 }
 
+let lgc; /* required lazily to avoid a cycle with lgc.js */
+
 const luaF_newLclosure = function(L, n) {
-    return new lobject.LClosure(L, n);
+    const f = new lobject.LClosure(L, n);
+    if (!lgc) lgc = require('./lgc.js');
+    lgc.luaC_allocated(L);
+    return f;
 };
 
 

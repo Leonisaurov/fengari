@@ -20,6 +20,11 @@ const lapi                 = require('./lapi.js');
 const ltable               = require('./ltable.js');
 const ltm                  = require('./ltm.js');
 
+let lgc; /* required lazily to avoid a cycle with lgc.js */
+const get_lgc = function() {
+    return lgc || (lgc = require('./lgc.js'));
+};
+
 const EXTRA_STACK = 5;
 
 const BASIC_STACK_SIZE = 2 * LUA_MINSTACK;
@@ -91,6 +96,15 @@ class global_State {
         this.mt = new Array(LUA_NUMTAGS);
         this.finalizable = new Set();  /* objects with a __gc metamethod */
         this.in_gc = false;            /* running a collector cycle? */
+        this.gc_auto = false;          /* enable allocation-triggered cycles? */
+        this.gc_running = true;        /* collectgarbage("stop") */
+        this.gc_pause = 200;           /* allocation budget multiplier */
+        this.gc_stepmul = 200;         /* work units per "step" */
+        this.gc_debt = 1024;           /* allocations until the next auto cycle */
+        this.gc_threshold = 1024;
+        this.gc_ctx = null;            /* unfinished incremental cycle */
+        this.gc_count = null;          /* cached memory count, in bytes */
+        this.gc_needs_auto = false;    /* any weak table or pending finalizer? */
     }
 
 }
@@ -162,6 +176,7 @@ const lua_newthread = function(L) {
     L1.hook = L.hook;
     L1.hookcount = L1.basehookcount;
     stack_init(L1, L);
+    get_lgc().luaC_allocated(L);
     return L1;
 };
 
@@ -176,6 +191,8 @@ const lua_newstate = function() {
 
     if (ldo.luaD_rawrunprotected(L, f_luaopen, null) !== LUA_OK) {
         L = null;
+    } else {
+        g.gc_auto = true;
     }
 
     return L;
@@ -183,7 +200,9 @@ const lua_newstate = function() {
 
 const close_state = function(L) {
     /* finalizers may run Lua code, so they need a valid stack */
-    require('./lgc.js').luaC_freeallobjects(L);
+    L.l_G.gc_auto = false;
+    L.l_G.gc_ctx = null;
+    get_lgc().luaC_freeallobjects(L);
     freestack(L);
 };
 

@@ -32,6 +32,7 @@ const lstate  = require('./lstate.js');
 
 /* used to prevent conflicts with lightuserdata keys */
 let lightuserdata_hashes = new WeakMap();
+let lgc; /* required lazily to avoid a cycle with lgc.js */
 const get_lightuserdata_hash = function(v) {
     let hash = lightuserdata_hashes.get(v);
     if (!hash) {
@@ -178,7 +179,10 @@ const luaH_removeentry = function(t, hash, e) {
 };
 
 const luaH_new = function(L) {
-    return new Table(L);
+    const t = new Table(L);
+    if (!lgc) lgc = require('./lgc.js');
+    lgc.luaC_allocated(L);
+    return t;
 };
 
 const getgeneric = function(t, hash) {

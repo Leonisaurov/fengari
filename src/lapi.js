@@ -353,6 +353,8 @@ const lua_pushcclosure = function(L, fn, n) {
         L.stack[L.top].setclCvalue(cl);
     }
     api_incr_top(L);
+    if (n > 0)
+        lgc.luaC_allocated(L);
 };
 
 const lua_pushjsclosure = lua_pushcclosure;
@@ -540,6 +542,7 @@ const lua_newuserdata = function(L, size) {
     let u = luaS_newudata(L, size);
     L.stack[L.top] = new lobject.TValue(LUA_TUSERDATA, u);
     api_incr_top(L);
+    lgc.luaC_allocated(L);
     return u.data;
 };
 
@@ -1113,67 +1116,56 @@ const lua_upvaluejoin = function(L, fidx1, n1, fidx2, n2) {
 };
 
 /*
-** JavaScript engines do not expose a stoppable or incremental collector, so
-** these settings are tracked for API compatibility only. `collect` and `step`
-** can only request a collection when the host exposes `gc` (e.g. Node started
-** with --expose-gc); otherwise the engine collects on its own schedule.
+** The Lua collector implements weak tables, finalizers and memory accounting.
+** The collectgarbage settings live in global_State so every state is
+** independent. `run_gc` additionally asks the host JS collector to run when
+** it exposes globalThis.gc.
 */
-let gc_running = true;
-let gc_pause = 200;
-let gc_stepmul = 200;
-
 const run_gc = function() {
     if (typeof globalThis !== "undefined" && typeof globalThis.gc === "function")
         globalThis.gc();
 };
 
-const gc_memory_kb = function() {
-    /* Memory usage of the whole JS heap, not just this Lua state. */
-    if (typeof process !== "undefined" && typeof process.memoryUsage === "function")
-        return process.memoryUsage().heapUsed / 1024;
-    if (typeof performance !== "undefined" && performance.memory)
-        return performance.memory.usedJSHeapSize / 1024;
-    return 0;
-};
-
-// This functions are only there for compatibility purposes
 const lua_gc = function (L, what, data) {
+    const g = L.l_G;
     switch (what) {
         case LUA_GCSTOP:
-            gc_running = false;
+            g.gc_running = false;
             return 0;
         case LUA_GCRESTART:
-            gc_running = true;
+            g.gc_running = true;
             return 0;
         case LUA_GCCOLLECT:
             lgc.luaC_fullgc(L);
             run_gc();
             return 0;
-        case LUA_GCCOUNT: {
-            let kb = gc_memory_kb();
-            return Math.floor(kb);
+        case LUA_GCCOUNT:
+            g.gc_count = lgc.luaC_count(L);
+            return Math.floor(g.gc_count / 1024);
+        case LUA_GCCOUNTB:
+            if (g.gc_count === null)
+                g.gc_count = lgc.luaC_count(L);
+            return Math.floor(g.gc_count % 1024);
+        case LUA_GCSTEP: {
+            if (!g.gc_running)  /* a stopped collector does not step */
+                return 1;
+            const done = lgc.luaC_step(L);
+            if (done)
+                run_gc();
+            return done ? 1 : 0;
         }
-        case LUA_GCCOUNTB: {
-            let kb = gc_memory_kb();
-            return Math.floor((kb - Math.floor(kb)) * 1024);
-        }
-        case LUA_GCSTEP:
-            if (gc_running)  /* a stopped collector does not step */
-                lgc.luaC_fullgc(L);
-            run_gc();
-            return 1;  /* a full JS GC cycle always "finishes" */
         case LUA_GCSETPAUSE: {
-            let old = gc_pause;
-            gc_pause = data|0;
+            let old = g.gc_pause;
+            g.gc_pause = data|0;
             return old;
         }
         case LUA_GCSETSTEPMUL: {
-            let old = gc_stepmul;
-            gc_stepmul = data|0;
+            let old = g.gc_stepmul;
+            g.gc_stepmul = data|0;
             return old;
         }
         case LUA_GCISRUNNING:
-            return gc_running ? 1 : 0;
+            return g.gc_running ? 1 : 0;
         default:
             return -1;
     }

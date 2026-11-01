@@ -144,6 +144,109 @@ test('collectgarbage("step") runs a cycle while the collector is running', () =>
     expect(lua.lua_toboolean(L, -1)).toBe(true);
 });
 
+test('weak entries are collected automatically', () => {
+    let L = run(`
+        collectgarbage("setpause", 0)  -- keep the allocation budget small
+        local t = setmetatable({}, {__mode = "v"})
+        local x = {}
+        t[1] = x
+        x = nil
+        for i = 1, 5000 do local tmp = {} end
+        return t[1] == nil
+    `);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+});
+
+test('__gc runs automatically without an explicit collectgarbage', () => {
+    let L = run(`
+        collectgarbage("setpause", 0)
+        local calls = 0
+        local t = setmetatable({}, {__gc = function() calls = calls + 1 end})
+        t = nil
+        for i = 1, 5000 do local tmp = {} end
+        return calls > 0, calls
+    `);
+    expect(lua.lua_toboolean(L, -2)).toBe(true);
+    expect(lua.lua_tointeger(L, -1)).toBeGreaterThanOrEqual(1);
+});
+
+test('collectgarbage("step") is incremental and eventually completes', () => {
+    let L = run(`
+        local t = setmetatable({}, {__mode = "v"})
+        local function fill()
+            for i = 1, 100 do t[i] = {} end
+        end
+        fill()
+        assert(collectgarbage("setstepmul", 10) == 200)
+        local first = collectgarbage("step")
+        local done = first
+        local steps = 1
+        while not done and steps < 200 do
+            done = collectgarbage("step")
+            steps = steps + 1
+        end
+        return first, done, steps, next(t) == nil
+    `);
+    expect(lua.lua_toboolean(L, -4)).toBe(false);
+    expect(lua.lua_toboolean(L, -3)).toBe(true);
+    expect(lua.lua_tointeger(L, -2)).toBeGreaterThan(1);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+});
+
+test('collectgarbage("count") tracks live Lua memory', () => {
+    let L = run(`
+        local before = collectgarbage("count")
+        local big = {}
+        for i = 1, 5000 do big[i] = "x" .. i end
+        local during = collectgarbage("count")
+        big = nil
+        collectgarbage()
+        local after = collectgarbage("count")
+        return before > 0, during > before, after < during
+    `);
+    expect(lua.lua_toboolean(L, -3)).toBe(true);
+    expect(lua.lua_toboolean(L, -2)).toBe(true);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+});
+
+test('collectgarbage("count") accounts for userdata size', () => {
+    let L = lauxlib.luaL_newstate();
+    if (!L) throw Error("failed to create lua state");
+    lualib.luaL_openlibs(L);
+
+    const count = function() {
+        return lua.lua_gc(L, lua.LUA_GCCOUNT, 0) +
+            lua.lua_gc(L, lua.LUA_GCCOUNTB, 0) / 1024;
+    };
+
+    const before = count();
+    lua.lua_newuserdata(L, 5001);
+    const during = count();
+    lua.lua_pop(L, 1);
+    lua.lua_gc(L, lua.LUA_GCCOLLECT, 0);
+    const after = count();
+
+    expect(during - before).toBeGreaterThan(4);  /* more than 4 KiB */
+    expect(after).toBeLessThan(during);
+    expect(after).toBeCloseTo(before, 5);
+});
+
+test('collector settings are per state', () => {
+    let L1 = lauxlib.luaL_newstate();
+    let L2 = lauxlib.luaL_newstate();
+    if (!L1 || !L2) throw Error("failed to create lua state");
+    lualib.luaL_openlibs(L1);
+    lualib.luaL_openlibs(L2);
+
+    lua.lua_gc(L1, lua.LUA_GCSTOP, 0);
+    expect(lua.lua_gc(L1, lua.LUA_GCISRUNNING, 0)).toBe(0);
+    expect(lua.lua_gc(L2, lua.LUA_GCISRUNNING, 0)).toBe(1);
+
+    lua.lua_close(L1);
+    lua.lua_close(L2);
+});
+
+
 test('__gc runs once for unreachable tables', () => {
     let L = run(`
         local calls = 0
