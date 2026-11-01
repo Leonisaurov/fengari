@@ -4,6 +4,7 @@ Catálogo de trabajo sobre `fengari` **v0.1.5** (commit `ac8c387`, semántica Lu
 Estado de partida: 40 suites de Jest, 589 tests que pasan y 21 skips, lint OK, sin build ni typecheck.
 Estado actual tras resolver el P0: 40 suites, 597 tests que pasan y 21 skips, cobertura ~93% de líneas con umbral en CI.
 Estado actual tras tablas débiles y `__gc`: 41 suites, 614 tests que pasan y 20 skips.
+Estado actual tras GC automático/incremental y `count` real: 41 suites, 620 tests que pasan y 20 skips.
 
 **Prioridad:** P0 desbloquea uso real · P1 calidad/rendimiento · P2 deseable · P3 largo plazo.
 **Esfuerzo:** S < 1 día · M 1–5 días · L > 1 semana.
@@ -27,8 +28,9 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 
 ## 1. Núcleo del lenguaje y semántica Lua 5.3
 
-- [x] **Tablas débiles (`__mode`)** — P1, L. Implementadas `"k"`, `"v"` y `"kv"` con un marcado/barrido propio sobre el grafo Lua, incluidos ephemerons; las entradas limpiadas desaparecen de `next`/`pairs` (`src/lgc.js`, `src/ltable.js`).
-- [x] **`__gc` y finalización** — P1, L. Los objetos con `__gc` se registran al fijar el metatabla, se finalizan una sola vez durante `collectgarbage` y al cerrar el estado, y los errores se propagan como en PUC (`src/lgc.js`, `src/lapi.js`).
+- [x] **Tablas débiles (`__mode`)** — P1, L. Implementadas `"k"`, `"v"` y `"kv"` con un marcado/barrido propio sobre el grafo Lua, incluidos ephemerons; las entradas limpiadas desaparecen de `next`/`pairs`. La colección se dispara automáticamente tras un presupuesto de asignaciones y `step` limpia por lotes (`src/lgc.js`, `src/ltable.js`).
+- [x] **`__gc` y finalización** — P1, L. Los objetos con `__gc` se registran al fijar el metatabla, se finalizan una sola vez durante `collectgarbage` (explícito o automático) y al cerrar el estado, y los errores se propagan como en PUC (`src/lgc.js`, `src/lapi.js`).
+- **Marcado incremental del GC** — P2, M. `step` ya reparte limpieza y finalización, pero el marcado sigue siendo atómico; partirlo en fases con barreras de escritura eliminaría la última pausa O(heap) (`src/lgc.js`).
 - **Trazas de error (`luaL_traceback`, `debug.traceback`)** — P1, M. Paridad con PUC: niveles, tail calls, funciones C/JS, `error(msg, level)` y `__tostring` del objeto de error. Adjuntar la traza como `cause` cuando un error Lua cruza a JS (`src/lauxlib.js`, `src/ldblib.js`).
 - **Corrutinas** — P1, M. Cubrir yield a través de `pcall`/`xpcall` y metamétodos, propagación de errores, `resume` sobre hilo muerto e `isyieldable`; añadir `coroutine.close` (5.4) si se adopta esa versión (`src/lcorolib.js`, `src/ldo.js`).
 - **Desbordamiento de pila** — P1, S. Traducir `RangeError: Maximum call stack size exceeded` a `"stack overflow"` de Lua, respetar `LUAI_MAXCCALLS`/`LUAI_MAXSTACK` y probar recursión profunda (hay tests oficiales saltados por esto).
@@ -71,7 +73,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - **Tablas** — P1, L. Parte densa para claves enteras, fast path sin `Map` para tablas pequeñas, rehash predecible, menos objetos auxiliares y orden de iteración estable (`src/ltable.js`).
 - **Strings** — P1, M. `TextEncoder`/`TextDecoder` singleton, caché de conversiones UTF-8↔UTF-16, política de interning para strings largos y `Buffer` en Node (`src/defs.js`, `src/lstring.js`).
 - **Compilador** — P2, M. Constant folding, peephole de `MOVE`/saltos, eliminación de código muerto y revisión del `FIXME` de `lcode.js:991`.
-- **Presión de GC** — P1, M. Medir con `node --expose-gc`; reducir objetos temporales en API/VM y evitar retener slots muertos en la pila.
+- **Presión de GC** — P1, M. `collectgarbage("count")` ya mide objetos Lua vivos; usar esa métrica para reducir asignaciones temporales en API/VM y evitar retener slots muertos en la pila.
 - **Arranque y tamaño** — P2, S. Carga perezosa de librerías, no requerir `io`/`os` en navegador y medir el tamaño del bundle (`src/linit.js`, `src/lualib.js`).
 - **Backend WASM** — P3, L. Compilar PUC Lua a WebAssembly y mantener la misma fachada JS; comparar rendimiento y tamaño. Es la apuesta grande si el objetivo es velocidad cercana a nativa.
 - **Caché de bytecode** — P3, M. Persistir `lua_dump` y cargar chunks precompilados para arranques repetidos.
