@@ -62,9 +62,14 @@ In the browser `require` and `package.loadlib` try to find a file by making sync
 `require` has been extended to allow searchers to yield.
 
 
+### Weak tables and finalizers
+
+Weak tables (`__mode` = `"k"`, `"v"` or `"kv"`, including ephemerons) and `__gc` finalizers are implemented. Because JavaScript's collector cannot expose Lua liveness synchronously, Fengari runs a mark/sweep pass over the Lua object graph during `collectgarbage("collect")`/`"step"` and when the state is closed. The pass is not incremental and does not run on its own. Only values reachable from the Lua state count as live, so host-held values must be anchored in the registry or on the stack, as with C pointers in PUC Lua.
+
+
 ### _Missing_ features
 
-- `lua_gc`/`collectgarbage`: the API is accepted for compatibility, but Fengari relies on the JS garbage collector. `stop`, `restart`, `setpause` and `setstepmul` are advisory only, `count` reports the JS heap, and `collect`/`step` can only force a collection when the host exposes `gc` (e.g. Node started with `--expose-gc`).
+- `lua_gc`/`collectgarbage`: the API is accepted for compatibility, but Fengari relies on the JS garbage collector. `stop`, `restart`, `setpause` and `setstepmul` are advisory only, `count` reports the JS heap, and `collect`/`step` can only force a JS collection when the host exposes `gc` (e.g. Node started with `--expose-gc`). `collect`/`step` also run the Lua weak-table and `__gc` passes described above.
 - The following functions are only available in Node:
     - The entire `io` lib
     - `os.remove`
@@ -72,8 +77,6 @@ In the browser `require` and `package.loadlib` try to find a file by making sync
     - `os.tmpname`
     - `os.execute`
 - `debug.debug()` reads from a Node TTY through `readline-sync` or from `window.prompt` in browsers. Web workers and embedders can install a reader with `lualib.lua_setdebugreader(fn)`; without one it raises a Lua error.
-- [Weak tables](http://www.lua.org/manual/5.3/manual.html#2.5.2)
-- `__gc` metamethods
 
 
 ### _Differences_
