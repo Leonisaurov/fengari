@@ -14,11 +14,12 @@ Fengari is a port of the Lua 5.3 VM, parser and standard libraries to ES6 JavaSc
 ## Layout and flow
 
 - `src/` mirrors the Lua 5.3 C sources file by file: `llex` → `lparser` → `lcode` (compile), `ldo` (calls/stack/errors), `lvm` (bytecode loop), `lobject`/`lstring`/`ltable`/`ltm` (values/strings/tables/metamethods), and `lapi`/`lauxlib`/`lualib` (C API layers).
-- `src/fengari.js` is the package entry (`main`); it re-exports `luaconf`, `lua`, `lauxlib`, `lualib` and the string helpers. Internal code requires the narrow module (`require("../src/lua.js")`), never the root bundle.
+- `src/fengari.js` is the package entry (`main`); it re-exports `luaconf`, `lua`, `lauxlib`, `lualib`, `versions` and the string helpers. Internal code requires the narrow module (`require("../src/lua.js")`), never the root bundle.
 - `lua_*`/`luaL_*` names and constants are intentional 1:1 ports of `lua.h`/`lauxlib.h`; follow that naming. New constants go in `defs.js` and are re-exported by `lua.js`.
-- `src/linit.js` is the only place that registers standard libraries (`luaL_openlibs`). `io` is loaded only when `process` exists; `os`, `package` and `debug` have browser branches selected with `typeof process === "undefined"`.
-- `test/test-suite/` is the official Lua test suite adapted to Jest; `test/test-suite/ltests.js` implements the C `T` test library. Most skips are GC, `io.read` or memory-limit tests.
-- Semantics are Lua 5.3 with **32-bit integers** (`LUA_MAXINTEGER = 2147483647` in `luaconf.js`).
+- `src/linit.js` is the only place that registers standard libraries (`luaL_openlibs`); it then applies the selected version profile's `openlibs` hook. `io` is loaded only when `process` exists; `os`, `package` and `debug` have browser branches selected with `typeof process === "undefined"`.
+- `src/lgc.js` implements weak tables, finalizers and a mark/sweep with incremental marking; `src/versions.js` plus `src/versions/` select Lua 5.1/5.2/5.3 library profiles (`src/lbitlib.js` provides `bit32` for 5.2).
+- `test/test-suite/` is the official Lua test suite adapted to Jest; `test/test-suite/ltests.js` implements the C `T` test library. Remaining skips are mostly API harness/memory-limit tests, external fixtures and locale-specific tests.
+- Core semantics are Lua 5.3 with **32-bit integers** (`LUA_MAXINTEGER = 2147483647` in `luaconf.js`). The bundled 5.1/5.2 profiles adjust the library surface, not the parser or number model.
 
 ## Gotchas
 

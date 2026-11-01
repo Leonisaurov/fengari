@@ -6,6 +6,7 @@ Estado actual tras resolver el P0: 40 suites, 597 tests que pasan y 21 skips, co
 Estado actual tras tablas débiles y `__gc`: 41 suites, 614 tests que pasan y 20 skips.
 Estado actual tras GC automático/incremental y `count` real: 41 suites, 620 tests que pasan y 20 skips.
 Estado actual tras marcado incremental y fidelidad de formato: 42 suites, 630 tests que pasan y 20 skips.
+Estado actual tras versiones y locale: 43 suites, 640 tests que pasan y 20 skips.
 
 **Prioridad:** P0 desbloquea uso real · P1 calidad/rendimiento · P2 deseable · P3 largo plazo.
 **Esfuerzo:** S < 1 día · M 1–5 días · L > 1 semana.
@@ -36,7 +37,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - **Corrutinas** — P1, M. Cubrir yield a través de `pcall`/`xpcall` y metamétodos, propagación de errores, `resume` sobre hilo muerto e `isyieldable`; añadir `coroutine.close` (5.4) si se adopta esa versión (`src/lcorolib.js`, `src/ldo.js`).
 - **Desbordamiento de pila** — P1, S. Traducir `RangeError: Maximum call stack size exceeded` a `"stack overflow"` de Lua, respetar `LUAI_MAXCCALLS`/`LUAI_MAXSTACK` y probar recursión profunda (hay tests oficiales saltados por esto).
 - [x] **Formato de floats (`%e`/`%f`/`%g`/`%G`)** — P2, M. Implementado con semántica de `printf` de C: exponencial, precisión por defecto, `-0`, `inf`/`nan`, flags (`+`, espacio, `#`, `0`, `-`) y ancho. Verificado contra `printf` en 238 casos (`src/lstrlib.js`).
-- **Locale y parseo de números** — P2, M. Locale (coma decimal), `tonumber` con base y casos límite de `%q` (`src/lobject.js`, `src/lstrlib.js`).
+- [x] **Locale (separador decimal)** — `os.setlocale` acepta locales de `Intl`, `string.format`/`%a` usan el separador decimal y `%q` mantiene el punto. Collation y `ctype` siguen limitados a "C"; `tonumber` con base y casos límite de `%q` están cubiertos por tests.
 - [x] **Bordes de enteros de 32 bits** — P2, S. `MININT // -1`, `MININT % -1`, desplazamientos, `math.tointeger` y conversiones string→int cubiertos por tests (`test/fidelity.test.js`).
 - [x] **`table.sort`** — P3, S. Detecta comparadores inválidos y lanza `"invalid order function for sorting"` como PUC; cubierto por tests.
 - [x] **`next`/`pairs` con mutaciones** — P3, M. Cubierto por tests: limpiar y actualizar campos existentes durante el recorrido es seguro; preserva el orden de iteración actual.
@@ -118,7 +119,13 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 
 ---
 
-## 6. Lua 5.4 y futuro
+## 6. Versiones de Lua
+
+- [x] **Registro de implementaciones** — `versions.register/get/list/setDefault/features`, `luaL_newstate(version)` y `FENGARICONF.LUA_VERSION`; hooks `openlibs` y `loadbufferx` (`src/versions.js`).
+- [x] **Perfiles 5.1 y 5.2 de superficie de librerías** — `bit32`, aliases y eliminación de APIs 5.3, `package.loaders`, `getfenv`, `math.*` compatibles (`src/versions/`, `src/lbitlib.js`).
+- **Semántica completa 5.1/5.2** — P2, L. Falta un parser/VM y semántica numérica por versión: enteros 5.3, operadores bit a bit, `//`, `goto`, entornos 5.1 y `setfenv`/`module`.
+
+## 7. Lua 5.4 y futuro
 
 - **`<const>` y `<close>`** — P2, L. Variables de solo lectura y to-be-closed, con `__close`; requiere cambios en parser, compilador y VM.
 - **Enteros de 64 bits con `BigInt`** — P2, L. Opt-in vía `FENGARICONF` para no romper la semántica actual de 32 bits; afecta aritmética, formato, `string.pack` y bytecode.
