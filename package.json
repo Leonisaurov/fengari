@@ -5,6 +5,8 @@
   "main": "src/fengari.js",
   "exports": {
     ".": "./src/fengari.js",
+    "./versions": "./src/versions.js",
+    "./versions/*": "./src/versions/*.js",
     "./src/*": "./src/*",
     "./*": "./src/*",
     "./package.json": "./package.json"

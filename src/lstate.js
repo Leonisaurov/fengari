@@ -19,6 +19,7 @@ const ldo                  = require('./ldo.js');
 const lapi                 = require('./lapi.js');
 const ltable               = require('./ltable.js');
 const ltm                  = require('./ltm.js');
+const versions             = require('./versions.js');
 
 let lgc; /* required lazily to avoid a cycle with lgc.js */
 const get_lgc = function() {
@@ -89,6 +90,7 @@ class global_State {
 
         this.mainthread = null;
         this.l_registry = new lobject.TValue(LUA_TNIL, null);
+        this.impl = null;              /* Lua version implementation */
         this.panic = null;
         this.atnativeerror = null;
         this.version = null;
@@ -105,6 +107,9 @@ class global_State {
         this.gc_ctx = null;            /* unfinished incremental cycle */
         this.gc_count = null;          /* cached memory count, in bytes */
         this.gc_needs_auto = false;    /* any weak table or pending finalizer? */
+        this.locale = "C";             /* approximate locale for os.setlocale */
+        this.locale_decimal = ".";     /* decimal separator of that locale */
+        this.profile_opened = false;   /* version profile already applied? */
     }
 
 }
@@ -184,14 +189,16 @@ const luaE_freethread = function(L, L1) {
     freestack(L1);
 };
 
-const lua_newstate = function() {
+const lua_newstate = function(version) {
     let g = new global_State();
+    g.impl = versions.get(version);
     let L = new lua_State(g);
     g.mainthread = L;
 
     if (ldo.luaD_rawrunprotected(L, f_luaopen, null) !== LUA_OK) {
         L = null;
     } else {
+        g.version = g.impl.version.num;
         g.gc_auto = true;
     }
 

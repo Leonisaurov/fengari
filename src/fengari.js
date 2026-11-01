@@ -35,3 +35,4 @@ module.exports.luaconf = luaconf;
 module.exports.lua     = lua;
 module.exports.lauxlib = lauxlib;
 module.exports.lualib  = lualib;
+module.exports.versions = require('./versions.js');

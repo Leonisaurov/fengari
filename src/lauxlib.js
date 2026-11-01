@@ -385,8 +385,8 @@ const tag_error = function(L, arg, tag) {
     typeerror(L, arg, lua_typename(L, tag));
 };
 
-const luaL_newstate = function() {
-    let L = lua_newstate();
+const luaL_newstate = function(version) {
+    let L = lua_newstate(version);
     if (L) lua_atpanic(L, panic);
     return L;
 };
@@ -533,6 +533,8 @@ const getS = function(L, ud) {
 };
 
 const luaL_loadbufferx = function(L, buff, size, name, mode) {
+    if (L.l_G.impl && L.l_G.impl.loadbufferx)
+        return L.l_G.impl.loadbufferx(L, buff, size, name, mode);
     return lua_load(L, getS, {string: buff}, name, mode);
 };
 

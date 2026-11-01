@@ -13,6 +13,10 @@ const luaL_openlibs = function(L) {
         luaL_requiref(L, to_luastring(lib), loadedlibs[lib], 1);
         lua_pop(L, 1); /* remove lib */
     }
+    if (!L.l_G.profile_opened && L.l_G.impl && L.l_G.impl.openlibs) {
+        L.l_G.profile_opened = true;
+        L.l_G.impl.openlibs(L);
+    }
 };
 module.exports.luaL_openlibs = luaL_openlibs;
 

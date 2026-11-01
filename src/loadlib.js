@@ -453,12 +453,20 @@ const searcher_preload = function(L) {
     return 1;
 };
 
+const searchers_name = function(L) {
+    const impl = L.l_G.impl;
+    return (impl && impl.features && impl.features.loaders)
+        ? "loaders"
+        : "searchers";
+};
+
 const findloader = function(L, name, ctx, k) {
     let msg = new luaL_Buffer();  /* to build error message */
     luaL_buffinit(L, msg);
-    /* push 'package.searchers' to index 3 in the stack */
-    if (lua_getfield(L, lua_upvalueindex(1), to_luastring("searchers", true)) !== LUA_TTABLE)
-        luaL_error(L, to_luastring("'package.searchers' must be a table"));
+    /* push the version's searcher table to index 3 in the stack */
+    const field = searchers_name(L);
+    if (lua_getfield(L, lua_upvalueindex(1), to_luastring(field, true)) !== LUA_TTABLE)
+        luaL_error(L, to_luastring("'package.%s' must be a table"), to_luastring(field, true));
     let ctx2 = {name: name, i: 1, msg: msg, ctx: ctx, k: k};
     return findloader_cont(L, LUA_OK, ctx2);
 };
@@ -541,7 +549,7 @@ const createsearcherstable = function(L) {
         lua_pushcclosure(L, searchers[i], 1);
         lua_rawseti(L, -2, i+1);
     }
-    lua_setfield(L, -2, to_luastring("searchers", true));  /* put it in field 'searchers' */
+    lua_setfield(L, -2, to_luastring(searchers_name(L), true));  /* put it in the version's searcher field */
 };
 
 /*
