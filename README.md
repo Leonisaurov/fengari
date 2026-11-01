@@ -64,7 +64,7 @@ In the browser `require` and `package.loadlib` try to find a file by making sync
 
 ### _Missing_ features
 
-- `lua_gc`/`collectgarbage`: Fengari relies on the JS garbage collector and does not implement its own.
+- `lua_gc`/`collectgarbage`: the API is accepted for compatibility, but Fengari relies on the JS garbage collector. `stop`, `restart`, `setpause` and `setstepmul` are advisory only, `count` reports the JS heap, and `collect`/`step` can only force a collection when the host exposes `gc` (e.g. Node started with `--expose-gc`).
 - The following functions are only available in Node:
     - The entire `io` lib
     - `os.remove`
@@ -163,6 +163,14 @@ This library is automatically loaded by `luaL_openlibs` into the global `"fengar
 - `file:setvbuf()`
 - `file:__gc()`
 
+
+## Development
+
+The CI uses [yarn](https://yarnpkg.com/), so `yarn.lock` is the source of truth for dependency resolution. `pnpm` also works for local development, but `pnpm-lock.yaml` is git-ignored to avoid two competing lockfiles.
+
+- `yarn lint` (or `pnpm lint`)
+- `yarn test` (or `pnpm test`)
+- `yarn test test/lvm.test.js -t MOVE` to run a single test
 
 ## References
 
