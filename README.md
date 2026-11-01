@@ -170,6 +170,8 @@ The CI uses [yarn](https://yarnpkg.com/), so `yarn.lock` is the source of truth 
 
 - `yarn lint` (or `pnpm lint`)
 - `yarn test` (or `pnpm test`)
+- `yarn test:coverage` enforces the thresholds in `jest.config.js`
+- `yarn check` runs lint and the full test suite
 - `yarn test test/lvm.test.js -t MOVE` to run a single test
 
 ## References
