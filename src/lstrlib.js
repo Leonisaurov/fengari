@@ -6,9 +6,6 @@ const {
     LUA_INTEGER_FMT,
     LUA_INTEGER_FRMLEN,
     LUA_MININTEGER,
-    LUA_NUMBER_FMT,
-    LUA_NUMBER_FRMLEN,
-    frexp,
     lua_getlocaledecpoint
 } = require('./luaconf.js');
 const {
@@ -155,52 +152,142 @@ const str_dump = function(L) {
     return 1;
 };
 
-const SIZELENMOD = LUA_NUMBER_FRMLEN.length + 1;
+const HEXDIGITS = "0123456789abcdef";
+const f64view = new DataView(new ArrayBuffer(8));
 
-const L_NBFD = 1;
-
-const num2straux = function(x) {
-    /* if 'inf' or 'NaN', format it like '%g' */
-    if (Object.is(x, Infinity))
-        return to_luastring('inf');
-    else if (Object.is(x, -Infinity))
-        return to_luastring('-inf');
-    else if (Number.isNaN(x))
-        return to_luastring('nan');
-    else if (x === 0) {  /* can be -0... */
-        /* create "0" or "-0" followed by exponent */
-        let zero = sprintf(LUA_NUMBER_FMT + "x0p+0", x);
-        if (Object.is(x, -0))
-            zero = "-" + zero;
-        return to_luastring(zero);
-    } else {
-        let buff = "";
-        let fe = frexp(x);  /* 'x' fraction and exponent */
-        let m = fe[0];
-        let e = fe[1];
-        if (m < 0) {  /* is number negative? */
-            buff += '-';  /* add signal */
-            m = -m;  /* make it positive */
-        }
-        buff += "0x";  /* add "0x" */
-        buff += (m * (1<<L_NBFD)).toString(16);
-        e -= L_NBFD;  /* this digit goes before the radix point */
-        buff += sprintf("p%+d", e);  /* add exponent */
-        return to_luastring(buff);
+/* parse a '%[flags][width][.precision]a' format */
+const parse_format = function(fmt) {
+    let i = 1;
+    let flags = "";
+    for (; i < fmt.length; i++) {
+        let c = String.fromCharCode(fmt[i]);
+        if (c === '-' || c === '+' || c === ' ' || c === '#' || c === '0')
+            flags += c;
+        else
+            break;
     }
+    let width = 0;
+    for (; i < fmt.length && fmt[i] >= 48 && fmt[i] <= 57; i++)
+        width = width * 10 + (fmt[i] - 48);
+    let precision = null;
+    if (fmt[i] === 46 /* '.' */) {
+        precision = 0;
+        for (i++; i < fmt.length && fmt[i] >= 48 && fmt[i] <= 57; i++)
+            precision = precision * 10 + (fmt[i] - 48);
+    }
+    return { flags, width, precision };
+};
+
+const num2straux = function(x, precision, flags, width) {
+    /* if 'inf' or 'NaN', format it like '%g' */
+    if (x === Infinity)
+        x = "inf";
+    else if (x === -Infinity)
+        x = "-inf";
+    else if (Number.isNaN(x))
+        x = "nan";
+
+    if (typeof x === "string") {
+        let body = x;
+        let sign = "";
+        if (body[0] === "-") {
+            sign = "-";
+            body = body.substring(1);
+        } else if (flags.indexOf("+") >= 0) {
+            sign = "+";
+        } else if (flags.indexOf(" ") >= 0) {
+            sign = " ";
+        }
+        return pad(sign + body, sign.length, width, flags);
+    }
+
+    let negative = x < 0 || Object.is(x, -0);
+    if (negative)
+        x = -x;
+
+    let sign = negative ? "-" : (flags.indexOf("+") >= 0 ? "+" : (flags.indexOf(" ") >= 0 ? " " : ""));
+    let result;
+
+    if (x === 0) {
+        if (precision === null || precision === 0)
+            result = "0x0" + (flags.indexOf("#") >= 0 ? "." : "") + "p+0";
+        else
+            result = "0x0." + "0".repeat(precision) + "p+0";
+    } else {
+        f64view.setFloat64(0, x);
+        let hi = f64view.getUint32(0);
+        let lo = f64view.getUint32(4);
+        let biased_exp = (hi >>> 20) & 0x7ff;
+        /* 52-bit mantissa; both operands and the sum are exact in a double */
+        let mantissa = (hi & 0xfffff) * 4294967296 + lo;
+
+        let lead, exponent;
+        if (biased_exp === 0) {  /* subnormal */
+            lead = 0;
+            exponent = -1022;
+        } else {
+            lead = 1;
+            exponent = biased_exp - 1023;
+        }
+
+        let digits;
+        if (precision === null) {
+            digits = "";
+            for (let i = 12; i >= 0; i--)
+                digits += HEXDIGITS[Math.floor(mantissa / Math.pow(2, 4*i)) % 16];
+            digits = digits.replace(/0+$/, "");
+        } else if (precision >= 13) {
+            digits = "";
+            for (let i = 12; i >= 0; i--)
+                digits += HEXDIGITS[Math.floor(mantissa / Math.pow(2, 4*i)) % 16];
+            digits += "0".repeat(precision - 13);
+        } else {
+            /* Round the 13 stored hex digits to 'precision' digits, ties to even.
+               All values below fit exactly in a double, so the arithmetic is exact. */
+            let drop = 13 - precision;
+            let scale = Math.pow(2, 4*drop);
+            let kept = Math.floor(mantissa / scale);
+            let discarded = mantissa - kept * scale;
+            let half = scale / 2;
+            let unit = Math.pow(2, 4*precision);
+            let full = lead * unit + kept;
+            if (discarded > half || (discarded === half && full % 2 === 1))
+                full++;
+            lead = Math.floor(full / unit);
+            mantissa = full % unit;
+            digits = precision === 0 ? "" : mantissa.toString(16).padStart(precision, "0");
+        }
+
+        let fraction = digits.length > 0 ? "." + digits : (flags.indexOf("#") >= 0 ? "." : "");
+        result = "0x" + lead.toString(16) + fraction +
+            "p" + (exponent >= 0 ? "+" : "") + exponent;
+    }
+
+    return pad(sign + result, sign.length, width, flags);
+};
+
+/* pad to 'width'; zero padding goes after the sign and the "0x" prefix */
+const pad = function(body, signlen, width, flags) {
+    let missing = width - body.length;
+    if (missing <= 0 || width === 0)
+        return body;
+    if (flags.indexOf("-") >= 0)
+        return body + " ".repeat(missing);
+    if (flags.indexOf("0") >= 0) {
+        let prefixlen = signlen;
+        if (body.substring(signlen, signlen + 2) === "0x" || body.substring(signlen, signlen + 2) === "0X")
+            prefixlen += 2;
+        return body.substring(0, prefixlen) + "0".repeat(missing) + body.substring(prefixlen);
+    }
+    return " ".repeat(missing) + body;
 };
 
 const lua_number2strx = function(L, fmt, x) {
-    let buff = num2straux(x);
-    if (fmt[SIZELENMOD] === 65 /* 'A'.charCodeAt(0) */) {
-        for (let i = 0; i < buff.length; i++) {
-            let c = buff[i];
-            if (c >= 97) /* toupper */
-                buff[i] = c & 0xdf;
-        }
-    } else if (fmt[SIZELENMOD] !== 97 /* 'a'.charCodeAt(0) */)
-        luaL_error(L, to_luastring("modifiers for format '%%a'/'%%A' not implemented"));
-    return buff;
+    let opts = parse_format(fmt);
+    let buff = num2straux(x, opts.precision, opts.flags, opts.width);
+    if (fmt[fmt.length - 1] === 65 /* 'A'.charCodeAt(0) */)
+        buff = buff.toUpperCase();
+    return to_luastring(buff);
 };
 
 /*

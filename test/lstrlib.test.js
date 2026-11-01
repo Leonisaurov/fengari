@@ -165,6 +165,41 @@ test('string.format', () => {
 });
 
 
+test('string.format %a/%A', () => {
+    let L = lauxlib.luaL_newstate();
+    if (!L) throw Error("failed to create lua state");
+
+    let luaCode = `
+        return string.format("%a", 1.5),
+               string.format("%.3a", 1.5),
+               string.format("%.0a", 1.5),
+               string.format("%.0a", 2.5),
+               string.format("%A", 1.1),
+               string.format("%a", -0.0),
+               string.format("%.3a", 0),
+               string.format("%.20a", 1.5),
+               string.format("%a", 5e-324),
+               tostring(tonumber(string.format("%a", 1/3)) == 1/3)
+    `;
+    {
+        lualib.luaL_openlibs(L);
+        expect(lauxlib.luaL_loadstring(L, to_luastring(luaCode))).toBe(lua.LUA_OK);
+        lua.lua_call(L, 0, -1);
+    }
+
+    expect(lua.lua_tojsstring(L, -10)).toBe("0x1.8p+0");
+    expect(lua.lua_tojsstring(L, -9)).toBe("0x1.800p+0");
+    expect(lua.lua_tojsstring(L, -8)).toBe("0x2p+0");   /* 1.5 rounds to even */
+    expect(lua.lua_tojsstring(L, -7)).toBe("0x1p+1");
+    expect(lua.lua_tojsstring(L, -6)).toBe("0X1.199999999999AP+0");
+    expect(lua.lua_tojsstring(L, -5)).toBe("-0x0p+0");
+    expect(lua.lua_tojsstring(L, -4)).toBe("0x0.000p+0");
+    expect(lua.lua_tojsstring(L, -3)).toBe("0x1.80000000000000000000p+0");
+    expect(lua.lua_tojsstring(L, -2)).toBe("0x0.0000000000001p-1022");
+    expect(lua.lua_tojsstring(L, -1)).toBe("true");
+});
+
+
 test('string.sub', () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
