@@ -15,6 +15,7 @@ const {
     LUA_MASKCOUNT,
     LUA_MULTRET,
     LUA_OK,
+    LUA_YIELD,
     lua_close,
     lua_createtable,
     lua_gc,
@@ -30,15 +31,19 @@ const {
     lua_pushnumber,
     lua_pushstring,
     lua_pushvalue,
+    lua_newthread,
     lua_rawgeti,
     lua_rawlen,
     lua_rawseti,
     lua_pcall,
+    lua_resume,
     lua_sethook,
     lua_setglobal,
     lua_settable,
     lua_settop,
     lua_toboolean,
+    lua_xmove,
+    lua_yieldk,
     lua_tointeger,
     lua_tonumber,
     lua_topointer,
@@ -216,6 +221,159 @@ const pushJS = function(L, value) {
     }
 };
 
+/* ---------------------------------------------------------------------- */
+/* asynchronous JS functions                                               */
+/* ---------------------------------------------------------------------- */
+
+const is_thenable = function(value) {
+    return value !== null && typeof value === "object" &&
+        typeof value.then === "function";
+};
+
+/* continuation for a C function that yielded on a Promise */
+const async_continuation = function(L, status, ctx) {
+    /* the resumed values are on top of the original arguments */
+    let top = lua_gettop(L);
+    if (top < 2 || !lua_toboolean(L, top - 1)) {
+        let message = top >= 1 ? lua_tostring(L, top) : null;
+        return luaL_error(L, to_luastring("%s"),
+            message === null ? to_luastring("async function failed") : message);
+    }
+    lua_pushvalue(L, top);
+    return 1;
+};
+
+/**
+ * Push a JS function that may return a Promise. It must be called from a
+ * coroutine driven by runAsync/callAsync; when the Promise settles the driver
+ * resumes it and the Lua caller sees the resolved value (or receives an error).
+ */
+const pushAsyncJS = function(L, fn) {
+    lua_pushcfunction(L, function(L1) {
+        let args = [];
+        let n = lua_gettop(L1);
+        for (let i = 1; i <= n; i++)
+            args.push(toJS(L1, i));
+        let result;
+        try {
+            result = fn.apply(null, args);
+        } catch (e) {
+            return luaL_error(L1, to_luastring("%s"),
+                to_luastring(e && e.message !== undefined ? e.message : String(e)));
+        }
+        if (!is_thenable(result)) {
+            if (result === undefined)
+                return 0;
+            pushJS(L1, result);
+            return 1;
+        }
+        L1.pending_promise = result;
+        return lua_yieldk(L1, 0, null, async_continuation);
+    });
+};
+
+const drive_coroutine = async function(thread, from, nargs) {
+    let status = lua_resume(thread, from, nargs);
+    while (status === LUA_YIELD) {
+        let pending = thread.pending_promise;
+        thread.pending_promise = null;
+        if (!pending)
+            throw new Error("coroutine yielded without a pending promise");
+        let settled;
+        try {
+            settled = { ok: true, value: await pending };
+        } catch (e) {
+            settled = { ok: false, error: e };
+        }
+        pushJS(thread, settled.ok);
+        if (settled.ok)
+            pushJS(thread, settled.value);
+        else
+            pushJS(thread, settled.error && settled.error.message !== undefined
+                ? settled.error.message
+                : String(settled.error));
+        status = lua_resume(thread, from, 2);
+    }
+    return status;
+};
+
+const thread_error = function(thread) {
+    let raw = lua_tostring(thread, -1);
+    let message = raw === null ? "async Lua error" : to_jsstring(raw);
+    luaL_traceback(thread, thread, raw, 1);
+    let trace = lua_tostring(thread, -1);
+    let error = new Error(message);
+    if (trace !== null)
+        error.luaTraceback = to_jsstring(trace);
+    return error;
+};
+
+const collect_thread_results = function(thread) {
+    let n = lua_gettop(thread);
+    let results = [];
+    for (let i = 1; i <= n; i++)
+        results.push(toJS(thread, i));
+    lua_settop(thread, 0);
+    if (n === 0)
+        return undefined;
+    return n === 1 ? results[0] : results;
+};
+
+const drive_to_results = async function(L, thread, nargs) {
+    let base = lua_gettop(L);
+    try {
+        let status = await drive_coroutine(thread, L, nargs);
+        if (status !== LUA_OK)
+            throw thread_error(thread);
+        return collect_thread_results(thread);
+    } finally {
+        lua_settop(L, base - 1);  /* remove the thread from the main stack */
+    }
+};
+
+/**
+ * Run a chunk in a coroutine so async JS functions can resolve Promises.
+ */
+const runAsync = async function(L, source, chunkname) {
+    let bytes = typeof source === "string" ? to_luastring(source) : source;
+    let base = lua_gettop(L);
+    let thread = lua_newthread(L);
+    let status = luaL_loadbuffer(thread, bytes, bytes.length,
+        to_luastring(chunkname || "=(runAsync)"));
+    if (status !== LUA_OK) {
+        let error = thread_error(thread);
+        lua_settop(L, base);
+        throw error;
+    }
+    return drive_to_results(L, thread, 0);
+};
+
+/**
+ * Call a global (or a stack index) from a coroutine so async JS functions can
+ * resolve Promises.
+ */
+const callAsync = async function(L, fn, args) {
+    args = args || [];
+    let base = lua_gettop(L);
+    let thread = lua_newthread(L);
+    if (typeof fn === "string") {
+        lua_getglobal(thread, to_luastring(fn));
+        if (lua_isnil(thread, -1)) {
+            lua_settop(L, base);
+            throw new Error(`global '${fn}' is not a function`);
+        }
+    } else if (typeof fn === "number") {
+        lua_pushvalue(L, fn);
+        lua_xmove(L, thread, 1);
+    } else {
+        lua_settop(L, base);
+        throw new TypeError("callAsync() expects a global name or a stack index");
+    }
+    for (let i = 0; i < args.length; i++)
+        pushJS(thread, args[i]);
+    return drive_to_results(L, thread, args.length);
+};
+
 const collect_results = function(L, base) {
     let n = lua_gettop(L) - base;
     let results = [];
@@ -296,10 +454,13 @@ const createState = function(options) {
         L: L,
         run: (source, chunkname) => run(L, source, chunkname),
         dostring: (source, chunkname) => run(L, source, chunkname),
+        runAsync: (source, chunkname) => runAsync(L, source, chunkname),
         dofile: (filename) => dofile(L, filename),
         call: (fn, args) => call(L, fn, args),
+        callAsync: (fn, args) => callAsync(L, fn, args),
         toJS: (idx) => toJS(L, idx),
         pushJS: (value) => pushJS(L, value),
+        pushAsyncJS: (fn) => pushAsyncJS(L, fn),
         close: () => lua_close(L)
     };
 };
@@ -380,4 +541,7 @@ module.exports.dofile = dofile;
 module.exports.call = call;
 module.exports.toJS = toJS;
 module.exports.pushJS = pushJS;
+module.exports.runAsync = runAsync;
+module.exports.callAsync = callAsync;
+module.exports.pushAsyncJS = pushAsyncJS;
 module.exports.sandbox = sandbox;

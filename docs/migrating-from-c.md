@@ -301,7 +301,12 @@ unbuffered.
 `require("fengari").api` provides `createState`, `run`, `dostring`, `dofile`,
 `call`, `toJS`, `pushJS` and `sandbox` on top of the C API. It converts tables
 and arrays to JS values, wraps JS functions as Lua functions, and turns Lua
-errors into `Error` objects with `luaMessage` and `luaTraceback`. The sandbox
+errors into `Error` objects with `luaMessage` and `luaTraceback`.
+
+`pushAsyncJS` wraps a function that returns a Promise; `runAsync`/`callAsync`
+run the chunk in a coroutine, await the Promise and resume it, so Lua sees the
+resolved value (a rejection becomes a Lua error). Async functions only work
+under those drivers; plain `run`/`call` stay synchronous. The sandbox
 hides `io`, `os`, `package`, `debug`, `dofile`, `loadfile` and `require` by
 default and enforces instruction, wall-clock and approximate memory limits
 (`instructions`, `milliseconds`, `memory` in KB). The memory limit uses

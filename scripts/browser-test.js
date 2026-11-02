@@ -394,6 +394,39 @@ const PAGE_TESTS = `(async function() {
         assert(lines[0] === "captured", "stdout: " + JSON.stringify(lines));
     });
 
+    await test("async JS functions resolve Promises", async () => {
+        const state = F.api.createState();
+        try {
+            state.pushAsyncJS(async (url) => {
+                const response = await fetch(url);
+                return response.status;
+            });
+            F.lua.lua_setglobal(state.L, "fetchStatus");
+            const status = await state.runAsync('return fetchStatus("/bundle.js")');
+            assert(status === 200, "fetch status: " + status);
+
+            state.pushAsyncJS(async (ms) => {
+                await new Promise((resolve) => setTimeout(resolve, ms));
+                return ms;
+            });
+            F.lua.lua_setglobal(state.L, "delay");
+            const sum = await state.runAsync("return delay(1) + delay(2)");
+            assert(sum === 3, "delays: " + sum);
+
+            state.pushAsyncJS(async () => { throw new Error("browser boom"); });
+            F.lua.lua_setglobal(state.L, "fail");
+            let message = "";
+            try {
+                await state.runAsync("return fail()");
+            } catch (e) {
+                message = e.message;
+            }
+            assert(/browser boom/.test(message), "rejection: " + message);
+        } finally {
+            state.close();
+        }
+    });
+
     await test("sandbox limits run in the browser", () => {
         const box = F.api.sandbox({ instructions: 20000 });
         try {

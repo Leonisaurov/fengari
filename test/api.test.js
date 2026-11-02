@@ -141,3 +141,33 @@ test('api.sandbox enforces an approximate memory limit', () => {
         box.close();
     }
 });
+
+test('api async functions resolve Promises through runAsync/callAsync', async () => {
+    const state = api.createState();
+    try {
+        state.pushAsyncJS(async (a, b) => {
+            await new Promise((resolve) => setTimeout(resolve, 5));
+            return a + b;
+        });
+        lua.lua_setglobal(state.L, "awaitAdd");
+
+        expect(await state.runAsync("return awaitAdd(2, 3)")).toBe(5);
+        expect(await state.runAsync("return awaitAdd(1, 1) + awaitAdd(2, 2)")).toBe(6);
+        expect(await state.runAsync("return 10")).toBe(10);
+
+        state.pushAsyncJS((value) => value * 3);  /* non-Promise result */
+        lua.lua_setglobal(state.L, "triple");
+        expect(await state.runAsync("return triple(4)")).toBe(12);
+
+        state.pushAsyncJS(async () => {
+            throw new Error("async boom");
+        });
+        lua.lua_setglobal(state.L, "fail");
+        await expect(state.runAsync("return fail()")).rejects.toThrow(/async boom/);
+
+        state.run("function add(a, b) return awaitAdd(a, b) end");
+        expect(await state.callAsync("add", [4, 5])).toBe(9);
+    } finally {
+        state.close();
+    }
+});

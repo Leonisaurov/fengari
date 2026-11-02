@@ -119,7 +119,15 @@ const box = api.sandbox({ instructions: 1e6, milliseconds: 100 });
 box.run("while true do end");              // throws "instruction limit exceeded"
 ```
 
-`run`/`dostring` return one value, an array of values, or `undefined`; errors are `Error` objects with `luaMessage` and `luaTraceback`. `toJS`/`pushJS` convert tables, arrays, objects and functions. The sandbox removes `io`, `os`, `package`, `debug`, `dofile`, `loadfile` and `require` by default (configurable with `hide`) and enforces instruction, wall-clock and approximate memory limits (`instructions`, `milliseconds`, `memory` in KB) with a count hook.
+`run`/`dostring` return one value, an array of values, or `undefined`; errors are `Error` objects with `luaMessage` and `luaTraceback`. `toJS`/`pushJS` convert tables, arrays, objects and functions. Async JS functions are supported with coroutines:
+
+```js
+state.pushAsyncJS(async (url) => (await fetch(url)).status);
+lua.lua_setglobal(state.L, "fetchStatus");
+await state.runAsync('return fetchStatus("/data.json")');  // 200
+```
+
+`pushAsyncJS` must be called from code driven by `runAsync`/`callAsync`; the driver awaits each Promise and resumes the coroutine. The sandbox removes `io`, `os`, `package`, `debug`, `dofile`, `loadfile` and `require` by default (configurable with `hide`) and enforces instruction, wall-clock and approximate memory limits (`instructions`, `milliseconds`, `memory` in KB) with a count hook.
 
 The package also ships ES module bindings (`import { lua, lauxlib, api } from "fengari"`) and TypeScript definitions (`types/fengari.d.ts`).
 

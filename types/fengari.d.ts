@@ -186,10 +186,13 @@ export interface ApiState {
     L: LuaState;
     run(source: string | LuaString, chunkname?: string): any;
     dostring(source: string | LuaString, chunkname?: string): any;
+    runAsync(source: string | LuaString, chunkname?: string): Promise<any>;
     dofile(filename: string): any;
     call(fn: string | number, args?: any[]): any;
+    callAsync(fn: string | number, args?: any[]): Promise<any>;
     toJS(idx: number): any;
     pushJS(value: any): void;
+    pushAsyncJS(fn: (...args: any[]) => any): void;
     close(): void;
 }
 
@@ -215,10 +218,13 @@ export interface ApiHelpers {
     createState(options?: { version?: string; openlibs?: boolean }): ApiState;
     run(L: LuaState, source: string | LuaString, chunkname?: string): any;
     dostring(L: LuaState, source: string | LuaString, chunkname?: string): any;
+    runAsync(L: LuaState, source: string | LuaString, chunkname?: string): Promise<any>;
     dofile(L: LuaState, filename: string): any;
     call(L: LuaState, fn: string | number, args?: any[]): any;
+    callAsync(L: LuaState, fn: string | number, args?: any[]): Promise<any>;
     toJS(L: LuaState, idx: number): any;
     pushJS(L: LuaState, value: any): void;
+    pushAsyncJS(L: LuaState, fn: (...args: any[]) => any): void;
     sandbox(options?: SandboxOptions): Sandbox;
 }
 

@@ -10,7 +10,7 @@ Estado actual tras versiones y locale: 43 suites, 640 tests que pasan y 20 skips
 Estado actual tras referencia de API y guía de migración: 44 suites, 644 tests que pasan y 20 skips.
 Estado actual tras completar la librería `io`: 45 suites, 672 tests que pasan y 20 skips.
 Estado actual tras el VFS de navegador: 47 suites, 692 tests que pasan y 20 skips.
-Estado actual tras benchmarks, diferencial, fuzzing y API de alto nivel: 52 suites, 713 tests que pasan y 15 skips.
+Estado actual tras benchmarks, diferencial, fuzzing y API de alto nivel: 52 suites, 714 tests que pasan y 15 skips.
 
 **Prioridad:** P0 desbloquea uso real · P1 calidad/rendimiento · P2 deseable · P3 largo plazo.
 **Esfuerzo:** S < 1 día · M 1–5 días · L > 1 semana.
@@ -94,7 +94,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - [x] **Bundle de navegador** — P1, M. `scripts/build-browser.js` genera `dist/fengari.js` (IIFE con `sprintf-js` y stubs de módulos Node) sin dependencias; se construye también en `pnpm pack` y se prueba en navegador real.
 - [x] **Tipos TypeScript** — P1, L. Publicar `.d.ts` para `lua`, `lauxlib` y `lualib`, o habilitar `tsc --checkJs` con JSDoc incremental. La API C es enorme; priorizar los símbolos usados por `fengari-web`.
 - [x] **API de alto nivel** — P1, M. `run()`, `dostring()`, `call()`, registro de funciones JS, conversión de tablas/arrays y manejo de errores, para no obligar a usar la API C.
-- **API asíncrona** — P1, M. Promesas para cargar módulos y para funciones JS que devuelven `Promise`, resolviendo con corrutinas para no romper la semántica síncrona de Lua.
+- [x] **API asíncrona** — P1, M. `api.pushAsyncJS` + `runAsync`/`callAsync` ejecutan el chunk en una corrutina, esperan cada `Promise` y la reanudan; una promesa rechazada se convierte en error Lua. Queda la carga asíncrona de módulos (`require` sigue siendo síncrono).
 - [x] **Ciclo de vida de proxies** — P2, S. Revisado: el registro es un `WeakMap` de proxy→estado y no retiene proxies; `lua_isproxy` distingue estados y hay test de ámbito y error entre estados (`src/lapi.js`, `test/lapi.test.js`).
 - **`fengari-interop`** — P2, M. Tests de integración con objetos, arrays, funciones, promesas e iteradores JS; documentar límites y conversiones.
 - [x] **Web Workers** — P2, M. El backend en memoria y la E/S funcionan sin `window`/`process`; `test/worker.test.js` ejecuta io/os en `worker_threads`. Queda el puente de mensajes específico y `SharedArrayBuffer`.
