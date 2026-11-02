@@ -143,3 +143,90 @@ local function tail()
     return (function() return 8 end)()
 end
 check("close.tailcall", tail() == 8 and table.concat(log, ",") == "1")
+
+-- errors in __close replace the original error during pcall recovery
+log = {}
+local emt = {
+    __close = function(o)
+        log[#log + 1] = o.n
+        error("closeerr" .. o.n)
+    end,
+}
+local function emk(n) return setmetatable({ n = n }, emt) end
+local eok, eerr = pcall(function()
+    local a <close> = emk(1)
+    error("orig")
+end)
+check("close.error.replace", not eok and
+    tostring(eerr):find("closeerr1", 1, true) ~= nil and
+    table.concat(log, ",") == "1")
+
+-- the same replacement applies to a successful return
+log = {}
+local eok2, eerr2 = pcall(function()
+    local a <close> = emk(2)
+    return "ok"
+end)
+check("close.error.return", not eok2 and
+    tostring(eerr2):find("closeerr2", 1, true) ~= nil and
+    table.concat(log, ",") == "2")
+
+-- a failed coroutine defers closing until coroutine.close
+log = {}
+local deferred = coroutine.create(function()
+    local a <close> = mk(1)
+    local b <close> = mk(2)
+    error("deferred")
+end)
+local drok, drerr = coroutine.resume(deferred)
+local before = table.concat(log, ",")
+local dcok, dcerr = coroutine.close(deferred)
+check("close.deferred", not drok and before == "" and dcok == false and
+    table.concat(log, ",") == "2,1" and
+    tostring(drerr):find("deferred", 1, true) ~= nil and
+    tostring(dcerr):find("deferred", 1, true) ~= nil)
+
+-- __close may yield while pcall recovers from an error
+local ylog2 = {}
+local ymt2 = {
+    __close = function(o)
+        ylog2[#ylog2 + 1] = "b" .. o.n
+        coroutine.yield("z" .. o.n)
+        ylog2[#ylog2 + 1] = "a" .. o.n
+    end,
+}
+local function ymk2(n) return setmetatable({ n = n }, ymt2) end
+local yco2 = coroutine.create(function()
+    return pcall(function()
+        local a <close> = ymk2(1)
+        local b <close> = ymk2(2)
+        error("bang")
+    end)
+end)
+local yseq = {}
+for _ = 1, 6 do
+    local yok, yv = coroutine.resume(yco2)
+    yseq[#yseq + 1] = tostring(yok) .. ":" .. (yok and tostring(yv) or "ERR")
+    if coroutine.status(yco2) == "dead" then break end
+end
+check("close.yield.error", table.concat(yseq, ";") ==
+    "true:z2;true:z1;true:false" and
+    table.concat(ylog2, ",") == "b2,a2,b1,a1")
+
+-- coroutine.close runs closes without allowing them to yield
+local nlog = {}
+local nmt = {
+    __close = function(o)
+        nlog[#nlog + 1] = o.n
+        coroutine.yield("no")
+    end,
+}
+local nco = coroutine.create(function()
+    local a <close> = setmetatable({ n = 1 }, nmt)
+    coroutine.yield("wait")
+end)
+coroutine.resume(nco)
+local ncok, ncerr = coroutine.close(nco)
+check("close.coroutine.noyield", ncok == false and
+    tostring(ncerr):find("attempt to yield", 1, true) ~= nil and
+    table.concat(nlog, ",") == "1")

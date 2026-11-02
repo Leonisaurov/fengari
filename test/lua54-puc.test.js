@@ -39,4 +39,8 @@ const lua_bin = find_lua54();
     expect(actual).toBe(expected);
     expect(actual).not.toContain("FAIL");
     expect(actual).toContain("close.tailcall\tok");
+    expect(actual).toContain("close.error.replace\tok");
+    expect(actual).toContain("close.deferred\tok");
+    expect(actual).toContain("close.yield.error\tok");
+    expect(actual).toContain("close.coroutine.noyield\tok");
 });
