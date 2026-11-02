@@ -1,6 +1,6 @@
 "use strict";
 
-const { lua_pop } = require('./lua.js');
+const { lua_pop, lua_pushstring, lua_setglobal } = require('./lua.js');
 const { luaL_requiref } = require('./lauxlib.js');
 const { to_luastring } = require("./fengaricore.js");
 
@@ -16,6 +16,10 @@ const luaL_openlibs = function(L) {
     if (!L.l_G.profile_opened && L.l_G.impl && L.l_G.impl.openlibs) {
         L.l_G.profile_opened = true;
         L.l_G.impl.openlibs(L);
+    }
+    if (L.l_G.impl && L.l_G.impl.version && L.l_G.impl.version.string) {
+        lua_pushstring(L, to_luastring(L.l_G.impl.version.string));
+        lua_setglobal(L, to_luastring("_VERSION"));
     }
 };
 module.exports.luaL_openlibs = luaL_openlibs;

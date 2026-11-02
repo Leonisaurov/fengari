@@ -37,6 +37,7 @@ test('the 5.4 surface is opt-in', () => {
     expect(lua.lua_version(L54)).toBe(504);
 
     run(L53, `
+        assert(_VERSION == "Lua 5.3")
         assert(type(warn) == "nil")
         assert(type(coroutine.close) == "nil")
         assert(not pcall(math.random, 0))
@@ -45,6 +46,7 @@ test('the 5.4 surface is opt-in', () => {
     expect(lua.lua_toboolean(L53, -1)).toBe(true);
 
     run(L54, `
+        assert(_VERSION == "Lua 5.4")
         assert(type(warn) == "function")
         assert(type(coroutine.close) == "function")
         assert(math.type(math.random(0)) == "integer")

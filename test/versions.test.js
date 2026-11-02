@@ -47,6 +47,7 @@ test('5.2 profile exposes bit32 and hides 5.3 APIs', () => {
     expect(lua.lua_version(L)).toBe(502);
     expect(versions.features(L).bit32).toBe(true);
     run(L, `
+        assert(_VERSION == "Lua 5.2")
         assert(type(bit32) == "table")
         assert(bit32.band(0xff, 0x0f) == 15)
         assert(bit32.bor(1, 2) == 3)
@@ -78,6 +79,7 @@ test('5.1 profile adds compatibility globals and uses package.loaders', () => {
     expect(lua.lua_version(L)).toBe(501);
     expect(versions.features(L).loaders).toBe(true);
     run(L, `
+        assert(_VERSION == "Lua 5.1")
         assert(type(unpack) == "function")
         assert(type(loadstring) == "function")
         assert(type(getfenv) == "function")

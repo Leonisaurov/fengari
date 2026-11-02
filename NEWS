@@ -59,6 +59,7 @@ unreleased
   - Add a Lua 5.4 library profile: coroutine.close, warn (with
     lua_setwarnf/lua_warning) and the 5.4 math.random/randomseed API with
     per-state xoshiro seeds
+  - _VERSION now reports the selected profile instead of always "Lua 5.3"
   - Implement setfenv, module and package.seeall in the Lua 5.1 profile on top
     of the _ENV upvalue
   - Re-enable official tests for table/userdata libraries, package refs,
