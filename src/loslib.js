@@ -349,11 +349,6 @@ const strftime = function(L, b, s, date, utc) {
                     strftime(L, b, locale.formats.r, date, utc);
                     break;
 
-                // '0'
-                case 115 /* s */:
-                    luaL_addstring(b, to_luastring(String(Math.floor(date / 1000))));
-                    break;
-
                 // '\t'
                 case 116 /* t */:
                     luaL_addchar(b, 9);

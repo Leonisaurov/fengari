@@ -225,6 +225,27 @@ test('os.date conversion specifiers (UTC)', () => {
 });
 
 
+test('os.time rejects bad date fields and os.remove reports errno', () => {
+    let L = lauxlib.luaL_newstate();
+    if (!L) throw Error("failed to create lua state");
+
+    let luaCode = `
+        local ok, err = pcall(os.time, { year = "not a number" })
+        assert(not ok and err:match("field 'year' is not an integer"), err)
+
+        local removed, rerr, rcode = os.remove("fengari-definitely-missing-file")
+        assert(removed == nil and type(rerr) == "string" and type(rcode) == "number")
+
+        local bad = string.char(255)
+        assert(os.setlocale(bad) == nil)
+        assert(os.setlocale("C") == "C")
+    `;
+    lualib.luaL_openlibs(L);
+    expect(lauxlib.luaL_loadstring(L, to_luastring(luaCode))).toBe(lua.LUA_OK);
+    lua.lua_call(L, 0, 0);
+});
+
+
 test('os.setlocale', () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
