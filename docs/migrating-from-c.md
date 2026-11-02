@@ -277,9 +277,15 @@ falling back to synchronous XHR; mounted `.lua` and `.js` modules load without
 network access. `os.remove`, `os.rename`, `os.tmpname` and `os.getenv` use the
 same file system and a host-provided environment. `io.tmpfile`/`os.tmpname`
 live under `/tmp`. Nothing is persisted automatically: use
-`vfs.saveToStorage()`/`loadFromStorage()` (localStorage) or
-`vfs.saveToIndexedDB()`/`loadFromIndexedDB()` (Promises), or take a
-`vfs.snapshot()` and `vfs.restore()` it later.
+`vfs.saveToStorage()`/`loadFromStorage()` (localStorage),
+`vfs.saveToIndexedDB()`/`loadFromIndexedDB()` (IndexedDB) or
+`vfs.saveToOPFS()`/`loadFromOPFS()` (an OPFS directory handle), or take a
+`vfs.snapshot()` and `vfs.restore()` it later. `vfs.allowNetwork(false)`
+disables the XHR fallback so `require`/`loadfile` only read the VFS.
+
+`node scripts/build-browser.js` (or `pnpm build`) emits `dist/fengari.js`, an
+IIFE that exposes `window.fengari`. The browser tests (`pnpm test:browser`)
+drive Brave headless through the Chrome DevTools Protocol, not Playwright.
 
 Two limits are worth knowing. `io.popen` cannot stream under Lua's synchronous
 semantics: read mode runs the command with `spawnSync` and buffers its stdout,

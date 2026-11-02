@@ -89,10 +89,18 @@ Relative paths resolve against the virtual root (`/`). `io.tmpfile` and `os.tmpn
 
 In Node the real file system is used by default; `vfs.useMemory()` switches a Node host (or a test) to the same in-memory file system, and `vfs.useNode()` switches back. `vfs.current()` returns `"node"` or `"memory"`.
 
-If the host has a synchronous `localStorage`, `vfs.saveToStorage(key)` serializes the current files (base64) and `vfs.loadFromStorage(key)` restores them; `vfs.clearStorage(key)` removes the entry. For larger data, `vfs.saveToIndexedDB(key)` / `loadFromIndexedDB(key)` / `clearFromIndexedDB(key)` return Promises and use an IndexedDB database named `fengari-vfs`. OPFS is not built in: its synchronous handles are only available in workers, so a host that wants it must mount the files itself.
+If the host has a synchronous `localStorage`, `vfs.saveToStorage(key)` serializes the current files (base64) and `vfs.loadFromStorage(key)` restores them; `vfs.clearStorage(key)` removes the entry. For larger data, `vfs.saveToIndexedDB(key)` / `loadFromIndexedDB(key)` / `clearFromIndexedDB(key)` use an IndexedDB database named `fengari-vfs`. With an OPFS `FileSystemDirectoryHandle`, `vfs.saveToOPFS(dir, key)` / `loadFromOPFS(dir, key)` / `clearFromOPFS(dir, key)` persist through `createWritable()`; direct OPFS file access is not implemented.
 
-`require` also checks the VFS for both Lua and JS modules, so mounted `.lua` and `.js` files load without XHR; the synchronous XHR fallback is only used for URLs that are not mounted.
+`require` also checks the VFS for both Lua and JS modules, so mounted `.lua` and `.js` files load without XHR. Call `vfs.allowNetwork(false)` to forbid the synchronous XHR fallback entirely; `readable`/`loadfile`/`require` then only see the VFS.
 
+
+### Browser bundle and tests
+
+`pnpm build` generates `dist/fengari.js`, a self-contained IIFE that exposes the package as `window.fengari` (it includes `sprintf-js` and stubs Node-only modules). It is built on `pnpm pack` as well, so the tarball ships it.
+
+`pnpm test:browser` runs the browser suite without Playwright: it serves the bundle from a local HTTP server, launches **Brave in headless mode** through the Chrome DevTools Protocol (falling back to Chromium/Chrome if Brave is not installed) and checks the VFS, mounted `require`/`dofile`, localStorage, IndexedDB, OPFS, a real Web Worker, stdout handlers and the sandbox. Set `BRAVE_BIN` to point at a specific Brave build.
+
+CI runs the same suite. The XHR path can be disabled with `vfs.allowNetwork(false)` for a VFS-only environment.
 
 ### High-level API and sandbox
 
@@ -234,9 +242,10 @@ This library is automatically loaded by `luaL_openlibs` into the global `"fengar
 - `io.popen()`: commands run to completion synchronously; output (read mode)
   and input (write mode) are buffered instead of streamed.
 - In the browser, `require` uses the VFS for mounted modules and falls back to
-  synchronous XHR for URLs; asynchronous/ES module loading is not implemented.
+  synchronous XHR for URLs unless `vfs.allowNetwork(false)` is set;
+  asynchronous/ES module loading is not implemented.
 - `f:seek()` on pipes and terminals fails with `ESPIPE`, as in PUC Lua.
-- The sandbox memory limit is approximate (`collectgarbage("count")`), not an OS-level cap; OPFS persistence is host managed.
+- The sandbox memory limit is approximate (`collectgarbage("count")`), not an OS-level cap. OPFS persistence serializes snapshots through `createWritable()`; the VFS itself is still in memory.
 
 
 ## Benchmarks and validation

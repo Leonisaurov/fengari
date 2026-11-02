@@ -57,3 +57,6 @@ help
 dist
 
 .tern-port
+
+# Generated browser bundle
+dist/

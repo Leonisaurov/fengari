@@ -60,6 +60,7 @@ jobs:
         grep -qx 'package/src/fengari.js' "$RUNNER_TEMP/tarball.txt"
         grep -qx 'package/src/fengari.mjs' "$RUNNER_TEMP/tarball.txt"
         grep -qx 'package/types/fengari.d.ts' "$RUNNER_TEMP/tarball.txt"
+        grep -qx 'package/dist/fengari.js' "$RUNNER_TEMP/tarball.txt"
         grep -qx 'package/package.json' "$RUNNER_TEMP/tarball.txt"
         if grep -q '^package/test/' "$RUNNER_TEMP/tarball.txt"; then
           echo "::error::test/ must not be published"
@@ -87,3 +88,30 @@ jobs:
       run: yarn bench:compare --repeat=1
     - name: Fuzz the parser and undumper
       run: yarn fuzz --iterations=3000 --seed=2026
+
+  browser:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v6
+    - name: Use Node.js
+      uses: actions/setup-node@v6
+      with:
+        node-version: '24.x'
+        cache: 'yarn'
+    - name: Install dependencies
+      run: yarn --frozen-lockfile
+    - name: Install Brave (optional; falls back to Chrome)
+      continue-on-error: true
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y curl
+        sudo curl -fsSLo /usr/share/keyrings/brave-browser-archive-keyring.gpg https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg
+        echo "deb [signed-by=/usr/share/keyrings/brave-browser-archive-keyring.gpg] https://brave-browser-apt-release.s3.brave.com/ stable main" | sudo tee /etc/apt/sources.list.d/brave-browser-release.list
+        sudo apt-get update
+        sudo apt-get install -y brave-browser
+    - name: Build the browser bundle
+      run: yarn build
+    - name: Browser integration tests (CDP)
+      run: yarn test:browser

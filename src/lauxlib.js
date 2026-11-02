@@ -863,6 +863,9 @@ if (!lfs.is_node) {
             let virtual = lfs.loadfile(filename);
             if (virtual !== null) {
                 lf.f = virtual;
+            } else if (!lfs.networkEnabled()) {
+                lf.err = "network loading is disabled";
+                return errfile(L, "open", fnameindex, { message: "file is not mounted and network loading is disabled" });
             } else {
                 let path = to_uristring(filename);
                 let xhr = new XMLHttpRequest();

@@ -91,7 +91,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 
 - [x] **`exports`/`files`/`engines`** — P0, S. Sin esto, los bundlers no pueden resolver subrutas ni tree-shakear; `main` apunta a `src/fengari.js` y no hay mapa de exports (`package.json`).
 - [x] **Dual ESM/CJS** — P1, M. Los fuentes son CommonJS; añadir una capa ESM o migrar internamente y publicar ambos formatos. Mantener `require()` compatible.
-- **Bundle de navegador** — P1, M. `dist/fengari.min.js` con esbuild/rollup, source maps y un test que lo cargue en un navegador real. Hoy los usuarios dependen de `fengari-web`.
+- [x] **Bundle de navegador** — P1, M. `scripts/build-browser.js` genera `dist/fengari.js` (IIFE con `sprintf-js` y stubs de módulos Node) sin dependencias; se construye también en `pnpm pack` y se prueba en navegador real.
 - [x] **Tipos TypeScript** — P1, L. Publicar `.d.ts` para `lua`, `lauxlib` y `lualib`, o habilitar `tsc --checkJs` con JSDoc incremental. La API C es enorme; priorizar los símbolos usados por `fengari-web`.
 - [x] **API de alto nivel** — P1, M. `run()`, `dostring()`, `call()`, registro de funciones JS, conversión de tablas/arrays y manejo de errores, para no obligar a usar la API C.
 - **API asíncrona** — P1, M. Promesas para cargar módulos y para funciones JS que devuelven `Promise`, resolviendo con corrutinas para no romper la semántica síncrona de Lua.
@@ -108,7 +108,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 
 - [x] **Cobertura con umbral** — `jest --coverage`, reporte en CI y umbral global (90% statements/funciones/líneas, 85% ramas).
 - **Activar tests saltados** — P1, M. Quedan 15: 12 de API (harness `T`, límites de memoria, userdata internos), 2 de internals de tabla y 1 de locale. Se eliminaron los 3 fixtures inexistentes, el test vacío de `require` y se activó el bucle enorme con `_soft`.
-- **Tests de navegador** — P1, M. Playwright contra el bundle: XHR/`require`, workers, `debug.debug` y APIs ausentes en Node.
+- [x] **Tests de navegador** — P1, M. `scripts/browser-test.js` usa el Chrome DevTools Protocol contra Brave headless (fallback Chromium/Chrome), sin Playwright: VFS, `require`/`dofile` sin XHR, localStorage, IndexedDB, OPFS, Web Worker real, stdout y sandbox.
 - [x] **Tests diferenciales contra PUC Lua** — P1, M. `scripts/diff-puc.js` ejecuta `test/differential/` bajo Fengari y PUC y compara stdout y éxito/fallo; el test de Jest se salta si no hay intérprete.
 - [x] **Fuzzing del parser y `lundump`** — P1, M. `scripts/fuzz.js` con PRNG sembrado, bytes aleatorios, fuente aleatoria y bytecode mutado; `test/fuzz.test.js` ejecuta una tanda acotada.
 - [x] **CI más completa** — Node 20–26, caché de yarn, `--frozen-lockfile`, cobertura, tarball, diferencial contra PUC, benchmarks y fuzzing. Queda un workflow de publicación.
@@ -146,7 +146,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - **Versiones**: el parser/VM es 5.3; los perfiles 5.1/5.2 ajustan la superficie de librerías, no la sintaxis ni el modelo numérico. `setfenv`/`module` no están disponibles.
 - **GC**: `count` usa tamaños estimados por tipo; `collect` es atómico y solo `step` es incremental. Los valores retenidos únicamente por JS no cuentan como raíces.
 - **Fidelidad**: locale solo cubre el separador decimal (`ctype`/collation siguen en "C"); `%q` para `inf`/`nan` mantiene el estilo 5.3; los tracebacks no garantizan paridad exacta de marcos C/JS.
-- **Navegador**: `require`/`package.loadlib` caen a XHR síncrono si el módulo no está montado en el VFS; no hay tests reales de navegador ni carga asíncrona de módulos. El VFS es en memoria y se persiste con `vfs.saveToStorage()`/`loadFromStorage()` (localStorage) o `saveToIndexedDB()`/`loadFromIndexedDB()`.
+- **Navegador**: `require`/`package.loadlib` caen a XHR síncrono si el módulo no está montado en el VFS; no hay tests reales de navegador ni carga asíncrona de módulos. El VFS es en memoria y se persiste con `vfs.saveToStorage()`/`loadFromStorage()` (localStorage), `saveToIndexedDB()`/`loadFromIndexedDB()` o `saveToOPFS()`/`loadFromOPFS()`. `vfs.allowNetwork(false)` elimina el fallback XHR.
 - **`io`**: `popen`, `os.execute` y `os.exit` necesitan una API de procesos; en el VFS fallan con un error claro. `popen` ejecuta el comando de forma síncrona y bufferiza (no hay streaming); `setvbuf` controla un buffer de escritura en JS; `seek` usa una posición en JS y falla con `ESPIPE` en pipes y terminales.
 
 ---

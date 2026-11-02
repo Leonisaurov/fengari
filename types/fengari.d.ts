@@ -172,6 +172,11 @@ export interface Vfs {
     saveToIndexedDB(key: string): Promise<number>;
     loadFromIndexedDB(key: string): Promise<number>;
     clearFromIndexedDB(key: string): Promise<void>;
+    saveToOPFS(directory: any, key: string): Promise<number>;
+    loadFromOPFS(directory: any, key: string): Promise<number>;
+    clearFromOPFS(directory: any, key: string): Promise<void>;
+    allowNetwork(enabled: boolean): boolean;
+    networkEnabled(): boolean;
     useMemory(): any;
     useNode(): any;
     current(): "node" | "memory";

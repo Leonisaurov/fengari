@@ -509,6 +509,51 @@ const create_memory_backend = function() {
             return with_indexeddb("readwrite", function(store) {
                 store.delete(key);
             });
+        },
+        saveToOPFS: function(directory, key) {
+            if (!directory || typeof directory.getFileHandle !== "function")
+                return Promise.reject(new Error("a FileSystemDirectoryHandle is required"));
+            let entries = backend.vfs.snapshot().map(function(item) {
+                return { path: item.path, data: encode_bytes(item.data) };
+            });
+            let name = key + ".json";
+            return directory.getFileHandle(name, { create: true })
+                .then(function(handle) { return handle.createWritable(); })
+                .then(function(writable) {
+                    return writable.write(JSON.stringify({ version: 1, files: entries }))
+                        .then(function() { return writable.close(); });
+                })
+                .then(function() { return entries.length; });
+        },
+        loadFromOPFS: function(directory, key) {
+            if (!directory || typeof directory.getFileHandle !== "function")
+                return Promise.reject(new Error("a FileSystemDirectoryHandle is required"));
+            let name = key + ".json";
+            return directory.getFileHandle(name)
+                .then(function(handle) { return handle.getFile(); })
+                .then(function(file) { return file.text(); })
+                .then(function(text) {
+                    let parsed = JSON.parse(text);
+                    let entries = (parsed.files || []).map(function(item) {
+                        return { path: item.path, data: decode_bytes(item.data) };
+                    });
+                    backend.vfs.restore(entries);
+                    return entries.length;
+                })
+                .catch(function(e) {
+                    if (e && (e.name === "NotFoundError" || e.code === 8))
+                        return 0;
+                    throw e;
+                });
+        },
+        clearFromOPFS: function(directory, key) {
+            if (!directory || typeof directory.removeEntry !== "function")
+                return Promise.reject(new Error("a FileSystemDirectoryHandle is required"));
+            return directory.removeEntry(key + ".json").catch(function(e) {
+                if (e && (e.name === "NotFoundError" || e.code === 8))
+                    return;
+                throw e;
+            });
         }
     };
 
@@ -696,6 +741,9 @@ const node_backend = is_node ? create_node_backend() : null;
 
 let backend = node_backend !== null ? node_backend : memory_backend;
 
+/* browsers may be allowed to fall back to synchronous XHR for modules */
+let network_enabled = true;
+
 const active_backend = function() {
     return backend;
 };
@@ -706,6 +754,13 @@ module.exports.backend_name = function() {
 };
 module.exports.supports_processes = function() {
     return active_backend().name === "node";
+};
+module.exports.allowNetwork = function(enabled) {
+    network_enabled = !!enabled;
+    return network_enabled;
+};
+module.exports.networkEnabled = function() {
+    return network_enabled;
 };
 module.exports.EMPTY = EMPTY;
 module.exports.to_jsstring = to_jsstring;
@@ -755,6 +810,13 @@ module.exports.stderr = function() {
 
 /* host helpers for the in memory file system */
 module.exports.vfs = Object.assign({}, memory_backend.vfs, {
+    allowNetwork: function(enabled) {
+        network_enabled = !!enabled;
+        return network_enabled;
+    },
+    networkEnabled: function() {
+        return network_enabled;
+    },
     useMemory: function() {
         backend = memory_backend;
         return memory_backend;

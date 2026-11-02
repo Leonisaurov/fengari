@@ -26,6 +26,9 @@ unreleased
   - Add IndexedDB persistence helpers (saveToIndexedDB/loadFromIndexedDB)
   - Add an approximate memory limit to api.sandbox
   - Run differential tests, benchmarks and fuzzing in CI; add a worker test
+  - Build dist/fengari.js (IIFE) and test it in Brave headless through the
+    Chrome DevTools Protocol, including a real Web Worker, OPFS and IndexedDB
+  - Add vfs.allowNetwork(false) to disable the synchronous XHR fallback
 
 
 0.1.5 - 2025-12-26

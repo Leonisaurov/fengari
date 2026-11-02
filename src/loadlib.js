@@ -150,7 +150,7 @@ if (!lfs.is_node) {
         if (virtual !== null)
             return eval_js_module(L, to_jsstring(path), to_jsstring(virtual));
 
-        if (typeof XMLHttpRequest === "undefined") {
+        if (!lfs.networkEnabled() || typeof XMLHttpRequest === "undefined") {
             lua_pushstring(L, to_luastring("module loading needs XMLHttpRequest or a VFS file"));
             return null;
         }
@@ -223,7 +223,7 @@ if (lfs.is_node) { // Only with Node
     readable = function(path) {
         if (lfs.loadfile(path) !== null)  /* mounted in the virtual file system? */
             return true;
-        if (typeof XMLHttpRequest === "undefined")  /* no way to fetch it */
+        if (!lfs.networkEnabled() || typeof XMLHttpRequest === "undefined")
             return false;
         path = to_uristring(path);
         let xhr = new XMLHttpRequest();
