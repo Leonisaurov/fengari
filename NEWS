@@ -54,7 +54,10 @@ unreleased
     the stack if conversion throws
   - Cover every os.date conversion, utf8 invalid sequences/positions and the
     package searcher/loadlib error paths
-  - Re-enable official tests for table/userdata libraries and package refs
+  - Add a TypeScript typecheck for the published declarations and run it in
+    pnpm check and CI
+  - Re-enable official tests for table/userdata libraries, package refs and
+    finalization during collection
 
 
 0.1.5 - 2025-12-26

@@ -1022,9 +1022,9 @@ test("[test-suite] api: reuse of references", () => {
 });
 
 
-// Skipped: this upstream test inherits state (Lim, Arr) from the previous
-// test and uses T.testC "objsize", which Fengari's test harness does not model.
-test.skip("[test-suite] api: collect in cl the `val' of all collected userdata", () => {
+// This upstream test originally shared Lim/Arr with the reference test above;
+// those lines are removed here because each test builds its own state.
+test("[test-suite] api: collect in cl the `val' of all collected userdata", () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
 
@@ -1116,10 +1116,6 @@ test.skip("[test-suite] api: collect in cl the `val' of all collected userdata",
         na = nil
 
 
-        for i=2,Lim,2 do   -- unlock the other half
-          T.unref(Arr[i])
-        end
-
         x = T.newuserdata(41); debug.setmetatable(x, {__gc=F})
         assert(T.testC("objsize 2; return 1", x) == 41)
         cl = {}
@@ -1140,8 +1136,9 @@ test.skip("[test-suite] api: collect in cl the `val' of all collected userdata",
 });
 
 
-// Skipped: relies on exact byte accounting and T.testC "objsize"; Fengari
-// estimates memory per object type.
+// Skipped: PUC finalizes userdata in two GC cycles (TM first, memory later).
+// Fengari releases the object when it runs the finalizer, so the intermediate
+// "count still includes the dead userdata" assertion cannot hold.
 test.skip("[test-suite] api: test whether udate collection frees memory in the right time", () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
