@@ -157,6 +157,21 @@ const luaV_finishOp = function(L) {
                 ldo.adjust_top(L, ci.top);  /* adjust results */
             break;
         }
+        case OP_CLOSE: {
+            ci.l_savedpc--;  /* repeat instruction to close remaining variables */
+            break;
+        }
+        case OP_JMP: {
+            if (inst.A !== 0)
+                ci.l_savedpc--;  /* repeat the closing jump */
+            break;
+        }
+        case OP_RETURN: {
+            let ra = base + inst.A;
+            L.top = ra + (ci.u2_nres || 0);
+            ci.l_savedpc--;  /* repeat return after closing the rest */
+            break;
+        }
     }
 };
 
@@ -576,10 +591,12 @@ const luaV_execute = function(L) {
                 break;
             }
             case OP_RETURN: {
+                let nres = (i.B !== 0 ? i.B - 1 : L.top - ra);
+                ci.u2_nres = nres;
                 if (cl.p.p.length > 0 || (L.tbc_list.length > 0 &&
                     L.tbc_list[L.tbc_list.length - 1] >= base))
                     lfunc.luaF_close(L, base, 0);
-                let b = ldo.luaD_poscall(L, ci, ra, (i.B !== 0 ? i.B - 1 : L.top - ra));
+                let b = ldo.luaD_poscall(L, ci, ra, nres);
 
                 if (ci.callstatus & lstate.CIST_FRESH)
                     return; /* external invocation: return */

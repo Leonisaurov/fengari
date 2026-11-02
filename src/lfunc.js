@@ -66,7 +66,10 @@ const luaF_close = function(L, level, status) {
         lobject.pushobj2s(L, tm);
         lobject.pushobj2s(L, obj);
         lobject.pushobj2s(L, err);
-        ldo.luaD_call(L, funcpos, 0);
+        if (status === undefined || status === 0)
+            ldo.luaD_call(L, funcpos, 0);
+        else
+            ldo.luaD_callnoyield(L, funcpos, 0);
         L.top = funcpos;
     }
 };

@@ -213,6 +213,7 @@ class FuncState {
         this.nactvar = NaN;    /* number of active local variables */
         this.nups = NaN;       /* number of upvalues */
         this.freereg = NaN;    /* first free register */
+        this.needclose = false; /* function has a to-be-closed variable */
     }
 }
 
@@ -435,6 +436,7 @@ const marktobeclosed = function(fs) {
     let bl = fs.bl;
     bl.upval = 1;
     bl.tbc = true;
+    fs.needclose = true;
 };
 
 /* reject assignments to const and to-be-closed variables */
@@ -1654,7 +1656,7 @@ const retstat = function(ls) {
         nret = explist(ls, e);  /* optional return values */
         if (hasmultret(e.k)) {
             luaK_setmultret(fs, e);
-            if (e.k === expkind.VCALL && nret === 1) {  /* tail call? */
+            if (e.k === expkind.VCALL && nret === 1 && !fs.needclose) {  /* tail call? */
                 SET_OPCODE(getinstruction(fs, e), OP_TAILCALL);
                 lua_assert(getinstruction(fs, e).A === fs.nactvar);
             }

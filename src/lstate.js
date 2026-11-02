@@ -49,6 +49,7 @@ class CallInfo {
         this.c_ctx = null;  /* context info. in case of yields */
 
         this.nresults = NaN;
+        this.u2_nres = 0;
         this.callstatus = NaN;
     }
 

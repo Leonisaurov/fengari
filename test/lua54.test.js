@@ -258,6 +258,53 @@ test('5.4 <const> and <close> attributes', () => {
     lua.lua_close(L53);
 });
 
+test('5.4 yielding __close resumes the pending closes', () => {
+    let L = open("5.4");
+
+    run(L, `
+        local log = {}
+        local mt = {
+            __close = function(o)
+                coroutine.yield("y" .. o.n)
+                log[#log + 1] = o.n
+            end
+        }
+        local function mk(n) return setmetatable({n = n}, mt) end
+
+        local co = coroutine.create(function()
+            do
+                local a <close> = mk(1)
+                local b <close> = mk(2)
+                coroutine.yield("body")
+            end
+            return table.concat(log, ",")
+        end)
+
+        local results = {}
+        for i = 1, 5 do
+            local ok, value = coroutine.resume(co)
+            results[#results + 1] = ok and tostring(value) or "ERR"
+            if coroutine.status(co) == "dead" then break end
+        end
+        assert(table.concat(results, "|") == "body|y2|y1|2,1",
+            table.concat(results, "|"))
+
+        -- yielding close on a return also resumes the return
+        local co2 = coroutine.create(function()
+            local a <close> = mk(3)
+            return "done"
+        end)
+        local a, b, c = coroutine.resume(co2)
+        local d, e = coroutine.resume(co2)
+        assert(a == true and b == "y3")
+        assert(d == true and e == "done")
+        assert(coroutine.status(co2) == "dead")
+        return true
+    `);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+    lua.lua_close(L);
+});
+
 test('math.random uses the 5.4 API and a per-state seed', () => {
     let L = open("5.4");
 

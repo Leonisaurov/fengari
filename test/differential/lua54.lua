@@ -111,6 +111,31 @@ check("close.failed", not rok and cok == false and log[1] == 1 and
     tostring(cerr):find("bad", 1, true) ~= nil and
     tostring(rerr):find("bad", 1, true) ~= nil)
 
+-- __close may yield during normal unwinding
+local ylog = {}
+local ymt = {
+    __close = function(o)
+        ylog[#ylog + 1] = o.n
+        coroutine.yield("y" .. o.n)
+    end
+}
+local function ymk(n) return setmetatable({n = n}, ymt) end
+local yco = coroutine.create(function()
+    do
+        local a <close> = ymk(1)
+        local b <close> = ymk(2)
+        coroutine.yield("body")
+    end
+    return table.concat(ylog, ",")
+end)
+local yielded = {}
+for i = 1, 5 do
+    local ok, v = coroutine.resume(yco)
+    yielded[#yielded + 1] = ok and tostring(v) or "ERR"
+    if coroutine.status(yco) == "dead" then break end
+end
+check("close.yield", table.concat(yielded, "|") == "body|y2|y1|2,1")
+
 -- tail calls close the current frame
 log = {}
 local function tail()
