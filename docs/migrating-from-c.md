@@ -332,8 +332,10 @@ lualib.luaL_openlibs(L52);
 
 The bundled 5.1/5.2/5.4 profiles change the library surface and the accepted
 syntax (5.1/5.2 reject `//`/bitwise operators and expose doubles rather than
-integer-tagged values; 5.1 treats `goto` as a name), and dumps carry the
-profile's version byte so `loadbufferx` rejects chunks from another profile.
+integer-tagged values; 5.1 treats `goto` as a name, only accepts a reader
+function in `load`, and adds `newproxy`, `table.setn` and `loadstring`), and
+dumps carry the profile's version byte so `loadbufferx` rejects chunks from
+another profile.
 The internal state still uses integer tags for registry indices/constants and
 the instruction layout is Lua 5.3; supply a full implementation via
 `versions.register({loadbufferx, openlibs, ...})` if you need native PUC

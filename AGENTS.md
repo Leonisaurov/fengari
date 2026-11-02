@@ -5,7 +5,7 @@ Fengari is a port of the Lua 5.3 VM, parser and standard libraries to ES6 JavaSc
 ## Run
 
 - This machine has no `npm`, `yarn` or `corepack`; use **pnpm** from the repo root.
-- `pnpm install`, then `pnpm lint` (`eslint src/ test/ scripts/`), then `pnpm test` (Jest: 58 suites, ~772 tests, ~16 s).
+- `pnpm install`, then `pnpm lint` (`eslint src/ test/ scripts/`), then `pnpm test` (Jest: 58 suites, ~774 tests, ~16 s).
 - `pnpm install` exits 1 with `ERR_PNPM_IGNORED_BUILDS` for `@parcel/watcher`; dependencies are still installed. Ignore it unless you need Jest watch mode.
 - Single file: `pnpm test test/lvm.test.js`. Single test: `pnpm test test/lvm.test.js -t "MOVE"`. Do **not** put `--` before `-t`; Jest treats it as a filename pattern.
 - `test/manual-tests/debug-cli.js` is not run by Jest (it needs an interactive stdin).
