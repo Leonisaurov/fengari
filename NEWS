@@ -70,6 +70,9 @@ unreleased
     lengths, string.byte, math.floor, table keys and loops)
   - Add the remaining 5.1/5.2 APIs: newproxy, table.setn, loadstring and
     function-only load in 5.1, plus boolean os.exit from 5.2 onward
+  - Load native PUC Lua 5.1/5.2 binary chunks by translating them to the
+    internal 5.3 opcode layout (globals/_ENV, CLOSURE descriptors, TFORLOOP
+    expansion and jump remapping), with real binary fixtures
   - Write the selected profile's version byte in string.dump and reject
     cross-profile bytecode in loadbufferx/lundump
   - Allow __close to yield during normal unwinding and resume the pending
