@@ -416,6 +416,7 @@ const luaO_hexavalue = function(c) {
 const UTF8BUFFSZ = 8;
 
 const luaO_utf8esc = function(buff, x) {
+    if (typeof x === "bigint") x = Number(x);  /* code points fit in a Number */
     let n = 1;  /* number of bytes put in buffer (backwards) */
     lua_assert(x <= 0x10FFFF);
     if (x < 0x80)  /* ascii? */

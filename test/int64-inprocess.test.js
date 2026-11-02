@@ -104,3 +104,102 @@ test("in-process LUA_INT64 bytecode round trip", () => {
     expect(lua.lua_tointeger(L, -1)).toBe(9223372036854775807n);
     lua.lua_close(L);
 });
+
+test("in-process LUA_INT64 library paths keep BigInt values", () => {
+    let L = open("5.4");
+    run(L, `
+        -- string formatting and byte/char conversions
+        assert(string.format("%d", 9223372036854775807) == "9223372036854775807")
+        assert(string.format("%x", 255) == "ff")
+        assert(string.byte("A") == 65)
+        assert(string.char(65) == "A")
+        assert(#"abc" == 3)
+
+        -- table helpers sorting, moving and removing big integers
+        local t = {9223372036854775807, 1, 9223372036854775806}
+        table.sort(t)
+        assert(t[1] == 1 and t[2] == 9223372036854775806 and
+               t[3] == 9223372036854775807)
+        table.insert(t, 2, 42)
+        assert(table.remove(t, 2) == 42)
+        local u = table.move(t, 1, #t, 1, {})
+        assert(#u == #t and u[1] == t[1])
+        assert(table.concat(t, ",") ==
+               "1,9223372036854775806,9223372036854775807")
+
+        -- math helpers
+        assert(math.max(1, 9223372036854775807) == 9223372036854775807)
+        assert(math.min(1, -9223372036854775807) == -9223372036854775807)
+        assert(math.type(9223372036854775807) == "integer")
+        assert(math.type(1.5) == "float")
+        assert(math.tointeger(3.0) == 3)
+        assert(math.floor(3.7) == 3)
+        assert(math.ceil(3.2) == 4)
+
+        -- utf8 and base conversion
+        assert(utf8.char(65) == "A")
+        assert(utf8.codepoint("A") == 65)
+        assert(tonumber("ff", 16) == 255)
+
+        -- integer table keys through rawget/rawset and next
+        local k = {}
+        rawset(k, 9223372036854775807, "x")
+        assert(rawget(k, 9223372036854775807) == "x")
+        local nk = {}
+        nk[9223372036854775807] = true
+        assert(next(nk) == 9223372036854775807)
+
+        -- os.time keeps the integer subtype
+        local now = os.time()
+        assert(math.type(now) == "integer")
+        assert(type(os.date("%Y", now)) == "string")
+
+        return true
+    `);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+    lua.lua_close(L);
+});
+
+test("in-process LUA_INT64 string positions and limits", () => {
+    let L = open("5.4");
+    run(L, `
+        -- %q, %c, repetition and slicing
+        assert(string.format("%q", 9223372036854775807) ==
+               "9223372036854775807")
+        assert(string.format("%c", 65) == "A")
+        assert(string.rep("ab", 3) == "ababab")
+        assert(string.sub("abcdef", 2, 4) == "bcd")
+        assert(string.byte("ABC", 1) == 65)
+
+        -- find/gsub/gmatch with integer positions and counts
+        local a, b = string.find("abcabc", "bc")
+        assert(a == 2 and b == 3)
+        assert(string.find("abcabc", "bc", 3) == 5)
+        assert(string.gsub("aaaa", "a", "b", 2) == "bbaa")
+        assert(string.gsub("aaaa", "a", "b", 9223372036854775807) == "bbbb")
+        local count = 0
+        for _ in string.gmatch("a,b,c", "[^,]+") do count = count + 1 end
+        assert(count == 3)
+
+        -- select indices and table.unpack ranges
+        assert(select("#", 1, 2, 3) == 3)
+        assert(select(2, "a", "b", "c") == "b")
+        local x, y = table.unpack({10, 20}, 1, 2)
+        assert(x == 10 and y == 20)
+
+        -- utf8 offsets and lengths
+        assert(utf8.len("aé") == 2)
+        assert(utf8.offset("aé", 2) == 2)
+        assert(utf8.char(233) == "é")
+
+        -- os.date accepts integer timestamps
+        local t = os.time({year = 2020, month = 1, day = 2, hour = 3,
+                           min = 4, sec = 5})
+        assert(math.type(t) == "integer")
+        assert(os.date("%Y-%m-%d", t) == "2020-01-02")
+
+        return true
+    `);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+    lua.lua_close(L);
+});

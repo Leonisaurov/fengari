@@ -93,6 +93,7 @@ const {
     to_jsstring,
     to_luastring
 } = require("./fengaricore.js");
+const { LUA_INT64 } = require("./luaconf.js");
 const lfs = require("./lfs.js");
 
 let lua_writestring;
@@ -314,9 +315,35 @@ const b_str2int = function(s, base) {
     }
     let r = /^[\t\v\f \n\r]*([+-]?)0*([0-9A-Za-z]+)[\t\v\f \n\r]*$/.exec(s);
     if (!r) return null;
-    let v = parseInt(r[1]+r[2], base);
-    if (isNaN(v)) return null;
-    return v|0;
+    let digits = r[2];
+    let neg = r[1] === "-";
+    if (LUA_INT64) {
+        let a = 0n;
+        let b = BigInt(base);
+        for (let i = 0; i < digits.length; i++) {
+            let c = digits.charCodeAt(i);
+            let d;
+            if (c >= 48 && c <= 57) d = c - 48;
+            else if (c >= 97 && c <= 122) d = c - 97 + 10;
+            else d = c - 65 + 10;
+            if (d >= base) return null;
+            a = BigInt.asUintN(64, a * b + BigInt(d));
+        }
+        if (neg) a = BigInt.asUintN(64, -a);
+        return BigInt.asIntN(64, a);
+    }
+    let a = 0;
+    for (let i = 0; i < digits.length; i++) {
+        let c = digits.charCodeAt(i);
+        let d;
+        if (c >= 48 && c <= 57) d = c - 48;
+        else if (c >= 97 && c <= 122) d = c - 97 + 10;
+        else d = c - 65 + 10;
+        if (d >= base) return null;
+        a = (a * base + d) >>> 0;  /* unsigned accumulation, wraps at 32 bits */
+    }
+    if (neg) a = (0 - a) >>> 0;
+    return a | 0;
 };
 
 const luaB_tonumber = function(L) {
@@ -356,6 +383,7 @@ const luaB_tonumber = function(L) {
 
 const luaB_error = function(L) {
     let level = luaL_optinteger(L, 2, 1);
+    if (typeof level === "bigint") level = Number(level);
     lua_settop(L, 1);
     if (lua_type(L, 1) === LUA_TSTRING && level > 0) {
         luaL_where(L, level);  /* add extra information */
@@ -384,6 +412,7 @@ const luaB_select = function(L) {
         return 1;
     } else {
         let i = luaL_checkinteger(L, 1);
+        if (typeof i === "bigint") i = Number(i);
         if (i < 0) i = n + i;
         else if (i > n) i = n;
         luaL_argcheck(L, 1 <= i, 1, "index out of range");

@@ -38,6 +38,7 @@ const iscont = function(p) {
 
 /* translate a relative string position: negative means back from end */
 const u_posrelat = function(pos, len) {
+    if (typeof pos === "bigint") pos = Number(pos);
     if (pos >= 0) return pos;
     else if (0 - pos > len) return 0;
     else return len + pos + 1;
@@ -135,6 +136,7 @@ const utfchar = function(L) {
 const byteoffset = function(L) {
     let s = luaL_checkstring(L, 1);
     let n = luaL_checkinteger(L, 2);
+    if (typeof n === "bigint") n = Number(n);
     let posi = n >= 0 ? 1 : s.length + 1;
     posi = u_posrelat(luaL_optinteger(L, 3, posi), s.length);
 
@@ -205,7 +207,9 @@ const codepoint = function(L) {
 const iter_aux = function(L) {
     let s = luaL_checkstring(L, 1);
     let len = s.length;
-    let n = lua_tointeger(L, 2) - 1;
+    let n = lua_tointeger(L, 2);
+    if (typeof n === "bigint") n = Number(n);
+    n -= 1;
 
     if (n < 0)  /* first iteration? */
         n = 0;  /* start from here */

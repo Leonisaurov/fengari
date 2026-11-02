@@ -132,7 +132,7 @@ const str_char = function(L) {
     for (let i = 1; i <= n; i++) {
         let c = luaL_checkinteger(L, i);
         luaL_argcheck(L, c >= 0 && c <= 255, "value out of range"); // Strings are 8-bit clean
-        p[i-1] = c;
+        p[i-1] = Number(c);
     }
     luaL_pushresultsize(b, n);
     return 1;
@@ -506,10 +506,16 @@ const addliteral = function(L, b, arg) {
                 checkdp(L, buff);  /* ensure it uses a dot */
             } else {  /* integers */
                 let n = lua_tointeger(L, arg);
-                let format = (n === LUA_MININTEGER)  /* corner case? */
-                    ? "0x%" + LUA_INTEGER_FRMLEN + "x"  /* use hexa */
-                    : LUA_INTEGER_FMT;  /* else use default format */
-                buff = to_luastring(sprintf(format, n));
+                if (typeof n === "bigint") {
+                    buff = to_luastring(n === LUA_MININTEGER
+                        ? "0x" + BigInt.asUintN(64, n).toString(16)
+                        : n.toString());
+                } else {
+                    let format = (n === LUA_MININTEGER)  /* corner case? */
+                        ? "0x%" + LUA_INTEGER_FRMLEN + "x"  /* use hexa */
+                        : LUA_INTEGER_FMT;  /* else use default format */
+                    buff = to_luastring(sprintf(format, n));
+                }
             }
             luaL_addstring(b, buff);
             break;
@@ -578,7 +584,7 @@ const str_format = function(L) {
             switch (String.fromCharCode(strfrmt[i++])) {
                 case 'c': {
                     // sprintf(String.fromCharCode(...form), luaL_checkinteger(L, arg));
-                    luaL_addchar(b, luaL_checkinteger(L, arg));
+                    luaL_addchar(b, Number(luaL_checkinteger(L, arg)));
                     break;
                 }
                 case 'd': case 'i':
@@ -978,6 +984,7 @@ const str_rep = function(L) {
     let s = luaL_checkstring(L, 1);
     let l = s.length;
     let n = luaL_checkinteger(L, 2);
+    if (typeof n === "bigint") n = Number(n);  /* string sizes fit in a Number */
     let sep = luaL_optstring(L, 3, "");
     let lsep = sep.length;
     if (n <= 0) lua_pushliteral(L, "");
@@ -1690,6 +1697,7 @@ const str_gsub = function(L) {
     let lastmatch = null;  /* end of last match */
     let tr = lua_type(L, 3);  /* replacement type */
     let max_s = luaL_optinteger(L, 4, srcl + 1);  /* max replacements */
+    if (typeof max_s === "bigint") max_s = Number(max_s);
     let anchor = p[0] === 94 /* '^'.charCodeAt(0) */;
     let n = 0;  /* replacement count */
     let ms = new MatchState(L);
