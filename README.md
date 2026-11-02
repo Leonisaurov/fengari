@@ -314,6 +314,10 @@ The CI uses [yarn](https://yarnpkg.com/), so `yarn.lock` is the source of truth 
 - `yarn fuzz` fuzzes the parser and undumper
 - `yarn test test/lvm.test.js -t MOVE` to run a single test
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow, test conventions and
+commit style, and [SECURITY.md](SECURITY.md) to report a vulnerability
+privately. This project follows the [Code of Conduct](CODE_OF_CONDUCT.md).
+
 ## References
 
 - [Source code for Lua 5.3](lua.org/source/5.3/)
