@@ -84,7 +84,8 @@ const checktab = function(L, arg, what) {
 
 const aux_getn = function(L, n, w) {
     checktab(L, n, w | TAB_L);
-    return luaL_len(L, n);
+    let len = luaL_len(L, n);
+    return typeof len === "bigint" ? Number(len) : len;
 };
 
 const addfield = function(L, b, i) {
@@ -105,6 +106,7 @@ const tinsert = function(L) {
             break;
         case 3: {
             pos = luaL_checkinteger(L, 2);  /* 2nd argument is the position */
+            if (typeof pos === "bigint") pos = Number(pos);
             luaL_argcheck(L, 1 <= pos && pos <= e, 2, "position out of bounds");
             for (let i = e; i > pos; i--) {  /* move up elements */
                 lua_geti(L, 1, i - 1);
@@ -124,6 +126,7 @@ const tinsert = function(L) {
 const tremove = function(L) {
     let size = aux_getn(L, 1, TAB_RW);
     let pos = luaL_optinteger(L, 2, size);
+    if (typeof pos === "bigint") pos = Number(pos);
     if (pos !== size)  /* validate 'pos' if given */
         luaL_argcheck(L, 1 <= pos && pos <= size + 1, 1, "position out of bounds");
     lua_geti(L, 1, pos);  /* result = t[pos] */
@@ -146,13 +149,18 @@ const tmove = function(L) {
     let f = luaL_checkinteger(L, 2);
     let e = luaL_checkinteger(L, 3);
     let t = luaL_checkinteger(L, 4);
+    if (typeof f === "bigint") f = Number(f);
+    if (typeof e === "bigint") e = Number(e);
+    if (typeof t === "bigint") t = Number(t);
     let tt = !lua_isnoneornil(L, 5) ? 5 : 1;  /* destination table */
     checktab(L, 1, TAB_R);
     checktab(L, tt, TAB_W);
+    let maxint = typeof LUA_MAXINTEGER === "bigint"
+        ? Number.MAX_SAFE_INTEGER : LUA_MAXINTEGER;
     if (e >= f) {  /* otherwise, nothing to move */
-        luaL_argcheck(L, f > 0 || e < LUA_MAXINTEGER + f, 3, "too many elements to move");
+        luaL_argcheck(L, f > 0 || e < maxint + f, 3, "too many elements to move");
         let n = e - f + 1;  /* number of elements to move */
-        luaL_argcheck(L, t <= LUA_MAXINTEGER - n + 1, 4, "destination wrap around");
+        luaL_argcheck(L, t <= maxint - n + 1, 4, "destination wrap around");
 
         if (t > e || t <= f || (tt !== 1 && lua_compare(L, 1, tt, LUA_OPEQ) !== 1)) {
             for (let i = 0; i < n; i++) {
@@ -177,6 +185,8 @@ const tconcat = function(L) {
     let lsep = sep.length;
     let i = luaL_optinteger(L, 3, 1);
     last = luaL_optinteger(L, 4, last);
+    if (typeof i === "bigint") i = Number(i);
+    if (typeof last === "bigint") last = Number(last);
 
     let b = new luaL_Buffer();
     luaL_buffinit(L, b);
@@ -208,6 +218,8 @@ const pack = function(L) {
 const unpack = function(L) {
     let i = luaL_optinteger(L, 2, 1);
     let e = luaL_opt(L, luaL_checkinteger, 3, luaL_len(L, 1));
+    if (typeof i === "bigint") i = Number(i);
+    if (typeof e === "bigint") e = Number(e);
     if (i > e) return 0;  /* empty range */
     let n = e - i;  /* number of elements minus 1 (avoid overflows) */
     if (n >= Number.MAX_SAFE_INTEGER || !lua_checkstack(L, ++n))
@@ -335,7 +347,9 @@ const auxsort = function(L, lo, up, rnd) {
 const sort = function(L) {
     let n = aux_getn(L, 1, TAB_RW);
     if (n > 1) {  /* non-trivial interval? */
-        luaL_argcheck(L, n < LUA_MAXINTEGER, 1, "array too big");
+        let maxint = typeof LUA_MAXINTEGER === "bigint"
+            ? Number.MAX_SAFE_INTEGER : LUA_MAXINTEGER;
+        luaL_argcheck(L, n < maxint, 1, "array too big");
         if (!lua_isnoneornil(L, 2))  /* is there a 2nd argument? */
             luaL_checktype(L, 2, LUA_TFUNCTION);  /* must be a function */
         lua_settop(L, 2);  /* make sure there are two arguments */

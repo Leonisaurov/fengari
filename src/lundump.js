@@ -18,7 +18,7 @@ const {
 const ldo      = require('./ldo.js');
 const lfunc    = require('./lfunc.js');
 const lobject  = require('./lobject.js');
-const { LUA_INT64 } = require('./luaconf.js');
+const { LUA_INT64, LUA_MAXINTEGER, LUA_MININTEGER } = require('./luaconf.js');
 const {
     MAXARG_sBx,
     POS_A,
@@ -101,7 +101,7 @@ class BytecodeParser {
     LoadInteger() {
         if (luaZ_read(this.Z, this.u8, 0, this.integerSize) !== 0)
             this.error("truncated");
-        return LUA_INT64 ? this.dv.getBigInt64(0, true)
+        return this.integerSize === 8 ? this.dv.getBigInt64(0, true)
             : this.dv.getInt32(0, true);
     }
 
@@ -160,9 +160,18 @@ class BytecodeParser {
                 case LUA_TNUMFLT:
                     f.k.push(new lobject.TValue(LUA_TNUMFLT, this.LoadNumber()));
                     break;
-                case LUA_TNUMINT:
-                    f.k.push(new lobject.TValue(LUA_TNUMINT, this.LoadInteger()));
+                case LUA_TNUMINT: {
+                    let v = this.LoadInteger();
+                    if (typeof v === "bigint" && !LUA_INT64) {
+                        if (v > LUA_MAXINTEGER || v < LUA_MININTEGER)
+                            this.error("integer constant does not fit");
+                        v = Number(v);
+                    } else if (typeof v === "number" && LUA_INT64) {
+                        v = BigInt(v);
+                    }
+                    f.k.push(new lobject.TValue(LUA_TNUMINT, v));
                     break;
+                }
                 case LUA_TSHRSTR:
                 case LUA_TLNGSTR:
                     f.k.push(new lobject.TValue(LUA_TLNGSTR, this.LoadString()));
@@ -242,8 +251,10 @@ class BytecodeParser {
         if (this.LoadByte() !== 0x53)
             this.error("version mismatch in");
 
-        if (this.LoadByte() !== (LUA_INT64 ? 1 : 0))
+        let format = this.LoadByte();
+        if (format !== 0 && format !== 1)
             this.error("format mismatch in");
+        this.format = format;
 
         this.checkliteral(LUAC_DATA, "corrupted");
 
@@ -256,10 +267,10 @@ class BytecodeParser {
         this.checksize(this.intSize, 4, "int");
         this.checksize(this.size_tSize, 4, "size_t");
         this.checksize(this.instructionSize, 4, "instruction");
-        this.checksize(this.integerSize, LUA_INT64 ? 8 : 4, "integer");
+        this.checksize(this.integerSize, this.format === 1 ? 8 : 4, "integer");
         this.checksize(this.numberSize, 8, "number");
 
-        if (this.LoadInteger() !== (LUA_INT64 ? 0x5678n : 0x5678))
+        if (this.LoadInteger() !== (this.format === 1 ? 0x5678n : 0x5678))
             this.error("endianness mismatch in");
 
         if (this.LoadNumber() !== 370.5)

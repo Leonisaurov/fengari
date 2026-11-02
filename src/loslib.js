@@ -115,6 +115,8 @@ const getfield = function(L, key, d, delta) {
         res = d;
     }
     else {
+        if (typeof res === "bigint")
+            res = Number(res);
         if (!(-L_MAXDATEFIELD <= res && res <= L_MAXDATEFIELD))
             return luaL_error(L, to_luastring("field '%s' is out-of-bound"), key);
         res -= delta;
@@ -457,7 +459,9 @@ const os_time = function(L) {
     }
 
     let secs = Math.floor(t / 1000);
-    if (secs >= LUA_MININTEGER && secs <= LUA_MAXINTEGER)
+    if (typeof LUA_MAXINTEGER === "bigint")
+        lua_pushinteger(L, secs);
+    else if (secs >= LUA_MININTEGER && secs <= LUA_MAXINTEGER)
         lua_pushinteger(L, secs);
     else
         lua_pushnumber(L, secs);  /* outside the 32-bit integer range */
@@ -467,7 +471,7 @@ const os_time = function(L) {
 const l_checktime = function(L, arg) {
     let t = luaL_checkinteger(L, arg);
     // luaL_argcheck(L, t, arg, "time out-of-bounds");
-    return t;
+    return typeof t === "bigint" ? Number(t) : t;
 };
 
 const os_difftime = function(L) {

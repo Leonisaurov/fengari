@@ -52,6 +52,15 @@ const l_srand = function(x) {
         rand_state = 1;
 };
 
+const next_random64 = function() {
+    if (rand_state === void 0) {
+        let hi = Math.floor(Math.random() * 0x100000000) >>> 0;
+        let lo = Math.floor(Math.random() * 0x100000000) >>> 0;
+        return BigInt.asIntN(64, (BigInt(hi) << 32n) | BigInt(lo));
+    }
+    return BigInt.asIntN(64, (BigInt(l_rand()) << 32n) | BigInt(l_rand()));
+};
+
 const math_random = function(L) {
     let low, up;
     /* use Math.random until randomseed is called */
@@ -71,6 +80,20 @@ const math_random = function(L) {
             break;
         }
         default: return luaL_error(L, "wrong number of arguments");
+    }
+
+    if (typeof low === "bigint" || typeof up === "bigint") {
+        low = BigInt(low);
+        up = BigInt(up);
+        luaL_argcheck(L, low <= up, 1, "interval is empty");
+        let range = up - low + 1n;
+        let limit = (1n << 64n) / range * range;
+        let rv = next_random64();
+        while (BigInt.asUintN(64, rv) >= limit)
+            rv = next_random64();
+        lua_pushinteger(L, BigInt.asIntN(64,
+            low + (BigInt.asUintN(64, rv) % range)));
+        return 1;
     }
 
     /* random integer in the interval [low, up] */
@@ -136,6 +159,11 @@ const seed54 = function(L, n1, n2) {
         next54(L);
 };
 
+const next64_54 = function(L) {
+    return BigInt.asIntN(64,
+        (BigInt(next54(L)) << 32n) | BigInt(next54(L)));
+};
+
 const math_random54 = function(L) {
     let r = next54(L);
     let low, up;
@@ -146,8 +174,11 @@ const math_random54 = function(L) {
         case 1:
             low = 1;
             up = luaL_checkinteger(L, 1);
-            if (up === 0) {  /* full 32-bit random integer */
-                lua_pushinteger(L, r | 0);
+            if (up === 0 || up === 0n) {  /* full random integer */
+                if (typeof up === "bigint")
+                    lua_pushinteger(L, next64_54(L));
+                else
+                    lua_pushinteger(L, r | 0);
                 return 1;
             }
             break;
@@ -157,6 +188,20 @@ const math_random54 = function(L) {
             break;
         default:
             return luaL_error(L, "wrong number of arguments");
+    }
+
+    if (typeof low === "bigint" || typeof up === "bigint") {
+        low = BigInt(low);
+        up = BigInt(up);
+        luaL_argcheck(L, low <= up, 1, "interval is empty");
+        let range = up - low + 1n;
+        let limit = (1n << 64n) / range * range;
+        let rv = next64_54(L);
+        while (BigInt.asUintN(64, rv) >= limit)
+            rv = next64_54(L);
+        lua_pushinteger(L, BigInt.asIntN(64,
+            low + (BigInt.asUintN(64, rv) % range)));
+        return 1;
     }
 
     luaL_argcheck(L, low <= up, 1, "interval is empty");
@@ -174,19 +219,24 @@ const math_randomseed54 = function(L) {
         n1 = (Date.now() ^ Math.floor(Math.random() * U32)) >>> 0;
         n2 = Math.floor(Math.random() * U32) >>> 0;
     } else {
-        n1 = luaL_checkinteger(L, 1) >>> 0;
-        n2 = luaL_optinteger(L, 2, 0) >>> 0;
+        n1 = luaL_checkinteger(L, 1);
+        n2 = luaL_optinteger(L, 2, 0);
     }
-    seed54(L, n1, n2);
-    lua_pushinteger(L, n1 | 0);
-    lua_pushinteger(L, n2 | 0);
+    seed54(L,
+        Number(BigInt.asUintN(32, BigInt(n1))),
+        Number(BigInt.asUintN(32, BigInt(n2))));
+    lua_pushinteger(L, n1);
+    lua_pushinteger(L, n2);
     return 2;
 };
 
 const math_abs = function(L) {
     if (lua_isinteger(L, 1)) {
         let n = lua_tointeger(L, 1);
-        if (n < 0) n = (-n)|0;
+        if (typeof n === "bigint")
+            n = n < 0n ? BigInt.asIntN(64, -n) : n;
+        else if (n < 0)
+            n = (-n)|0;
         lua_pushinteger(L, n);
     }
     else
@@ -271,7 +321,10 @@ const math_sqrt = function(L) {
 const math_ult = function(L) {
     let a = luaL_checkinteger(L, 1);
     let b = luaL_checkinteger(L, 2);
-    lua_pushboolean(L, (a >= 0)?(b<0 || a<b):(b<0 && a<b));
+    if (typeof a === "bigint")
+        lua_pushboolean(L, BigInt.asUintN(64, a) < BigInt.asUintN(64, b));
+    else
+        lua_pushboolean(L, (a >= 0)?(b<0 || a<b):(b<0 && a<b));
     return 1;
 };
 
@@ -348,11 +401,16 @@ const math_type = function(L) {
 const math_fmod = function(L) {
     if (lua_isinteger(L, 1) && lua_isinteger(L, 2)) {
         let d = lua_tointeger(L, 2);
-        /* no special case needed for -1 in javascript */
-        if (d === 0) {
+        let a = lua_tointeger(L, 1);
+        if (typeof d === "bigint") {
+            if (d === 0n)
+                luaL_argerror(L, 2, "zero");
+            else
+                lua_pushinteger(L, a % d);
+        } else if (d === 0) {
             luaL_argerror(L, 2, "zero");
         } else
-            lua_pushinteger(L, (lua_tointeger(L, 1) % d)|0);
+            lua_pushinteger(L, (a % d)|0);
     } else {
         let a = luaL_checknumber(L, 1);
         let b = luaL_checknumber(L, 2);

@@ -3,6 +3,7 @@
 const { sprintf } = require('sprintf-js');
 
 const {
+    LUA_INT64,
     LUA_INTEGER_FMT,
     LUA_INTEGER_FRMLEN,
     LUA_MININTEGER,
@@ -652,7 +653,7 @@ const LUAL_PACKPADBYTE = 0x00;
 /* maximum size for the binary representation of an integer */
 const MAXINTSIZE = 16;
 
-const SZINT = 4; // Size of lua_Integer
+const SZINT = LUA_INT64 ? 8 : 4; // Size of lua_Integer
 
 /* number of bits in a character */
 const NB = 8;
@@ -807,6 +808,19 @@ const getdetails = function(h, totalsize, fmt) {
 */
 const packint = function(b, n, islittle, size, neg) {
     let buff = luaL_prepbuffsize(b, size);
+    if (typeof n === "bigint") {
+        let u = BigInt.asUintN(64, n);
+        for (let i = 0; i < size; i++) {
+            buff[islittle ? i : size - 1 - i] = Number(u & 0xffn);
+            u >>= 8n;
+        }
+        if (neg && size > SZINT) {  /* negative number needs sign extension */
+            for (let i = SZINT; i < size; i++)
+                buff[islittle ? i : size - 1 - i] = MC;
+        }
+        luaL_addsize(b, size);
+        return;
+    }
     buff[islittle ? 0 : size - 1] = n & MC;  /* first byte */
     for (let i = 1; i < size; i++) {
         n >>= NB;
@@ -842,18 +856,36 @@ const str_pack = function(L) {
         switch (opt) {
             case Kint: {  /* signed integers */
                 let n = luaL_checkinteger(L, arg);
-                if (size < SZINT) {  /* need overflow check? */
-                    let lim = 1 << (size * 8) - 1;
-                    luaL_argcheck(L, -lim <= n && n < lim, arg, "integer overflow");
+                if (typeof n === "bigint") {
+                    if (size < SZINT) {
+                        let bits = BigInt(size * 8);
+                        let lim = 1n << (bits - 1n);
+                        luaL_argcheck(L, -lim <= n && n < lim, arg, "integer overflow");
+                    }
+                    packint(b, n, h.islittle, size, n < 0n);
+                } else {
+                    if (size < SZINT) {  /* need overflow check? */
+                        let lim = 1 << (size * 8) - 1;
+                        luaL_argcheck(L, -lim <= n && n < lim, arg, "integer overflow");
+                    }
+                    packint(b, n, h.islittle, size, n < 0);
                 }
-                packint(b, n, h.islittle, size, n < 0);
                 break;
             }
             case Kuint: {  /* unsigned integers */
                 let n = luaL_checkinteger(L, arg);
-                if (size < SZINT)
-                    luaL_argcheck(L, (n>>>0) < (1 << (size * NB)), arg, "unsigned overflow");
-                packint(b, n>>>0, h.islittle, size, false);
+                if (typeof n === "bigint") {
+                    if (size < SZINT) {
+                        let lim = 1n << BigInt(size * 8);
+                        luaL_argcheck(L, BigInt.asUintN(64, n) < lim,
+                            arg, "unsigned overflow");
+                    }
+                    packint(b, n, h.islittle, size, false);
+                } else {
+                    if (size < SZINT)
+                        luaL_argcheck(L, (n>>>0) < (1 << (size * NB)), arg, "unsigned overflow");
+                    packint(b, n>>>0, h.islittle, size, false);
+                }
                 break;
             }
             case Kfloat: {  /* floating-point options */
@@ -1025,8 +1057,25 @@ const str_packsize = function(L) {
 ** overflow.
 */
 const unpackint = function(L, str, islittle, size, issigned) {
-    let res = 0;
     let limit = size <= SZINT ? size : SZINT;
+    if (LUA_INT64) {
+        let res = 0n;
+        for (let i = limit - 1; i >= 0; i--) {
+            res = (res << 8n) | BigInt(str[islittle ? i : size - 1 - i]);
+        }
+        if (size < SZINT) {
+            if (issigned)
+                res = BigInt.asIntN(size * 8, res);
+        } else if (size > SZINT) {
+            let mask = !issigned || res >= 0n ? 0n : 0xffn;
+            for (let i = limit; i < size; i++) {
+                if (BigInt(str[islittle ? i : size - 1 - i]) !== mask)
+                    luaL_error(L, to_luastring("%d-byte integer does not fit into Lua Integer"), size);
+            }
+        }
+        return BigInt.asIntN(64, res);
+    }
+    let res = 0;
     for (let i = limit - 1; i >= 0; i--) {
         res <<= NB;
         res |= str[islittle ? i : size - 1 - i];
@@ -1097,6 +1146,8 @@ const str_unpack = function(L) {
             }
             case Kstring: {
                 let len = unpackint(L, data.subarray(pos), h.islittle, size, 0);
+                if (typeof len === "bigint")
+                    len = Number(len);
                 luaL_argcheck(L, pos + len + size <= ld, 2, "data string too short");
                 lua_pushstring(L, data.subarray(pos + size, pos + size + len));
                 pos += len;  /* skip string */
