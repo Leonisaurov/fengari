@@ -42,6 +42,11 @@ class ZIO {
     zgetc () {
         return ((this.n--) > 0) ? this.buffer[this.off++] : luaZ_fill(this);
     }
+
+    /* look ahead without consuming; -1 if not buffered */
+    zpeek (offset) {
+        return (this.n > offset) ? this.buffer[this.off + offset] : -1;
+    }
 }
 
 const EOZ = -1;

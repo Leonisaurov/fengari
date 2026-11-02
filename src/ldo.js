@@ -742,7 +742,15 @@ const f_parser = function(L, p) {
     let c = p.z.zgetc();  /* read first character */
     if (c === LUA_SIGNATURE[0]) {
         checkmode(L, p.mode, to_luastring("binary", true));
-        cl = lundump.luaU_undump(L, p.z, p.name);
+        let version = p.z.zpeek(3);
+        let native = (version === 0x51 || version === 0x52) &&
+            p.z.zpeek(5) === 1;  /* native headers put endianness after format */
+        if (native) {
+            cl = require('./lundump_native.js').luaU_undump_native(
+                L, p.z, p.name, version);
+        } else {
+            cl = lundump.luaU_undump(L, p.z, p.name);
+        }
     } else {
         checkmode(L, p.mode, to_luastring("text", true));
         cl = lparser.luaY_parser(L, p.z, p.buff, p.dyd, p.name, c);
