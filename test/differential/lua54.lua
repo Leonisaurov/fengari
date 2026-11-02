@@ -74,6 +74,21 @@ check("close.false", pcall(function()
     local b <close> = false
 end))
 
+-- the fourth generic-for value is to-be-closed (Lua 5.4)
+log = {}
+local function gen(_, c)
+    c = c + 1
+    if c <= 3 then return c end
+end
+for x in gen, nil, 0, setmetatable({ n = 4 }, mt) do end
+check("close.for", table.concat(log, ",") == "4")
+
+log = {}
+for x in gen, nil, 0, setmetatable({ n = 4 }, mt) do
+    if x == 2 then break end
+end
+check("close.for.break", table.concat(log, ",") == "4")
+
 -- coroutine.close runs pending closers
 log = {}
 local co = coroutine.create(function()

@@ -98,6 +98,7 @@ const {
         OP_TBC,
         OP_TFORCALL,
         OP_TFORLOOP,
+        OP_TFORPREP,
         OP_VARARG
     },
     LFIELDS_PER_FLUSH,
@@ -1387,14 +1388,21 @@ const exp1 = function(ls) {
     return reg;
 };
 
-const forbody = function(ls, base, line, nvars, isnum) {
+const forbody = function(ls, base, line, nvars, isnum, nctrl) {
     /* forbody -> DO block */
     let bl = new BlockCnt();
     let fs = ls.fs;
     let endfor;
-    adjustlocalvars(ls, 3);  /* control variables */
+    nctrl = nctrl || 3;
+    adjustlocalvars(ls, nctrl);  /* control variables */
     checknext(ls, R.TK_DO);
-    let prep = isnum ? luaK_codeAsBx(fs, OP_FORPREP, base, NO_JUMP) : luaK_jump(fs);
+    let prep;
+    if (isnum)
+        prep = luaK_codeAsBx(fs, OP_FORPREP, base, NO_JUMP);
+    else if (nctrl === 4)  /* 5.4 generic for: 4th value is to-be-closed */
+        prep = luaK_codeAsBx(fs, OP_TFORPREP, base, NO_JUMP);
+    else
+        prep = luaK_jump(fs);
     enterblock(fs, bl, 0);  /* scope for declared variables */
     adjustlocalvars(ls, nvars);
     luaK_reserveregs(fs, nvars);
@@ -1406,7 +1414,8 @@ const forbody = function(ls, base, line, nvars, isnum) {
     else {  /* generic for */
         luaK_codeABC(fs, OP_TFORCALL, base, 0, nvars);
         luaK_fixline(fs, line);
-        endfor = luaK_codeAsBx(fs, OP_TFORLOOP, base + 2, NO_JUMP);
+        endfor = luaK_codeAsBx(fs, OP_TFORLOOP,
+            nctrl === 4 ? base : base + 2, NO_JUMP);
     }
     luaK_patchlist(fs, endfor, prep + 1);
     luaK_fixline(fs, line);
@@ -1437,12 +1446,17 @@ const forlist = function(ls, indexname) {
     /* forlist -> NAME {,NAME} IN explist forbody */
     let fs = ls.fs;
     let e = new expdesc();
-    let nvars = 4;  /* gen, state, control, plus at least one declared var */
+    let is54 = fs.ls.L.l_G.impl && fs.ls.L.l_G.impl.features &&
+        fs.ls.L.l_G.impl.features.attributes;
+    let nvars = is54 ? 5 : 4;  /* + declared variables */
+    let nctrl = is54 ? 4 : 3;
     let base = fs.freereg;
     /* create control variables */
     new_localvarliteral(ls, "(for generator)");
     new_localvarliteral(ls, "(for state)");
     new_localvarliteral(ls, "(for control)");
+    if (is54)
+        new_localvarliteral(ls, "(for toclose)");
     /* create declared variables */
     new_localvar(ls, indexname);
     while (testnext(ls, 44 /* (',').charCodeAt(0) */)) {
@@ -1451,9 +1465,11 @@ const forlist = function(ls, indexname) {
     }
     checknext(ls, R.TK_IN);
     let line = ls.linenumber;
-    adjust_assign(ls, 3, explist(ls, e), e);
+    adjust_assign(ls, nctrl, explist(ls, e), e);
+    if (is54)
+        marktobeclosed(fs);  /* 4th control value must be closed */
     luaK_checkstack(fs, 3);  /* extra space to call generator */
-    forbody(ls, base, line, nvars - 3, 0);
+    forbody(ls, base, line, nvars - nctrl, 0, nctrl);
 };
 
 const forstat = function(ls, line) {

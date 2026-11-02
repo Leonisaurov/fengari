@@ -173,6 +173,20 @@ test('5.4 <const> and <close> attributes', () => {
         assert(table.concat(log, ",") == "1:nil", table.concat(log, ","))
         log = {}
 
+        -- the fourth generic-for value is to-be-closed
+        local function gen(_, c)
+            c = c + 1
+            if c <= 3 then return c end
+        end
+        for x in gen, nil, 0, mk(4) do end
+        assert(table.concat(log, ",") == "4:nil", table.concat(log, ","))
+        log = {}
+        for x in gen, nil, 0, mk(4) do
+            if x == 2 then break end
+        end
+        assert(table.concat(log, ",") == "4:nil", table.concat(log, ","))
+        log = {}
+
         -- return and nested blocks close before leaving
         local function f()
             local a <close> = mk(1)

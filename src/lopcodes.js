@@ -49,7 +49,8 @@ const OpCodes = [
     "VARARG",
     "EXTRAARG",
     "CLOSE",
-    "TBC"
+    "TBC",
+    "TFORPREP"
 ];
 
 const OpCodesI = {
@@ -101,7 +102,8 @@ const OpCodesI = {
     OP_VARARG:   45,
     OP_EXTRAARG: 46,
     OP_CLOSE:    47,
-    OP_TBC:      48
+    OP_TBC:      48,
+    OP_TFORPREP: 49
 };
 
 /*
@@ -172,7 +174,8 @@ const luaP_opmodes = [
     0 << 7 | 1 << 6 | OpArgU << 4 | OpArgN << 2 | iABC,   /* OP_VARARG */
     0 << 7 | 0 << 6 | OpArgU << 4 | OpArgU << 2 | iAx,    /* OP_EXTRAARG */
     0 << 7 | 0 << 6 | OpArgN << 4 | OpArgN << 2 | iABC,   /* OP_CLOSE */
-    0 << 7 | 1 << 6 | OpArgN << 4 | OpArgN << 2 | iABC    /* OP_TBC */
+    0 << 7 | 1 << 6 | OpArgN << 4 | OpArgN << 2 | iABC,   /* OP_TBC */
+    0 << 7 | 1 << 6 | OpArgR << 4 | OpArgN << 2 | iAsBx   /* OP_TFORPREP */
 ];
 
 const getOpMode = function(m) {

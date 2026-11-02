@@ -71,6 +71,7 @@ const {
         OP_TESTSET,
         OP_TFORCALL,
         OP_TFORLOOP,
+        OP_TFORPREP,
         OP_UNM,
         OP_VARARG
     }
@@ -637,8 +638,20 @@ const luaV_execute = function(L) {
                 ci.l_savedpc += i.sBx;
                 break;
             }
+            case OP_TFORPREP: {
+                let idx = ra + 3;
+                let p = cl.p;
+                let name = lfunc.luaF_getlocalname(p, (idx - base) + 1,
+                    ci.l_savedpc - 1);
+                lfunc.luaF_newtbcupval(L, idx, name);
+                ci.l_savedpc += i.sBx;
+                break;
+            }
             case OP_TFORCALL: {
-                let cb = ra + 3; /* call base */
+                /* Lua 5.4 keeps the to-be-closed value at ra+3 and calls at ra+4 */
+                let callbase = (L.l_G.impl && L.l_G.impl.features &&
+                    L.l_G.impl.features.attributes) ? 4 : 3;
+                let cb = ra + callbase; /* call base */
                 lobject.setobjs2s(L, cb+2, ra+2);
                 lobject.setobjs2s(L, cb+1, ra+1);
                 lobject.setobjs2s(L, cb, ra);
@@ -652,7 +665,14 @@ const luaV_execute = function(L) {
             }
             /* fall through */
             case OP_TFORLOOP: {
-                if (!L.stack[ra + 1].ttisnil()) { /* continue loop? */
+                let nctrl54 = (L.l_G.impl && L.l_G.impl.features &&
+                    L.l_G.impl.features.attributes);
+                if (nctrl54) {
+                    if (!L.stack[ra + 4].ttisnil()) {
+                        lobject.setobjs2s(L, ra + 2, ra + 4);
+                        ci.l_savedpc += i.sBx;
+                    }
+                } else if (!L.stack[ra + 1].ttisnil()) { /* continue loop? */
                     lobject.setobjs2s(L, ra, ra + 1); /* save control variable */
                     ci.l_savedpc += i.sBx; /* jump back */
                 }
