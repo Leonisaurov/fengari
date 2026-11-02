@@ -121,6 +121,7 @@ class global_State {
         this.rand54 = null;            /* Lua 5.4 xoshiro state, per state */
         this.warnf = null;             /* Lua 5.4 warning callback */
         this.warn_ud = null;           /* opaque warning callback data */
+        this.track_puc_sizes = false;  /* test-only PUC table sizing metadata */
     }
 
 }

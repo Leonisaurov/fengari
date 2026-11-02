@@ -274,6 +274,8 @@ const puc_rehash = function(t, extra) {
 };
 
 const puc_newkey = function(t, k) {
+    if (!t.g || !t.g.track_puc_sizes)
+        return;
     if (k !== null && k >= 1 && k <= t.puc_alimit)
         return;
     if (t.puc_hsize === 0 || t.puc_hused >= t.puc_hsize) {
@@ -285,8 +287,9 @@ const puc_newkey = function(t, k) {
 };
 
 const puc_resize = function(t, na, nh) {
-    t.puc_alimit = na;
-    t.puc_hsize = puc_nextpow2(nh);
+    if (!t.g || !t.g.track_puc_sizes)
+        return;
+    t.puc_alimit = na;    t.puc_hsize = puc_nextpow2(nh);
     let used = 0;
     for (const e of t.strong.values()) {
         let k = puc_intkey(e.key);
@@ -297,6 +300,8 @@ const puc_resize = function(t, na, nh) {
 };
 
 const puc_resizearray = function(t, na) {
+    if (!t.g || !t.g.track_puc_sizes)
+        return;
     t.puc_alimit = na;
     let used = 0;
     for (const e of t.strong.values()) {
@@ -305,6 +310,14 @@ const puc_resizearray = function(t, na) {
             used++;
     }
     t.puc_hused = used;
+};
+
+/* Tables created before T was opened have no metadata; derive it lazily. */
+const puc_ensure_sizes = function(t) {
+    if (!t.g || !t.g.track_puc_sizes)
+        return;
+    if (t.puc_alimit === 0 && t.puc_hsize === 0 && t.strong.size > 0)
+        puc_rehash(t, undefined);
 };
 
 const getgeneric = function(t, hash) {
@@ -470,6 +483,7 @@ module.exports.luaH_setint  = luaH_setint;
 module.exports.luaH_new     = luaH_new;
 module.exports.luaH_next    = luaH_next;
 module.exports.luaH_removeentry = luaH_removeentry;
+module.exports.puc_ensure_sizes = puc_ensure_sizes;
 module.exports.puc_resize    = puc_resize;
 module.exports.puc_resizearray = puc_resizearray;
 module.exports.Table        = Table;

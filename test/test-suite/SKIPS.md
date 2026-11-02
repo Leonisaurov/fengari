@@ -47,7 +47,10 @@ local `b` or `testprog` from another test define them locally.
 and `T.querytab` reports PUC-compatible array/hash sizes. `Table` carries
 `puc_alimit`/`puc_hsize`/`puc_hused` metadata, updated by `OP_NEWTABLE` hints,
 `OP_SETLIST`, `lua_createtable` and new-key insertions; rehashes follow PUC's
-`computesizes` and power-of-two hash sizing.
+`computesizes` and power-of-two hash sizing. The metadata is only tracked
+after `ltests` is opened (so normal runs pay just one branch), and tables
+created before that (for example the `math` library) are sized lazily on the
+first `T.querytab` call.
 
 ## Review after the 5.1/5.2 work
 

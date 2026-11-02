@@ -12,6 +12,7 @@ const {
 } = require("../../src/fengaricore.js");
 const ljstype  = require('../../src/ljstype.js');
 const lopcodes = require('../../src/lopcodes.js');
+const ltable   = require('../../src/ltable.js');
 const { pushobj2s, luaO_int2fb, luaO_fb2int } = require('../../src/lobject.js');
 const sprintf  = require('sprintf-js').sprintf;
 
@@ -975,6 +976,7 @@ const int2fb = function(L) {
 const querytab = function(L) {
     lauxlib.luaL_checktype(L, 1, lua.LUA_TTABLE);
     let t = L.stack[L.ci.funcOff + 1].value;
+    ltable.puc_ensure_sizes(t);
     lua.lua_pushinteger(L, t.puc_alimit);
     lua.lua_pushinteger(L, t.puc_hsize);
     return 2;
@@ -1017,6 +1019,7 @@ const luaB_opentests = function(L) {
 };
 
 const luaopen_tests = function(L) {
+    L.l_G.track_puc_sizes = true;  /* T.querytab needs PUC sizing metadata */
     lauxlib.luaL_requiref(L, to_luastring("T"), luaB_opentests, 1);
     lua.lua_pop(L, 1); /* remove lib */
 };

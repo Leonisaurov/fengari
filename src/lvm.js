@@ -283,7 +283,7 @@ const luaV_execute = function(L) {
             }
             case OP_NEWTABLE: {
                 let h = ltable.luaH_new(L);
-                if (i.B !== 0 || i.C !== 0)
+                if (L.l_G.track_puc_sizes && (i.B !== 0 || i.C !== 0))
                     ltable.puc_resize(h, lobject.luaO_fb2int(i.B),
                         lobject.luaO_fb2int(i.C));
                 L.stack[ra].sethvalue(h);
@@ -726,7 +726,7 @@ const luaV_execute = function(L) {
 
                 let h = L.stack[ra].value;
                 let last = ((c - 1) * LFIELDS_PER_FLUSH) + n;
-                if (last > h.puc_alimit)
+                if (L.l_G.track_puc_sizes && last > h.puc_alimit)
                     ltable.puc_resizearray(h, last);
 
                 for (; n > 0; n--) {
