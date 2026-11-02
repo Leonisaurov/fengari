@@ -1,10 +1,15 @@
 "use strict";
 
+const path = require('path');
+const {spawnSync} = require('child_process');
+
 const lua = require('../src/lua.js');
 const lauxlib = require('../src/lauxlib.js');
 const lualib = require('../src/lualib.js');
 const versions = require('../src/versions.js');
 const {to_luastring} = require("../src/fengaricore.js");
+
+const ROOT = path.resolve(__dirname, '..');
 
 const open = function(version) {
     let L = lauxlib.luaL_newstate(version);
@@ -103,7 +108,7 @@ test('5.1 profile adds compatibility globals and uses package.loaders', () => {
         assert(getfenv(f) == _G)
 
         -- setfenv changes the function's _ENV upvalue (5.1 exposes _ENV)
-        local chunk = load("return answer")
+        local chunk = loadstring("return answer")
         local env = { answer = 42 }
         assert(setfenv(chunk, env) == chunk)
         assert(getfenv(chunk) == env)
@@ -189,11 +194,11 @@ test('5.1 profile treats goto as a name and rejects labels', () => {
     run(L, `
         goto = 1
         assert(goto == 1)
-        local f, e = load("goto done ::done:: return true")
+        local f, e = loadstring("goto done ::done:: return true")
         assert(not f and e:match("syntax error"), e)
-        local g, ge = load("return 1 // 2")
+        local g, ge = loadstring("return 1 // 2")
         assert(not g and ge:match("near '//'"), ge)
-        local h, he = load("return 1 | 2")
+        local h, he = loadstring("return 1 | 2")
         assert(not h and he:match("near '|'"), he)
         return true
     `);
@@ -228,6 +233,71 @@ test('loadbufferx hook is used by the version implementation', () => {
     lua.lua_call(L, 0, 1);
     expect(lua.lua_tointeger(L, -1)).toBe(7);
     lua.lua_close(L);
+});
+
+test('5.1-only APIs: newproxy, table.setn and loadstring', () => {
+    let L = open("5.1");
+    run(L, `
+        local p = newproxy()
+        assert(type(p) == "userdata" and getmetatable(p) == nil)
+        local q = newproxy(true)
+        assert(type(getmetatable(q)) == "table")
+        local r = newproxy(q)
+        assert(getmetatable(r) == getmetatable(q))
+        local ok, err = pcall(newproxy, {})
+        assert(not ok and err:match("boolean or proxy expected"), err)
+
+        local t = {}
+        assert(table.setn(t, 20) == t)
+        assert(type(table.setn) == "function")
+
+        local parts = {"return 7"}
+        local chunk = load(function() return table.remove(parts, 1) end)
+        assert(chunk() == 7)
+        local ok, berr = pcall(load, "return 1")
+        assert(not ok and tostring(berr):match("function expected"), berr)
+        assert(loadstring("return 8")() == 8)
+        return true
+    `);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+    lua.lua_close(L);
+
+    let L52 = open("5.2");
+    run(L52, `
+        assert(type(newproxy) == "nil")
+        assert(type(table.setn) == "nil")
+        assert(type(loadstring) == "nil")
+        assert(load("return 9")() == 9)
+        return true
+    `);
+    expect(lua.lua_toboolean(L52, -1)).toBe(true);
+    lua.lua_close(L52);
+});
+
+test('os.exit accepts a boolean only from 5.2', () => {
+    let L51 = open("5.1");
+    run(L51, `
+        local ok, err = pcall(os.exit, true)
+        assert(not ok and err:match("number expected"), err)
+        return true
+    `);
+    expect(lua.lua_toboolean(L51, -1)).toBe(true);
+    lua.lua_close(L51);
+
+    const run_exit = function(arg) {
+        const code = `
+            const { api } = require("./src/fengari.js");
+            const state = api.createState({ version: "5.2" });
+            state.run("os.exit(${arg})");
+        `;
+        return spawnSync(process.execPath, ["-e", code], {
+            cwd: ROOT,
+            encoding: "utf8",
+            timeout: 30000
+        });
+    };
+    expect(run_exit("true").status).toBe(0);
+    expect(run_exit("false").status).toBe(1);
 });
 
 test('default version can be switched and custom implementations registered', () => {

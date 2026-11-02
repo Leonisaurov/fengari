@@ -215,6 +215,13 @@ const pack = function(L) {
     return 1;  /* return table */
 };
 
+const luaB_setn = function(L) {
+    luaL_checktype(L, 1, LUA_TTABLE);
+    luaL_checkinteger(L, 2);  /* historical size hint: ignored */
+    lua_pushvalue(L, 1);
+    return 1;
+};
+
 const unpack = function(L) {
     let i = luaL_optinteger(L, 2, 1);
     let e = luaL_opt(L, luaL_checkinteger, 3, luaL_len(L, 1));
@@ -374,3 +381,4 @@ const luaopen_table = function(L) {
 };
 
 module.exports.luaopen_table = luaopen_table;
+module.exports.luaB_setn = luaB_setn;

@@ -31,10 +31,13 @@ const {
     lua_gettop,
     lua_insert,
     lua_isinteger,
+    lua_isboolean,
     lua_isnil,
     lua_isnone,
     lua_isstring,
     lua_load,
+    lua_newtable,
+    lua_newuserdata,
     lua_next,
     lua_pcallk,
     lua_pop,
@@ -468,8 +471,36 @@ const generic_reader = function(L, ud) {
     return lua_tostring(L, RESERVEDSLOT);
 };
 
+const luaB_loadstring = function(L) {
+    let s = luaL_checkstring(L, 1);
+    let chunkname = luaL_optstring(L, 2, s);
+    let status = luaL_loadbufferx(L, s, s.length, chunkname,
+        to_luastring("bt", true));
+    return load_aux(L, status, 0);
+};
+
+const luaB_newproxy = function(L) {
+    lua_settop(L, 1);
+    lua_newuserdata(L, 0);  /* proxy at index 2 */
+    if (!lua_toboolean(L, 1))
+        return 1;  /* no metatable */
+    if (lua_isboolean(L, 1)) {
+        lua_newtable(L);
+    } else {
+        if (!lua_getmetatable(L, 1)) {
+            lua_settop(L, 1);
+            return luaL_error(L,
+                to_luastring("bad argument #1 to 'newproxy' (boolean or proxy expected)"));
+        }
+    }
+    lua_setmetatable(L, 2);
+    return 1;
+};
+
 const luaB_load = function(L) {
-    let s = lua_tostring(L, 1);
+    let impl = L.l_G.impl;
+    let is51 = !!(impl && impl.version && impl.version.num === 501);
+    let s = is51 ? null : lua_tostring(L, 1);
     let mode = luaL_optstring(L, 3, "bt");
     let env = !lua_isnone(L, 4) ? 4 : 0;  /* 'env' index or 0 if no 'env' */
     let status;
@@ -556,4 +587,6 @@ const luaopen_base = function(L) {
 };
 
 module.exports.luaopen_base = luaopen_base;
+module.exports.luaB_loadstring = luaB_loadstring;
+module.exports.luaB_newproxy = luaB_newproxy;
 module.exports.luaB_warn = luaB_warn;

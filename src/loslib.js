@@ -557,7 +557,9 @@ const syslib = {
 
 syslib.exit = function(L) {
     let status;
-    if (lua_isboolean(L, 1))
+    let impl = L.l_G.impl;
+    let allow_boolean = !!(impl && impl.version && impl.version.num >= 502);
+    if (allow_boolean && lua_isboolean(L, 1))
         status = (lua_toboolean(L, 1) ? 0 : 1);
     else
         status = luaL_optinteger(L, 1, 0);
@@ -565,7 +567,7 @@ syslib.exit = function(L) {
         return luaL_error(L, to_luastring("os.exit is not available in this environment"));
     if (lua_toboolean(L, 2))
         lua_close(L);
-    if (L) process.exit(status);  /* 'if' to avoid warnings for unreachable 'return' */
+    if (L) process.exit(Number(status));  /* 'if' to avoid warnings for unreachable 'return' */
     return 0;
 };
 

@@ -133,6 +133,8 @@ end
 const openlibs = function(L) {
     const lua = require('../lua.js');
     const lauxlib = require('../lauxlib.js');
+    const lbaselib = require('../lbaselib.js');
+    const ltablib = require('../ltablib.js');
     const { to_luastring } = require('../fengaricore.js');
 
     /* 5.1 aliases that need the 5.3 implementations as a source. */
@@ -164,6 +166,16 @@ const openlibs = function(L) {
     unset_field(L, "math", "ult");
     unset_field(L, "coroutine", "isyieldable");
     unset_field(L, "package", "searchers");
+
+    /* Lua 5.1-only APIs. */
+    lua.lua_pushcfunction(L, lbaselib.luaB_newproxy);
+    lua.lua_setglobal(L, to_luastring("newproxy"));
+    lua.lua_pushcfunction(L, lbaselib.luaB_loadstring);
+    lua.lua_setglobal(L, to_luastring("loadstring"));
+    lua.lua_getglobal(L, to_luastring("table"));
+    lua.lua_pushcfunction(L, ltablib.luaB_setn);
+    lua.lua_setfield(L, -2, to_luastring("setn"));
+    lua.lua_pop(L, 1);
 };
 
 module.exports = {
