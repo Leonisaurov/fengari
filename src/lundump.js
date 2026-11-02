@@ -18,6 +18,7 @@ const {
 const ldo      = require('./ldo.js');
 const lfunc    = require('./lfunc.js');
 const lobject  = require('./lobject.js');
+const { LUA_INT64 } = require('./luaconf.js');
 const {
     MAXARG_sBx,
     POS_A,
@@ -100,11 +101,12 @@ class BytecodeParser {
     LoadInteger() {
         if (luaZ_read(this.Z, this.u8, 0, this.integerSize) !== 0)
             this.error("truncated");
-        return this.dv.getInt32(0, true);
+        return LUA_INT64 ? this.dv.getBigInt64(0, true)
+            : this.dv.getInt32(0, true);
     }
 
     LoadSize_t() {
-        return this.LoadInteger();
+        return this.LoadInt();
     }
 
     LoadString() {
@@ -240,7 +242,7 @@ class BytecodeParser {
         if (this.LoadByte() !== 0x53)
             this.error("version mismatch in");
 
-        if (this.LoadByte() !== 0)
+        if (this.LoadByte() !== (LUA_INT64 ? 1 : 0))
             this.error("format mismatch in");
 
         this.checkliteral(LUAC_DATA, "corrupted");
@@ -254,10 +256,10 @@ class BytecodeParser {
         this.checksize(this.intSize, 4, "int");
         this.checksize(this.size_tSize, 4, "size_t");
         this.checksize(this.instructionSize, 4, "instruction");
-        this.checksize(this.integerSize, 4, "integer");
+        this.checksize(this.integerSize, LUA_INT64 ? 8 : 4, "integer");
         this.checksize(this.numberSize, 8, "number");
 
-        if (this.LoadInteger() !== 0x5678)
+        if (this.LoadInteger() !== (LUA_INT64 ? 0x5678n : 0x5678))
             this.error("endianness mismatch in");
 
         if (this.LoadNumber() !== 370.5)

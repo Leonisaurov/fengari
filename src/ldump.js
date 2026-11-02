@@ -14,12 +14,13 @@ const {
     },
     luastring_of
 } = require('./defs.js');
+const { LUA_INT64 } = require('./luaconf.js');
 
 const LUAC_DATA    = luastring_of(25, 147, 13, 10, 26, 10);
 const LUAC_INT     = 0x5678;
 const LUAC_NUM     = 370.5;
 const LUAC_VERSION = Number(LUA_VERSION_MAJOR) * 16 + Number(LUA_VERSION_MINOR);
-const LUAC_FORMAT  = 0;   /* this is the official format */
+const LUAC_FORMAT  = LUA_INT64 ? 1 : 0;   /* 1 = 64-bit integer build */
 
 class DumpState {
     constructor() {
@@ -49,6 +50,13 @@ const DumpInt = function(x, D) {
 };
 
 const DumpInteger = function(x, D) {
+    if (LUA_INT64) {
+        let ab = new ArrayBuffer(8);
+        let dv = new DataView(ab);
+        dv.setBigInt64(0, BigInt.asIntN(64, BigInt(x)), true);
+        DumpBlock(new Uint8Array(ab), 8, D);
+        return;
+    }
     let ab = new ArrayBuffer(4);
     let dv = new DataView(ab);
     dv.setInt32(0, x, true);
@@ -74,7 +82,7 @@ const DumpString = function(s, D) {
             DumpByte(size, D);
         else {
             DumpByte(0xFF, D);
-            DumpInteger(size, D);
+            DumpInt(size, D);
         }
         DumpBlock(str, size - 1, D);  /* no need to save '\0' */
     }
@@ -173,7 +181,7 @@ const DumpHeader = function(D) {
     DumpByte(4, D); // intSize
     DumpByte(4, D); // size_tSize
     DumpByte(4, D); // instructionSize
-    DumpByte(4, D); // integerSize
+    DumpByte(LUA_INT64 ? 8 : 4, D); // integerSize
     DumpByte(8, D); // numberSize
     DumpInteger(LUAC_INT, D);
     DumpNumber(LUAC_NUM, D);

@@ -56,7 +56,11 @@ const {
 const ltable  = require('./ltable.js');
 const {
     LUA_COMPAT_FLOATSTRING,
+    LUA_INT64,
+    LUA_MAXINTEGER,
+    LUA_MININTEGER,
     ldexp,
+    lua_int,
     lua_integer2str,
     lua_number2str
 } = require('./luaconf.js');
@@ -75,7 +79,7 @@ class TValue {
 
     constructor(type, value) {
         this.type = type;
-        this.value = value;
+        this.value = (type === LUA_TNUMINT && LUA_INT64) ? lua_int(value) : value;
     }
 
     /* type tag of a TValue (bits 0-3 for tags + variant bits 4-5) */
@@ -184,12 +188,12 @@ class TValue {
 
     setivalue(x) {
         this.type = LUA_TNUMINT;
-        this.value = x;
+        this.value = lua_int(x);
     }
 
     chgivalue(x) {
         lua_assert(this.type == LUA_TNUMINT);
-        this.value = x;
+        this.value = lua_int(x);
     }
 
     setnilvalue() {
@@ -536,6 +540,36 @@ const MAXBY10  = Math.floor(MAX_INT / 10);
 const MAXLASTD = MAX_INT % 10;
 
 const l_str2int = function(s) {
+    if (LUA_INT64) {
+        let i = 0;
+        let a = 0n;
+        let empty = true;
+        let neg;
+
+        while (lisspace(s[i])) i++;
+        if ((neg = (s[i] === 45 /* '-' */))) i++;
+        else if (s[i] === 43 /* '+' */) i++;
+        let hex = s[i] === 48 /* '0' */ &&
+            (s[i+1] === 120 /* 'x' */ || s[i+1] === 88 /* 'X' */);
+        if (hex) {
+            i += 2;
+            for (; i < s.length && lisxdigit(s[i]); i++) {
+                a = a * 16n + BigInt(luaO_hexavalue(s[i]));
+                empty = false;
+            }
+        } else {
+            for (; i < s.length && lisdigit(s[i]); i++) {
+                a = a * 10n + BigInt(s[i] - 48);
+                empty = false;
+            }
+        }
+        while (i < s.length && lisspace(s[i])) i++;
+        if (empty || (i !== s.length && s[i] !== 0)) return null;
+        if (neg) a = -a;
+        if (a > LUA_MAXINTEGER || a < LUA_MININTEGER) return null;
+        return { n: a, i: i };
+    }
+
     let i = 0;
     let a = 0;
     let empty = true;
@@ -735,6 +769,23 @@ const luaO_int2fb = function(x) {
 };
 
 const intarith = function(L, op, v1, v2) {
+    if (LUA_INT64) {
+        switch (op) {
+            case LUA_OPADD:  return BigInt.asIntN(64, v1 + v2);
+            case LUA_OPSUB:  return BigInt.asIntN(64, v1 - v2);
+            case LUA_OPMUL:  return lvm.luaV_imul(v1, v2);
+            case LUA_OPMOD:  return lvm.luaV_mod(L, v1, v2);
+            case LUA_OPIDIV: return lvm.luaV_div(L, v1, v2);
+            case LUA_OPBAND: return v1 & v2;
+            case LUA_OPBOR:  return v1 | v2;
+            case LUA_OPBXOR: return v1 ^ v2;
+            case LUA_OPSHL:  return lvm.luaV_shiftl(v1, v2);
+            case LUA_OPSHR:  return lvm.luaV_shiftl(v1, -v2);
+            case LUA_OPUNM:  return BigInt.asIntN(64, -v1);
+            case LUA_OPBNOT: return ~v1;
+            default: lua_assert(0);
+        }
+    }
     switch (op) {
         case LUA_OPADD:  return (v1 + v2)|0;
         case LUA_OPSUB:  return (v1 - v2)|0;
@@ -825,6 +876,7 @@ module.exports.luaO_pushvfstring = luaO_pushvfstring;
 module.exports.luaO_str2num      = luaO_str2num;
 module.exports.luaO_tostring     = luaO_tostring;
 module.exports.luaO_utf8esc      = luaO_utf8esc;
+module.exports.intarith          = intarith;
 module.exports.numarith          = numarith;
 module.exports.pushobj2s         = pushobj2s;
 module.exports.pushsvalue2s      = pushsvalue2s;

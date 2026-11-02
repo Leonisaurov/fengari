@@ -99,6 +99,8 @@ const strlen = function(s) {
 
 /* translate a relative string position: negative means back from end */
 const posrelat = function(pos, len) {
+    if (typeof pos === "bigint")
+        pos = Number(pos);
     if (pos >= 0) return pos;
     else if (0 - pos > len) return 0;
     else return len + pos + 1;
@@ -581,6 +583,20 @@ const str_format = function(L) {
                 case 'd': case 'i':
                 case 'o': case 'u': case 'x': case 'X': {
                     let n = luaL_checkinteger(L, arg);
+                    if (typeof n === "bigint") {
+                        let conv = String.fromCharCode(strfrmt[i - 1]);
+                        let s;
+                        if (conv === 'd' || conv === 'i')
+                            s = n.toString();
+                        else {
+                            let base = conv === 'o' ? 8 : (conv === 'u' ? 10 : 16);
+                            let u = BigInt.asUintN(64, n);
+                            s = u.toString(base);
+                            if (conv === 'X') s = s.toUpperCase();
+                        }
+                        luaL_addstring(b, to_luastring(s));
+                        break;
+                    }
                     addlenmod(form, to_luastring(LUA_INTEGER_FRMLEN, true));
                     luaL_addstring(b, to_luastring(sprintf(String.fromCharCode(...form), n)));
                     break;

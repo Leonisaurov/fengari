@@ -4,6 +4,9 @@ const {
     LUA_MASKLINE,
     LUA_MASKCOUNT,
     LUA_MULTRET,
+    LUA_OPADD,
+    LUA_OPSUB,
+    LUA_OPUNM,
     constant_types: {
         LUA_TBOOLEAN,
         LUA_TLCF,
@@ -280,7 +283,7 @@ const luaV_execute = function(L) {
                 let numberop1, numberop2;
 
                 if (op1.ttisinteger() && op2.ttisinteger()) {
-                    L.stack[ra].setivalue((op1.value + op2.value)|0);
+                    L.stack[ra].setivalue(lobject.intarith(L, LUA_OPADD, op1.value, op2.value));
                 } else if ((numberop1 = tonumber(op1)) !== false && (numberop2 = tonumber(op2)) !== false) {
                     L.stack[ra].setfltvalue(numberop1 + numberop2);
                 } else {
@@ -294,7 +297,7 @@ const luaV_execute = function(L) {
                 let numberop1, numberop2;
 
                 if (op1.ttisinteger() && op2.ttisinteger()) {
-                    L.stack[ra].setivalue((op1.value - op2.value)|0);
+                    L.stack[ra].setivalue(lobject.intarith(L, LUA_OPSUB, op1.value, op2.value));
                 } else if ((numberop1 = tonumber(op1)) !== false && (numberop2 = tonumber(op2)) !== false) {
                     L.stack[ra].setfltvalue(numberop1 - numberop2);
                 } else {
@@ -433,7 +436,7 @@ const luaV_execute = function(L) {
                 let numberop;
 
                 if (op.ttisinteger()) {
-                    L.stack[ra].setivalue((-op.value)|0);
+                    L.stack[ra].setivalue(lobject.intarith(L, LUA_OPUNM, op.value, 0));
                 } else if ((numberop = tonumber(op)) !== false) {
                     L.stack[ra].setfltvalue(-numberop);
                 } else {
@@ -590,10 +593,18 @@ const luaV_execute = function(L) {
             case OP_FORLOOP: {
                 if (L.stack[ra].ttisinteger()) { /* integer loop? */
                     let step = L.stack[ra + 2].value;
-                    let idx = (L.stack[ra].value + step)|0;
+                    let big = typeof step === "bigint";
+                    let idx;
+                    if (big)
+                        idx = BigInt.asIntN(64, L.stack[ra].value + step);
+                    else
+                        idx = (L.stack[ra].value + step)|0;
                     let limit = L.stack[ra + 1].value;
+                    let keep = big
+                        ? (0n < step ? idx <= limit : limit <= idx)
+                        : (0 < step ? idx <= limit : limit <= idx);
 
-                    if (0 < step ? idx <= limit : limit <= idx) {
+                    if (keep) {
                         ci.l_savedpc += i.sBx;
                         L.stack[ra].chgivalue(idx);  /* update internal index... */
                         L.stack[ra + 3].setivalue(idx);
@@ -619,9 +630,12 @@ const luaV_execute = function(L) {
 
                 if (init.ttisinteger() && pstep.ttisinteger() && (forlim = forlimit(plimit, pstep.value))) {
                     /* all values are integer */
-                    let initv = forlim.stopnow ? 0 : init.value;
+                    let initv = forlim.stopnow ?
+                        (typeof pstep.value === "bigint" ? 0n : 0) : init.value;
                     plimit.value = forlim.ilimit;
-                    init.value = (initv - pstep.value)|0;
+                    init.value = typeof pstep.value === "bigint"
+                        ? BigInt.asIntN(64, initv - pstep.value)
+                        : (initv - pstep.value)|0;
                 } else { /* try making all values floats */
                     let nlimit, nstep, ninit;
                     if ((nlimit = tonumber(plimit)) === false)
@@ -785,7 +799,8 @@ const luaV_equalobj = function(L, t1, t2) {
         if (t1.ttnov() !== t2.ttnov() || t1.ttnov() !== LUA_TNUMBER)
             return 0; /* only numbers can be equal with different variants */
         else { /* two numbers with different variants */
-            /* OPTIMIZATION: instead of calling luaV_tointeger we can just let JS do the comparison */
+            if (typeof t1.value === "bigint" || typeof t2.value === "bigint")
+                return Number(t1.value) === Number(t2.value) ? 1 : 0;
             return (t1.value === t2.value) ? 1 : 0;
         }
     }
@@ -834,7 +849,9 @@ const luaV_rawequalobj = function(t1, t2) {
 
 const forlimit = function(obj, step) {
     let stopnow = false;
-    let ilimit = luaV_tointeger(obj, step < 0 ? 2 : 1);
+    let isbig = typeof step === "bigint";
+    let neg = isbig ? step < 0n : step < 0;
+    let ilimit = luaV_tointeger(obj, neg ? 2 : 1);
     if (ilimit === false) {
         let n = tonumber(obj);
         if (n === false)
@@ -842,11 +859,13 @@ const forlimit = function(obj, step) {
 
         if (0 < n) {
             ilimit = LUA_MAXINTEGER;
-            if (step < 0) stopnow = true;
+            if (neg) stopnow = true;
         } else {
             ilimit = LUA_MININTEGER;
-            if (step >= 0) stopnow = true;
+            if (!neg) stopnow = true;
         }
+    } else if (isbig && typeof ilimit !== "bigint") {
+        ilimit = BigInt(ilimit);
     }
 
     return {
@@ -890,13 +909,16 @@ const tointeger = function(o) {
 };
 
 const tonumber = function(o) {
-    if (o.ttnov() === LUA_TNUMBER)
+    if (o.ttnov() === LUA_TNUMBER) {
+        if (typeof o.value === "bigint")
+            return Number(o.value);
         return o.value;
+    }
 
     if (cvt2num(o)) {  /* string convertible to number? */
         let v = new lobject.TValue();
         if (lobject.luaO_str2num(o.svalue(), v) === (o.vslen() + 1))
-            return v.value;
+            return typeof v.value === "bigint" ? Number(v.value) : v.value;
     }
 
     return false;
@@ -908,6 +930,10 @@ const tonumber = function(o) {
 ** correct semantics, we can just compare values.
 */
 const LTnum = function(l, r) {
+    if (typeof l.value === "bigint" && typeof r.value === "bigint")
+        return l.value < r.value;
+    if (typeof l.value === "bigint" || typeof r.value === "bigint")
+        return Number(l.value) < Number(r.value);
     return l.value < r.value;
 };
 
@@ -915,6 +941,10 @@ const LTnum = function(l, r) {
 ** Return 'l <= r', for numbers.
 */
 const LEnum = function(l, r) {
+    if (typeof l.value === "bigint" && typeof r.value === "bigint")
+        return l.value <= r.value;
+    if (typeof l.value === "bigint" || typeof r.value === "bigint")
+        return Number(l.value) <= Number(r.value);
     return l.value <= r.value;
 };
 
@@ -963,34 +993,59 @@ const luaV_objlen = function(L, ra, rb) {
 };
 
 /* Shim taken from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math/imul */
-const luaV_imul = Math.imul || function(a, b) {
-    let aHi = (a >>> 16) & 0xffff;
-    let aLo = a & 0xffff;
-    let bHi = (b >>> 16) & 0xffff;
-    let bLo = b & 0xffff;
-    /*
-    ** the shift by 0 fixes the sign on the high part
-    ** the final |0 converts the unsigned value into a signed value
-    */
-    return ((aLo * bLo) + (((aHi * bLo + aLo * bHi) << 16) >>> 0) | 0);
+const luaV_imul = function(a, b) {
+    if (typeof a === "bigint")
+        return BigInt.asIntN(64, a * b);
+    return (Math.imul || function(a, b) {
+        let aHi = (a >>> 16) & 0xffff;
+        let aLo = a & 0xffff;
+        let bHi = (b >>> 16) & 0xffff;
+        let bLo = b & 0xffff;
+        /*
+        ** the shift by 0 fixes the sign on the high part
+        ** the final |0 converts the unsigned value into a signed value
+        */
+        return ((aLo * bLo) + (((aHi * bLo + aLo * bHi) << 16) >>> 0) | 0);
+    })(a, b);
 };
 
 const luaV_div = function(L, m, n) {
-    if (n === 0)
+    if (n === 0 || n === 0n)
         ldebug.luaG_runerror(L, to_luastring("attempt to divide by zero"));
+    if (typeof m === "bigint") {
+        /* floor division, like Lua */
+        let q = m / n;
+        if ((m % n) !== 0n && ((m < 0n) !== (n < 0n)))
+            q -= 1n;
+        return BigInt.asIntN(64, q);
+    }
     return Math.floor(m / n)|0;
 };
 
 // % semantic on negative numbers is different in js
 const luaV_mod = function(L, m, n) {
-    if (n === 0)
+    if (n === 0 || n === 0n)
         ldebug.luaG_runerror(L, to_luastring("attempt to perform 'n%%0'"));
+    if (typeof m === "bigint") {
+        let r = m % n;
+        if (r !== 0n && ((r < 0n) !== (n < 0n)))
+            r += n;
+        return r;
+    }
     return (m - Math.floor(m / n) * n)|0;
 };
 
 const NBITS = 32;
 
 const luaV_shiftl = function(x, y) {
+    if (typeof x === "bigint") {
+        let s = typeof y === "bigint" ? y : BigInt(y);
+        if (s < 0n) {
+            let r = -s;
+            return r >= 64n ? 0n : BigInt.asIntN(64, BigInt.asUintN(64, x) >> r);
+        }
+        return s >= 64n ? 0n : BigInt.asIntN(64, x << s);
+    }
     if (y < 0) {  /* shift right? */
         if (y <= -NBITS) return 0;
         else return x >>> -y;

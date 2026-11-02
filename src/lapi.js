@@ -55,7 +55,7 @@ const {
     luaS_newliteral
 } = require('./lstring.js');
 const ltm       = require('./ltm.js');
-const { LUAI_MAXSTACK } = require('./luaconf.js');
+const { LUAI_MAXSTACK, LUA_INT64 } = require('./luaconf.js');
 const lvm       = require('./lvm.js');
 const ltable    = require('./ltable.js');
 const { ZIO } = require('./lzio.js');
@@ -301,7 +301,11 @@ const lua_pushnumber = function(L, n) {
 };
 
 const lua_pushinteger = function(L, n) {
-    fengari_argcheckinteger(n);
+    if (LUA_INT64)
+        fengari_argcheck(typeof n === "bigint" ||
+            (typeof n === "number" && Number.isInteger(n)));
+    else
+        fengari_argcheckinteger(n);
     L.stack[L.top] = new TValue(LUA_TNUMINT, n);
     api_incr_top(L);
 };

@@ -19,6 +19,7 @@ const {
     to_luastring
 } = require('./defs.js');
 const {
+    LUA_INT64,
     LUA_MAXINTEGER
 } = require('./luaconf.js');
 const { lua_assert } = require('./llimits.js');
@@ -82,6 +83,8 @@ const table_hash = function(L, key) {
                     /* possible conflict with LUA_TNUMBER.
                        turn into string and prefix with "#" to avoid clash with other strings */
                     return "#" + v;
+                case "bigint":
+                    return "#i" + v.toString();
                 case "boolean":
                     /* possible conflict with LUA_TBOOLEAN. use strings ?true and ?false instead */
                     return v?"?true":"?false";
@@ -199,7 +202,9 @@ const getgeneric = function(t, hash) {
 };
 
 const luaH_getint = function(t, key) {
-    lua_assert(typeof key == "number" && (key|0) === key);
+    if (LUA_INT64 && typeof key === "number")
+        key = BigInt(key);
+    lua_assert(typeof key == "bigint" || (typeof key == "number" && (key|0) === key));
     return getgeneric(t, key);
 };
 
@@ -216,7 +221,11 @@ const luaH_get = function(L, t, key) {
 };
 
 const luaH_setint = function(t, key, value) {
-    lua_assert(typeof key == "number" && (key|0) === key && value instanceof lobject.TValue);
+    if (LUA_INT64 && typeof key === "number")
+        key = BigInt(key);
+    lua_assert((typeof key == "bigint" ||
+        (typeof key == "number" && (key|0) === key)) &&
+        value instanceof lobject.TValue);
     let hash = key; /* table_hash known result */
     if (value.ttisnil()) {
         mark_dead(t, hash);
@@ -253,7 +262,9 @@ const luaH_setfrom = function(L, t, key, value) {
     } else {
         let k;
         let kv = key.value;
-        if ((key.ttisfloat() && (kv|0) === kv)) { /* does index fit in an integer? */
+        if (typeof kv === "bigint") {
+            k = new lobject.TValue(LUA_TNUMINT, kv);
+        } else if ((key.ttisfloat() && (kv|0) === kv)) { /* does index fit in an integer? */
             /* insert it as an integer */
             k = new lobject.TValue(LUA_TNUMINT, kv);
         } else {
@@ -271,10 +282,11 @@ const luaH_setfrom = function(L, t, key, value) {
 const luaH_getn = function(t) {
     let i = 0;
     let j = t.strong.size + 1; /* use known size of Map to kick start search */
+    let maxindex = LUA_INT64 ? Number.MAX_SAFE_INTEGER : LUA_MAXINTEGER;
     /* find 'i' and 'j' such that i is present and j is not */
     while (!(luaH_getint(t, j).ttisnil())) {
         i = j;
-        if (j > LUA_MAXINTEGER / 2) {  /* overflow? */
+        if (j > maxindex / 2) {  /* overflow? */
             /* table was built with bad purposes: resort to linear search */
             i = 1;
             while (!luaH_getint(t, i).ttisnil()) i++;
