@@ -282,6 +282,8 @@ live under `/tmp`. Nothing is persisted automatically: use
 `vfs.saveToOPFS()`/`loadFromOPFS()` (an OPFS directory handle), or take a
 `vfs.snapshot()` and `vfs.restore()` it later. `vfs.allowNetwork(false)`
 disables the XHR fallback so `require`/`loadfile` only read the VFS.
+`vfs.loadFromURL(url, path)` fetches and mounts a module asynchronously, after
+which the synchronous `require`/`dofile` can use it.
 
 `node scripts/build-browser.js` (or `pnpm build`) emits `dist/fengari.js`, an
 IIFE that exposes `window.fengari`. The browser tests (`pnpm test:browser`)

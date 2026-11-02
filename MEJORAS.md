@@ -68,7 +68,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - [x] **Sistema de archivos virtual para navegador** — P2, L. `src/lfs.js` selecciona `fs` en Node y un FS en memoria cuando no hay `process`; `io` y `os.remove/rename/tmpname/getenv` funcionan sobre él. La API `fengari.vfs` permite montar/leer archivos, inyectar stdin/stdout/stderr, hacer `snapshot()`/`restore()` y persistir con `localStorage` o IndexedDB (`saveToStorage`/`saveToIndexedDB`); OPFS sigue en manos del host.
 - [x] **`os.remove`/`os.rename` en navegador** — P2, S. Implementados sobre el VFS con `errno` y mensajes claros.
 - [x] **`io` en navegador** — P2, L. Registrada siempre en `luaL_openlibs`; `open/read/write/lines/seek/tmpfile` y `loadfile`/`dofile`/`require` consultan el VFS antes de caer al XHR síncrono. `popen`/`os.execute`/`os.exit` fallan con un error explícito.
-- [x] **`require` y `package.loadlib` sin XHR en navegador** — P1, M. El VFS resuelve módulos Lua y JS montados (`.lua`/`.js`) sin red, además de `package.jspath` y `T.newuserdata`. El XHR síncrono queda solo como fallback para URLs no montadas; falta la carga asíncrona/ES modules e import maps.
+- [x] **`require` y `package.loadlib` sin XHR en navegador** — P1, M. El VFS resuelve módulos Lua y JS montados (`.lua`/`.js`) sin red, además de `package.jspath` y `T.newuserdata`. El XHR síncrono queda solo como fallback para URLs no montadas (`vfs.allowNetwork(false)` lo desactiva) y `vfs.loadFromURL` permite cargar módulos de forma asíncrona antes de ejecutar Lua; falta un loader ESM/import maps.
 
 ---
 

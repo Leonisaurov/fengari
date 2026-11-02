@@ -91,7 +91,12 @@ In Node the real file system is used by default; `vfs.useMemory()` switches a No
 
 If the host has a synchronous `localStorage`, `vfs.saveToStorage(key)` serializes the current files (base64) and `vfs.loadFromStorage(key)` restores them; `vfs.clearStorage(key)` removes the entry. For larger data, `vfs.saveToIndexedDB(key)` / `loadFromIndexedDB(key)` / `clearFromIndexedDB(key)` use an IndexedDB database named `fengari-vfs`. With an OPFS `FileSystemDirectoryHandle`, `vfs.saveToOPFS(dir, key)` / `loadFromOPFS(dir, key)` / `clearFromOPFS(dir, key)` persist through `createWritable()`; direct OPFS file access is not implemented.
 
-`require` also checks the VFS for both Lua and JS modules, so mounted `.lua` and `.js` files load without XHR. Call `vfs.allowNetwork(false)` to forbid the synchronous XHR fallback entirely; `readable`/`loadfile`/`require` then only see the VFS.
+`require` also checks the VFS for both Lua and JS modules, so mounted `.lua` and `.js` files load without XHR. Call `vfs.allowNetwork(false)` to forbid the synchronous XHR fallback entirely; `readable`/`loadfile`/`require` then only see the VFS. For asynchronous module loading, fetch the source first and mount it:
+
+```js
+await vfs.loadFromURL("/modules/plugin.lua", "/plugins/plugin.lua");
+// now require("plugin") / dofile("/plugins/plugin.lua") work synchronously
+```
 
 
 ### Browser bundle and tests
@@ -250,8 +255,9 @@ This library is automatically loaded by `luaL_openlibs` into the global `"fengar
 - `io.popen()`: commands run to completion synchronously; output (read mode)
   and input (write mode) are buffered instead of streamed.
 - In the browser, `require` uses the VFS for mounted modules and falls back to
-  synchronous XHR for URLs unless `vfs.allowNetwork(false)` is set;
-  asynchronous/ES module loading is not implemented.
+  synchronous XHR for URLs unless `vfs.allowNetwork(false)` is set. There is no
+  ESM/import-map loader; async module loading is host driven through
+  `vfs.loadFromURL()` (or fetch + mount) before running Lua.
 - `f:seek()` on pipes and terminals fails with `ESPIPE`, as in PUC Lua.
 - The sandbox memory limit is approximate (`collectgarbage("count")`), not an OS-level cap. OPFS persistence serializes snapshots through `createWritable()`; the VFS itself is still in memory.
 

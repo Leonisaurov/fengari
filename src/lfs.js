@@ -452,6 +452,19 @@ const create_memory_backend = function() {
         setEnv: function(key, value) {
             environment[key] = String(value);
         },
+        loadFromURL: function(url, path) {
+            if (typeof fetch !== "function")
+                return Promise.reject(new Error("fetch is not available"));
+            return fetch(url).then(function(response) {
+                if (!response.ok)
+                    throw new Error(`${url}: ${response.status}`);
+                return response.arrayBuffer();
+            }).then(function(buffer) {
+                let data = new Uint8Array(buffer);
+                backend.vfs.mount(path === undefined ? new URL(url, "http://localhost").pathname : path, data);
+                return data.length;
+            });
+        },
         saveToStorage: function(key) {
             let storage = globalThis.localStorage;
             if (!storage)

@@ -394,6 +394,13 @@ const PAGE_TESTS = `(async function() {
         assert(lines[0] === "captured", "stdout: " + JSON.stringify(lines));
     });
 
+    await test("loadFromURL fetches a module into the VFS", async () => {
+        F.vfs.reset();
+        const size = await F.vfs.loadFromURL("/bundle.js", "/downloaded.js");
+        assert(size > 1000, "downloaded size: " + size);
+        assert(F.vfs.readFile("/downloaded.js").length === size, "mounted data");
+    });
+
     await test("async JS functions resolve Promises", async () => {
         const state = F.api.createState();
         try {

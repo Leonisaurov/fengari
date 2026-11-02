@@ -166,6 +166,7 @@ export interface Vfs {
     setStderr(handler: ((line: string) => void) | null): (line: string) => void;
     flush(): void;
     setEnv(key: string, value: string): void;
+    loadFromURL(url: string, path?: string): Promise<number>;
     saveToStorage(key: string): number;
     loadFromStorage(key: string): number;
     clearStorage(key: string): void;

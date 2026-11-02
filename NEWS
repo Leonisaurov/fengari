@@ -31,6 +31,7 @@ unreleased
   - Add vfs.allowNetwork(false) to disable the synchronous XHR fallback
   - Add api.pushAsyncJS/runAsync/callAsync to bridge JS Promises through
     Lua coroutines
+  - Add vfs.loadFromURL to fetch and mount modules asynchronously
 
 
 0.1.5 - 2025-12-26
