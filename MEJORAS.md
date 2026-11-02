@@ -11,7 +11,7 @@ Estado actual tras referencia de API y guía de migración: 44 suites, 644 tests
 Estado actual tras completar la librería `io`: 45 suites, 672 tests que pasan y 20 skips.
 Estado actual tras el VFS de navegador: 47 suites, 692 tests que pasan y 20 skips.
 Estado actual tras benchmarks, diferencial, fuzzing y API de alto nivel: 52 suites, 736 tests que pasan y 12 skips.
-Estado actual tras rendimiento, fidelidad de `os.date`/`loadlib` y pulido: 52 suites, 737 tests que pasan y 12 skips.
+Estado actual tras rendimiento, fidelidad de `os.date`/`loadlib` y pulido: 52 suites, 739 tests que pasan, 12 skips y 94.2% de líneas / 87.8% de ramas.
 
 **Prioridad:** P0 desbloquea uso real · P1 calidad/rendimiento · P2 deseable · P3 largo plazo.
 **Esfuerzo:** S < 1 día · M 1–5 días · L > 1 semana.
@@ -77,7 +77,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 
 - [x] **Suite de benchmarks** — P0, M. `bench/` con `fib`, `mandelbrot`, `nbody`, `spectral-norm`, `binary-trees`, estrés de strings/tablas; comparar contra PUC Lua 5.3 y contra el commit anterior.
 - **Dispatch de la VM** — P1, L. Perfilar `luaV_execute` (`src/lvm.js`): orden del `switch`, evitar `new TValue` en bucles, reutilizar registros y reducir comprobaciones repetidas.
-- **Representación de valores y pila** — P1, L. Evaluar pooling de `TValue`, arrays paralelos o tagged unions; eliminar `slice`/spread en rutas calientes y definir una política de crecimiento de `L.stack`. Hecho: los `CallInfo` se reutilizan y la pila ya no se vuelve “holey” al retornar (≈20% en la suite, `fib` ≈70%).
+- **Representación de valores y pila** — P1, L. Evaluar pooling de `TValue`, arrays paralelos o tagged unions; eliminar `slice`/spread en rutas calientes y definir una política de crecimiento de `L.stack`. Hecho: los `CallInfo` se reutilizan y la pila ya no se vuelve “holey” al retornar (medido: −20.7% global, `fib` −70.7%; 10.2x frente a PUC Lua 5.4 en vez de 12.7x).
 - **Tablas** — P1, L. Parte densa para claves enteras, fast path sin `Map` para tablas pequeñas, rehash predecible, menos objetos auxiliares y orden de iteración estable (`src/ltable.js`).
 - **Strings** — P1, M. `TextEncoder`/`TextDecoder` singleton, caché de conversiones UTF-8↔UTF-16, política de interning para strings largos y `Buffer` en Node (`src/defs.js`, `src/lstring.js`).
 - **Compilador** — P2, M. Constant folding, peephole de `MOVE`/saltos, eliminación de código muerto y revisión del `FIXME` de `lcode.js:991`.
