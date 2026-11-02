@@ -3,6 +3,7 @@
 const lua = require('../../src/lua.js');
 const lauxlib = require('../../src/lauxlib.js');
 const lualib = require('../../src/lualib.js');
+const ltests  = require('./ltests.js');
 const {to_luastring} = require("../../src/fengaricore.js");
 
 const prefix = `
@@ -90,6 +91,9 @@ test("[test-suite] nextvar: iterator function is always the same", () => {
 });
 
 
+// Skipped: asserts PUC's internal array/hash part sizing through T.int2fb and
+// T.querytab. Fengari stores table entries in a Map, so those internals do not
+// exist and the expected sizes are not meaningful here.
 test.skip("[test-suite] nextvar: JS tests", () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
@@ -607,7 +611,7 @@ test("[test-suite] nextvar: testing table library with metamethods", () => {
 });
 
 
-test.skip("[test-suite] nextvar: JS tests", () => {
+test("[test-suite] nextvar: JS tests (table library and userdata)", () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
 
@@ -642,6 +646,7 @@ test.skip("[test-suite] nextvar: JS tests", () => {
         assert(#tab2 == 4 and tab2[1] == tab[1] and tab2[4] == tab[4])
     `;
     lualib.luaL_openlibs(L);
+    ltests.luaopen_tests(L);
     if (lauxlib.luaL_loadstring(L, to_luastring(prefix + luaCode)) === lua.LUA_ERRSYNTAX)
         throw new SyntaxError(lua.lua_tojsstring(L, -1));
     lua.lua_call(L, 0, 0);

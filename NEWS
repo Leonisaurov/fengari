@@ -44,6 +44,13 @@ unreleased
     os.execute and io.popen:close instead of throwing a JS error
   - Reuse CallInfo frames and keep the value stack packed instead of deleting
     slots on every return: ~20% faster on the benchmark suite (fib ~70%)
+  - Fix os.date('%t'), use GMT for '%Z' in UTC and report invalid conversion
+    specifiers like PUC (without duplicating '%')
+  - Fix package.loadlib/require for module names with the '-' ignore mark
+  - lua_pushlstring now returns the pushed bytes (Uint8Array), matching its
+    documented type
+  - Cover every os.date conversion and the package searcher/loadlib error paths
+  - Re-enable official tests for table/userdata libraries and package refs
 
 
 0.1.5 - 2025-12-26

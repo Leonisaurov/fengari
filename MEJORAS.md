@@ -10,7 +10,8 @@ Estado actual tras versiones y locale: 43 suites, 640 tests que pasan y 20 skips
 Estado actual tras referencia de API y guía de migración: 44 suites, 644 tests que pasan y 20 skips.
 Estado actual tras completar la librería `io`: 45 suites, 672 tests que pasan y 20 skips.
 Estado actual tras el VFS de navegador: 47 suites, 692 tests que pasan y 20 skips.
-Estado actual tras benchmarks, diferencial, fuzzing y API de alto nivel: 52 suites, 725 tests que pasan y 15 skips.
+Estado actual tras benchmarks, diferencial, fuzzing y API de alto nivel: 52 suites, 736 tests que pasan y 12 skips.
+Estado actual tras rendimiento, fidelidad de `os.date`/`loadlib` y pulido: 52 suites, 736 tests que pasan y 12 skips.
 
 **Prioridad:** P0 desbloquea uso real · P1 calidad/rendimiento · P2 deseable · P3 largo plazo.
 **Esfuerzo:** S < 1 día · M 1–5 días · L > 1 semana.
@@ -107,7 +108,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 ## 5. Calidad, tests y tooling
 
 - [x] **Cobertura con umbral** — `jest --coverage`, reporte en CI y umbral global (90% statements/funciones/líneas, 85% ramas).
-- **Activar tests saltados** — P1, M. Quedan 15: 12 de API (harness `T`, límites de memoria, userdata internos), 2 de internals de tabla y 1 de locale. Se eliminaron los 3 fixtures inexistentes, el test vacío de `require` y se activó el bucle enorme con `_soft`.
+- **Activar tests saltados** — P1, M. Quedan 12: 8 de API (límites de memoria/`T.totalmem`, colores del GC, `objsize`, C-stack), 2 de internals de tabla, 1 de locale y 1 de userdata heredado. Activados los de `table`/`debug.setmetatable`, reutilización de referencias y cadena larga de userdata.
 - [x] **Tests de navegador** — P1, M. `scripts/browser-test.js` usa el Chrome DevTools Protocol contra Brave headless (fallback Chromium/Chrome), sin Playwright: 19 pruebas con VFS, `require`/`dofile` sin XHR, Lua/CJS/ESM asíncronos, localStorage, IndexedDB, OPFS (snapshots y directo anidado), SharedArrayBuffer, worker RPC (async y bloqueante), `debug.debug`, bundle minificado/source map, stdout y sandbox.
 - [x] **Tests diferenciales contra PUC Lua** — P1, M. `scripts/diff-puc.js` ejecuta `test/differential/` bajo Fengari y PUC y compara stdout y éxito/fallo; el test de Jest se salta si no hay intérprete.
 - [x] **Fuzzing del parser y `lundump`** — P1, M. `scripts/fuzz.js` con PRNG sembrado, bytes aleatorios, fuente aleatoria y bytecode mutado; `test/fuzz.test.js` ejecuta una tanda acotada.
@@ -116,7 +117,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - **Typecheck** — P2, M. `tsc --checkJs` sobre `src/` con `// @ts-check` gradual; los errores encontrados suelen revelar bugs reales.
 - [x] **Referencia de API generada y guía C→JS** — `scripts/generate-api-docs.js` genera `docs/api.md` desde las declaraciones y exports (con `docs:check` en CI), y `docs/migrating-from-c.md` cubre strings, enteros, pila, tablas, errores, userdata, registry, corrutinas, GC, versiones y diferencias con la API C.
 - **Documentación de uso** — P1, M. Guía de inicio en navegador, ejemplos (REPL, host de plugins, bucle de juego) y una referencia con JSDoc enriquecido; el generador actual usa las declaraciones y comentarios existentes.
-- **Contribución** — P2, S. `CONTRIBUTING.md`, plantillas de issue/PR, `SECURITY.md` y código de conducta.
+- [x] **Contribución** — P2, S. `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, plantillas de issue/PR y enlaces desde el README.
 - **Changelog** — P2, S. Automatizar `NEWS` desde commits etiquetados y documentar el proceso de release.
 - **Higiene de dependencias** — P2, S. Revisar `tmp` y `sprintf-js` y añadir auditoría periódica (`readline-sync` ya es opcional en tiempo de ejecución).
 - [x] **Política de lockfiles** — `yarn.lock` es la fuente de verdad, `pnpm-lock.yaml` está ignorado y CI instala con `--frozen-lockfile`.

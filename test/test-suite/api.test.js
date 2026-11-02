@@ -598,6 +598,8 @@ test("[test-suite] api: testing panic function", () => {
 });
 
 
+// Skipped: depends on PUC C-stack limits (LUAI_MAXCCALLS) and a 1M-step
+// harness; the JavaScript engine stack is not comparable.
 test.skip("[test-suite] api: testing deep JS stack", () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
@@ -912,6 +914,7 @@ test("[test-suite] api: testing get/setuservalue", () => {
 });
 
 
+// Skipped: needs T.gcstate/T.gccolor, i.e. PUC's internal GC colors.
 test.skip("[test-suite] api: testing get/setuservalue", () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
@@ -931,11 +934,14 @@ test.skip("[test-suite] api: testing get/setuservalue", () => {
 });
 
 
-test.skip("[test-suite] api: long chain of userdata", () => {
+test("[test-suite] api: long chain of userdata", () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
 
     let luaCode = `
+        b = T.newuserdata(0)
+        debug.setuservalue(b, {x = 100})
+
         for i = 1, 1000 do
           local bb = T.newuserdata(0)
           debug.setuservalue(bb, b)
@@ -956,7 +962,7 @@ test.skip("[test-suite] api: long chain of userdata", () => {
 });
 
 
-test.skip("[test-suite] api: reuse of references", () => {
+test("[test-suite] api: reuse of references", () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
 
@@ -1016,6 +1022,8 @@ test.skip("[test-suite] api: reuse of references", () => {
 });
 
 
+// Skipped: this upstream test inherits state (Lim, Arr) from the previous
+// test and uses T.testC "objsize", which Fengari's test harness does not model.
 test.skip("[test-suite] api: collect in cl the `val' of all collected userdata", () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
@@ -1132,6 +1140,8 @@ test.skip("[test-suite] api: collect in cl the `val' of all collected userdata",
 });
 
 
+// Skipped: relies on exact byte accounting and T.testC "objsize"; Fengari
+// estimates memory per object type.
 test.skip("[test-suite] api: test whether udate collection frees memory in the right time", () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
@@ -1382,6 +1392,8 @@ test("[test-suite] api: testing multiple states", () => {
 });
 
 
+// Skipped: T.totalmem and the testamem harness are not implemented; the
+// JavaScript GC does not expose a settable memory limit.
 test.skip("[test-suite] api: testing memory limits", () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
@@ -1428,6 +1440,7 @@ const memprefix = `
 `;
 
 
+// Skipped: depends on testamem/T.totalmem (see above).
 test.skip("[test-suite] api: testing memory errors when creating a new state", () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
@@ -1458,6 +1471,7 @@ test("[test-suite] api: get main thread from registry (at index LUA_RIDX_MAINTHR
     lua.lua_call(L, 0, 0);
 });
 
+// Skipped: depends on testamem/T.totalmem (see above).
 test.skip("[test-suite] api: test thread creation after stressing GC", () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
@@ -1486,6 +1500,7 @@ test.skip("[test-suite] api: test thread creation after stressing GC", () => {
 });
 
 
+// Skipped: depends on testamem/T.totalmem (see above).
 test.skip("[test-suite] api: testing memory x compiler", () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
@@ -1503,6 +1518,7 @@ test.skip("[test-suite] api: testing memory x compiler", () => {
 });
 
 
+// Skipped: depends on testamem/T.totalmem (see above).
 test.skip("[test-suite] api: testing memory x dofile", () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
@@ -1537,6 +1553,7 @@ test.skip("[test-suite] api: testing memory x dofile", () => {
 });
 
 
+// Skipped: depends on testamem/T.totalmem (see above).
 test.skip("[test-suite] api: other generic tests", () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");

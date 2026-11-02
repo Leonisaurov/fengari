@@ -527,7 +527,90 @@ const pushuserdata = function(L) {
 };
 
 const udataval = function(L) {
-    lua.lua_pushinteger(L, lua.lua_touserdata(L, 1));
+    let v = lua.lua_topointer(L, 1);
+    if (v === null) {
+        lua.lua_pushinteger(L, -1);
+    } else if (typeof v === "object" && v.id !== undefined) {
+        lua.lua_pushinteger(L, v.id);  /* full userdata object */
+    } else {
+        lua.lua_pushinteger(L, Number(v));
+    }
+    return 1;
+};
+
+const REFS = to_luastring("__T_REFS__", true);
+const FREE = to_luastring("free", true);
+const COUNT = to_luastring("n", true);
+
+/* push the reference table, creating it on first use */
+const pushrefs = function(L) {
+    lua.lua_getfield(L, lua.LUA_REGISTRYINDEX, REFS);
+    if (lua.lua_isnil(L, -1)) {
+        lua.lua_pop(L, 1);
+        lua.lua_newtable(L);
+        lua.lua_pushvalue(L, -1);
+        lua.lua_setfield(L, lua.LUA_REGISTRYINDEX, REFS);
+    }
+};
+
+const pushfree = function(L) {
+    lua.lua_getfield(L, -1, FREE);
+    if (!lua.lua_istable(L, -1)) {
+        lua.lua_pop(L, 1);
+        lua.lua_newtable(L);
+        lua.lua_pushvalue(L, -1);
+        lua.lua_setfield(L, -3, FREE);
+    }
+};
+
+const ref = function(L) {
+    if (lua.lua_isnil(L, 1)) {
+        lua.lua_pushinteger(L, -1);
+        return 1;
+    }
+    pushrefs(L);                 /* refs */
+    pushfree(L);                 /* refs free */
+    let nfree = lua.lua_rawlen(L, -1);
+    let idx;
+    if (nfree > 0) {
+        lua.lua_rawgeti(L, -1, nfree);
+        idx = lua.lua_tointeger(L, -1);
+        lua.lua_pop(L, 1);
+        lua.lua_pushnil(L);
+        lua.lua_rawseti(L, -2, nfree);  /* free[nfree] = nil */
+    } else {
+        lua.lua_getfield(L, -2, COUNT);
+        idx = lua.lua_tointeger(L, -1) + 1;
+        lua.lua_pop(L, 1);
+        lua.lua_pushinteger(L, idx);
+        lua.lua_setfield(L, -3, COUNT);  /* refs.n = idx */
+    }
+    lua.lua_pushvalue(L, 1);
+    lua.lua_rawseti(L, -3, idx);         /* refs[idx] = value */
+    lua.lua_pushinteger(L, idx);
+    return 1;
+};
+
+const unref = function(L) {
+    let idx = lauxlib.luaL_checkinteger(L, 1);
+    if (idx < 0) return 0;
+    pushrefs(L);                 /* refs */
+    lua.lua_pushnil(L);
+    lua.lua_rawseti(L, -2, idx);        /* refs[idx] = nil */
+    pushfree(L);                 /* refs free */
+    lua.lua_pushinteger(L, idx);
+    lua.lua_rawseti(L, -2, lua.lua_rawlen(L, -2) + 1);
+    return 0;
+};
+
+const getref = function(L) {
+    let idx = lauxlib.luaL_checkinteger(L, 1);
+    if (idx < 0) {
+        lua.lua_pushnil(L);
+        return 1;
+    }
+    pushrefs(L);
+    lua.lua_rawgeti(L, -1, idx);
     return 1;
 };
 
@@ -850,12 +933,15 @@ const tests_funcs = {
     "newstate":     newstate,
     "newuserdata":  newuserdata,
     "pushuserdata": pushuserdata,
+    "ref":          ref,
     "resume":       coresume,
     "s2d":          s2d,
     "sethook":      sethook,
     "testC":        testJS,
     "testJS":       testJS,
     "udataval":     udataval,
+    "unref":        unref,
+    "getref":       getref,
     "upvalue":      upvalue
 };
 
