@@ -788,6 +788,12 @@ const luaO_int2fb = function(x) {
     return ((e+1) << 3) | (x - 8);
 };
 
+const luaO_fb2int = function(x) {
+    let e = (x >> 3) & 0x1f;
+    if (e === 0) return x;
+    return ((x & 7) + 8) << (e - 1);
+};
+
 const intarith = function(L, op, v1, v2) {
     if (LUA_INT64) {
         switch (op) {
@@ -891,6 +897,7 @@ module.exports.luaO_arith        = luaO_arith;
 module.exports.luaO_chunkid      = luaO_chunkid;
 module.exports.luaO_hexavalue    = luaO_hexavalue;
 module.exports.luaO_int2fb       = luaO_int2fb;
+module.exports.luaO_fb2int       = luaO_fb2int;
 module.exports.luaO_pushfstring  = luaO_pushfstring;
 module.exports.luaO_pushvfstring = luaO_pushvfstring;
 module.exports.luaO_str2num      = luaO_str2num;

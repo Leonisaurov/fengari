@@ -554,9 +554,12 @@ const lua_rawget = function(L, idx) {
     return L.stack[L.top - 1].ttnov();
 };
 
-// narray and nrec are mostly useless for this implementation
+// narray and nrec are used by the PUC-compatible T.querytab metadata
 const lua_createtable = function(L, narray, nrec) {
-    let t = new lobject.TValue(LUA_TTABLE, ltable.luaH_new(L));
+    let h = ltable.luaH_new(L);
+    if (narray || nrec)
+        ltable.puc_resize(h, narray || 0, nrec || 0);
+    let t = new lobject.TValue(LUA_TTABLE, h);
     L.stack[L.top] = t;
     api_incr_top(L);
 };

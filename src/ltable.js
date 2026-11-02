@@ -124,6 +124,10 @@ class Table {
         this.flags = ~0;
         this.finalized = false; /* marked for finalization already? */
         this.g = L.l_G;         /* for write barriers in luaH_setint */
+        /* PUC-compatible sizing metadata, used by T.querytab in the tests. */
+        this.puc_alimit = 0;
+        this.puc_hsize = 0;
+        this.puc_hused = 0;
     }
 }
 
@@ -196,6 +200,113 @@ const luaH_new = function(L) {
     return t;
 };
 
+/* ------------------------------------------------------------------------ */
+/* PUC-compatible array/hash sizing simulation (T.querytab in ltests.js)    */
+/* ------------------------------------------------------------------------ */
+
+const PUC_MAXASIZE = 0x7fffffff;
+
+const puc_ceillog2 = function(n) {
+    return Math.max(0, Math.ceil(Math.log2(n)));
+};
+
+const puc_nextpow2 = function(n) {
+    if (n <= 0)
+        return 0;
+    let p = 1;
+    while (p < n)
+        p *= 2;
+    return p;
+};
+
+const puc_intkey = function(key) {
+    if (typeof key === "number")
+        return Number.isInteger(key) ? key : null;
+    if (typeof key === "bigint")
+        return Number(key);
+    if (key instanceof lobject.TValue) {
+        if (key.ttisinteger())
+            return Number(key.value);
+        if (key.ttisfloat() && Number.isInteger(key.value))
+            return key.value;
+    }
+    return null;
+};
+
+const puc_countint = function(k, nums) {
+    if (k >= 1 && k <= PUC_MAXASIZE) {
+        let lg = puc_ceillog2(k);
+        nums[lg] = (nums[lg] || 0) + 1;
+        return 1;
+    }
+    return 0;
+};
+
+const puc_rehash = function(t, extra) {
+    let nums = [];
+    let na = 0;
+    let total = 0;
+    for (const e of t.strong.values()) {
+        total++;
+        let k = puc_intkey(e.key);
+        if (k !== null)
+            na += puc_countint(k, nums);
+    }
+    if (extra !== undefined) {
+        total++;
+        if (extra !== null)
+            na += puc_countint(extra, nums);
+    }
+    let a = 0;
+    let nakept = 0;
+    let optimal = 0;
+    let twotoi = 1;
+    for (let i = 0; twotoi > 0 && na > twotoi / 2; i++, twotoi *= 2) {
+        a += nums[i] || 0;
+        if (a > twotoi / 2) {
+            optimal = twotoi;
+            nakept = a;
+        }
+    }
+    t.puc_alimit = optimal;
+    t.puc_hsize = puc_nextpow2(total - nakept);
+    t.puc_hused = total - nakept;
+};
+
+const puc_newkey = function(t, k) {
+    if (k !== null && k >= 1 && k <= t.puc_alimit)
+        return;
+    if (t.puc_hsize === 0 || t.puc_hused >= t.puc_hsize) {
+        puc_rehash(t, k);
+        if (k !== null && k >= 1 && k <= t.puc_alimit)
+            return;
+    } else
+        t.puc_hused++;
+};
+
+const puc_resize = function(t, na, nh) {
+    t.puc_alimit = na;
+    t.puc_hsize = puc_nextpow2(nh);
+    let used = 0;
+    for (const e of t.strong.values()) {
+        let k = puc_intkey(e.key);
+        if (k === null || k < 1 || k > na)
+            used++;
+    }
+    t.puc_hused = used;
+};
+
+const puc_resizearray = function(t, na) {
+    t.puc_alimit = na;
+    let used = 0;
+    for (const e of t.strong.values()) {
+        let k = puc_intkey(e.key);
+        if (k === null || k < 1 || k > na)
+            used++;
+    }
+    t.puc_hused = used;
+};
+
 const getgeneric = function(t, hash) {
     let v = t.strong.get(hash);
     return v ? v.value : lobject.luaO_nilobject;
@@ -238,6 +349,7 @@ const luaH_setint = function(t, key, value) {
         let tv = e.value;
         tv.setfrom(value);
     } else {
+        puc_newkey(t, puc_intkey(key));
         let k = new lobject.TValue(LUA_TNUMINT, key);
         let v = new lobject.TValue(value.type, value.value);
         add(t, hash, k, v);
@@ -260,6 +372,7 @@ const luaH_setfrom = function(L, t, key, value) {
     if (e) {
         e.value.setfrom(value);
     } else {
+        puc_newkey(t, puc_intkey(key));
         let k;
         let kv = key.value;
         if (typeof kv === "bigint") {
@@ -357,4 +470,6 @@ module.exports.luaH_setint  = luaH_setint;
 module.exports.luaH_new     = luaH_new;
 module.exports.luaH_next    = luaH_next;
 module.exports.luaH_removeentry = luaH_removeentry;
+module.exports.puc_resize    = puc_resize;
+module.exports.puc_resizearray = puc_resizearray;
 module.exports.Table        = Table;

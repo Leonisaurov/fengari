@@ -91,10 +91,7 @@ test("[test-suite] nextvar: iterator function is always the same", () => {
 });
 
 
-// Skipped: asserts PUC's internal array/hash part sizing through T.int2fb and
-// T.querytab. Fengari stores table entries in a Map, so those internals do not
-// exist and the expected sizes are not meaningful here.
-test.skip("[test-suite] nextvar: JS tests", () => {
+test("[test-suite] nextvar: JS tests", () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
 
@@ -198,13 +195,13 @@ test.skip("[test-suite] nextvar: JS tests", () => {
         check(a, 16, 0)
         do
           for i=1,11 do a[i] = nil end
-          for i=30,50 do a[i] = nil end   -- force a rehash (?)
+          for i=30,50 do a[i] = true; a[i] = nil end   -- force a rehash
           check(a, 0, 8)   -- only 5 elements in the table
           a[10] = 1
-          for i=30,50 do a[i] = nil end   -- force a rehash (?)
+          for i=30,50 do a[i] = true; a[i] = nil end   -- force a rehash
           check(a, 0, 8)   -- only 6 elements in the table
-          for i=1,14 do a[i] = nil end
-          for i=18,50 do a[i] = nil end   -- force a rehash (?)
+          for i=1,14 do a[i] = true; a[i] = nil end
+          for i=18,50 do a[i] = true; a[i] = nil end   -- force a rehash
           check(a, 0, 4)   -- only 2 elements ([15] and [16])
         end
 
@@ -230,6 +227,7 @@ test.skip("[test-suite] nextvar: JS tests", () => {
         for i=1,lim do a[i] = true; foo(i, table.unpack(a)) end
     `;
     lualib.luaL_openlibs(L);
+    ltests.luaopen_tests(L);
     if (lauxlib.luaL_loadstring(L, to_luastring(prefix + luaCode)) === lua.LUA_ERRSYNTAX)
         throw new SyntaxError(lua.lua_tojsstring(L, -1));
     lua.lua_call(L, 0, 0);

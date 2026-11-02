@@ -96,8 +96,9 @@ unreleased
   - Document every remaining PUC-internal skip in test/test-suite/SKIPS.md
   - Enable the API get/setuservalue, udata-collection and deep-stack GC
     tests with T.gcstate/T.gccolor shims, two-phase userdata accounting and
-    stack-overflow error reservation, plus the six memory-limit tests with a
-    test-only T.totalmem allocation budget; the bounded skip list drops to 1
+    stack-overflow error reservation, the six memory-limit tests with a
+    test-only T.totalmem allocation budget, and nextvar's table-size test
+    with T.int2fb/T.querytab PUC metadata; no bounded skips remain
   - Implement Lua 5.4 <const>/<close> local attributes with __close
     finalization on block exit, break, goto, return, tail calls, errors,
     coroutine.close and the generic-for closing value

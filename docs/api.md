@@ -52,7 +52,7 @@ Source: [`src/lua.js`](../src/lua.js)
 - **`lua_createtable(L, narray, nrec)`**  
   `src/lapi.js`
 
-  narray and nrec are mostly useless for this implementation
+  narray and nrec are used by the PUC-compatible T.querytab metadata
 - **`class lua_Debug`**  
   `src/defs.js`
 - **`lua_dump(L, writer, data, strip)`**  

@@ -12,7 +12,7 @@ const {
 } = require("../../src/fengaricore.js");
 const ljstype  = require('../../src/ljstype.js');
 const lopcodes = require('../../src/lopcodes.js');
-const { pushobj2s } = require('../../src/lobject.js');
+const { pushobj2s, luaO_int2fb, luaO_fb2int } = require('../../src/lobject.js');
 const sprintf  = require('sprintf-js').sprintf;
 
 const delimits = [" ", "\t", "\n", ",", ";"].map(e => e.charCodeAt(0));
@@ -963,6 +963,23 @@ const totalmem = function(L) {
     return 1;
 };
 
+const int2fb = function(L) {
+    let n = lauxlib.luaL_checkinteger(L, 1);
+    if (typeof n === "bigint") n = Number(n);
+    let r = luaO_int2fb(n);
+    lua.lua_pushinteger(L, r);
+    lua.lua_pushinteger(L, luaO_fb2int(r));
+    return 2;
+};
+
+const querytab = function(L) {
+    lauxlib.luaL_checktype(L, 1, lua.LUA_TTABLE);
+    let t = L.stack[L.ci.funcOff + 1].value;
+    lua.lua_pushinteger(L, t.puc_alimit);
+    lua.lua_pushinteger(L, t.puc_hsize);
+    return 2;
+};
+
 const tests_funcs = {
     "checkpanic":   checkpanic,
     "closestate":   closestate,
@@ -971,6 +988,7 @@ const tests_funcs = {
     "doremote":     doremote,
     "gccolor":      gccolor,
     "gcstate":      gcstate,
+    "int2fb":       int2fb,
     "listcode":     listcode,
     "listk":        listk,
     "loadlib":      loadlib,
@@ -978,6 +996,7 @@ const tests_funcs = {
     "newstate":     newstate,
     "newuserdata":  newuserdata,
     "pushuserdata": pushuserdata,
+    "querytab":     querytab,
     "ref":          ref,
     "resume":       coresume,
     "s2d":          s2d,
