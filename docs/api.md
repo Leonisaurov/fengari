@@ -691,7 +691,7 @@ target surfaces (the parser and VM remain Lua 5.3):
 
 | Version | Highlights |
 | --- | --- |
-| 5.4 | `coroutine.close`, `warn`, the 5.4 `math.random`/`randomseed` API (xoshiro, per-state seeds) and `<const>`/`<close>` with `__close`. No generic-for closing value, yielding `__close` or 64-bit integers. |
+| 5.4 | `coroutine.close`, `warn`, the 5.4 `math.random`/`randomseed` API (xoshiro, per-state seeds) and `<const>`/`<close>` with `__close`, including the generic-for closing value. No yielding `__close` or 64-bit integers. |
 | 5.3 | Current core: integers, bitwise operators, `utf8`, `string.pack`, `table.move`. |
 | 5.2 | `bit32`; no `utf8`, `string.pack` or 5.3 `math`/`coroutine` additions. |
 | 5.1 | `unpack`, `loadstring`, `getfenv`/`setfenv`, `module`, `package.seeall`, `table.maxn/getn`, `string.gfind`, `package.loaders`. |
