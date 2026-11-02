@@ -244,3 +244,27 @@ test("in-process LUA_INT64 io positions and debug indices", () => {
     expect(lua.lua_toboolean(L, -1)).toBe(true);
     lua.lua_close(L);
 });
+
+test("in-process LUA_INT64 gc and integer formatting paths", () => {
+    let L = open("5.4");
+    run(L, `
+        collectgarbage("setpause", 200)
+        collectgarbage("setstepmul", 200)
+        assert(type(collectgarbage("count")) == "number")
+        assert(collectgarbage("isrunning") == true)
+        collectgarbage("step", 1)
+
+        local min = -9223372036854775807 - 1
+        local ipart, fpart = math.modf(9223372036854775807)
+        assert(ipart == 9223372036854775807 and fpart == 0.0)
+        assert(math.tointeger(9223372036854775807) ==
+               9223372036854775807)
+        assert(math.type(math.tointeger(1.5)) == nil)
+
+        return string.format("%q", min),
+               string.format("%q", 9223372036854775807)
+    `);
+    expect(lua.lua_tojsstring(L, -2)).toBe("0x8000000000000000");
+    expect(lua.lua_tojsstring(L, -1)).toBe("9223372036854775807");
+    lua.lua_close(L);
+});

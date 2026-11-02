@@ -228,6 +228,7 @@ const optsnum = [
 const luaB_collectgarbage = function(L) {
     let o = optsnum[luaL_checkoption(L, 1, "collect", opts)];
     let ex = luaL_optinteger(L, 2, 0);
+    if (typeof ex === "bigint") ex = Number(ex);
     let res = lua_gc(L, o, ex);
     switch (o) {
         case LUA_GCCOUNT: {
