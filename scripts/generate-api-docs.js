@@ -277,8 +277,8 @@ const generate = function() {
     out += "| Version | Highlights |\n| --- | --- |\n";
     out += "| 5.4 | `coroutine.close`, `warn`, the 5.4 `math.random`/`randomseed` API (xoshiro, per-state seeds) and `<const>`/`<close>` with `__close`, including the generic-for closing value, yielding `__close` on normal unwinding and during `pcall`/`xpcall` error recovery, errors in close methods replacing the original error, and deferred closing through `coroutine.close`. No 64-bit integers by default. |\n";
     out += "| 5.3 | Current core: integers, bitwise operators, `utf8`, `string.pack`, `table.move`. |\n";
-    out += "| 5.2 | `bit32`; no `utf8`, `string.pack` or 5.3 `math`/`coroutine` additions. |\n";
-    out += "| 5.1 | `unpack`, `loadstring`, `getfenv`/`setfenv`, `module`, `package.seeall`, `table.maxn/getn`, `string.gfind`, `package.loaders`. |\n\n";
+    out += "| 5.2 | `bit32`; deprecated `unpack`, `loadstring`, `module`, `package.seeall`, `table.maxn` and `package.loaders`/`cpath`; no `utf8`, `string.pack` or 5.3 `math`/`coroutine` additions. |\n";
+    out += "| 5.1 | `unpack`, `loadstring`, `getfenv`/`setfenv`, `module`, `package.seeall`, `newproxy`, `table.setn`/`maxn`/`getn`/`foreach`/`foreachi`, `string.gfind`/`gmatch`, `math.mod`, `gcinfo`, `package.loaders`/`cpath`. |\n\n";
     return out;
 };
 

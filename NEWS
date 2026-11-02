@@ -71,6 +71,11 @@ unreleased
     lengths, string.byte, math.floor, table keys and loops) and format
     integral floats without a '.0' suffix, including keys returned by
     next/pairs
+  - Complete the 5.1/5.2 library surface against PUC: gcinfo,
+    table.foreach/foreachi, math.mod, debug.getfenv/setfenv and package.cpath
+    in 5.1; unpack, loadstring, module, package.seeall, table.maxn and
+    package.loaders in 5.2; plus %.14g formatting for inf/nan/-0 and the
+    5.1/5.2 %q/%a behavior
   - Add the remaining 5.1/5.2 APIs: newproxy, table.setn, loadstring and
     function-only load in 5.1, plus boolean os.exit from 5.2 onward
   - Load native PUC Lua 5.1/5.2 binary chunks by translating them to the

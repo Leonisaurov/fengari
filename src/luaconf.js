@@ -162,7 +162,23 @@ const lua_integer2str = function(n) {
 };
 
 const lua_number2str = function(n) {
-    return String(Number(n.toPrecision(14))); /* should match behaviour of LUA_NUMBER_FMT */
+    /* Should match the behaviour of LUA_NUMBER_FMT ("%.14g"). */
+    if (Number.isNaN(n)) return "nan";
+    if (n === Infinity) return "inf";
+    if (n === -Infinity) return "-inf";
+    if (n === 0) return Object.is(n, -0) ? "-0" : "0";
+    let parts = n.toExponential(13).split("e");
+    let mant = parts[0];
+    let exp = parseInt(parts[1], 10);
+    if (exp < -4 || exp >= 14) {  /* scientific notation */
+        let m = mant.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
+        let sign = exp < 0 ? "-" : "+";
+        return m + "e" + sign + String(Math.abs(exp)).padStart(2, "0");
+    }
+    let fixed = n.toFixed(Math.max(0, 13 - exp));
+    if (fixed.indexOf(".") >= 0)
+        fixed = fixed.replace(/0+$/, "").replace(/\.$/, "");
+    return fixed;
 };
 
 const lua_numbertointeger = function(n) {

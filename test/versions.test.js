@@ -70,10 +70,16 @@ test('5.2 profile exposes bit32 and hides 5.3 APIs', () => {
         assert(type(utf8) == "nil")
         assert(type(table.pack) == "function")
         assert(type(table.unpack) == "function")
+        assert(type(table.maxn) == "function" and table.maxn({[9] = true}) == 9)
+        assert(type(unpack) == "function" and unpack({1, 2, 3}) == 1)
+        assert(type(loadstring) == "function" and loadstring("return 5")() == 5)
+        assert(type(module) == "function")
+        assert(type(package.seeall) == "function")
+        assert(type(package.cpath) == "string")
         assert(rawlen({1, 2}) == 2)
         assert(type(math.type) == "nil")
         assert(type(coroutine.isyieldable) == "nil")
-        assert(package.searchers ~= nil and package.loaders == nil)
+        assert(package.searchers ~= nil and package.loaders == package.searchers)
         return true
     `);
     expect(lua.lua_toboolean(L, -1)).toBe(true);
@@ -143,6 +149,24 @@ test('5.1 profile adds compatibility globals and uses package.loaders', () => {
         assert(type(rawlen) == "nil")
         assert(type(math.type) == "nil")
         assert(type(coroutine.isyieldable) == "nil")
+        assert(type(string.gmatch) == "function")
+        assert(type(string.gfind) == "function")
+        assert(type(table.foreach) == "function")
+        assert(type(table.foreachi) == "function")
+        assert(type(math.mod) == "function" and math.mod(7, 3) == 1)
+        assert(type(gcinfo) == "function" and gcinfo() >= 0)
+        assert(type(debug.getfenv) == "function")
+        assert(type(debug.setfenv) == "function")
+        assert(type(debug.getuservalue) == "nil")
+        assert(type(debug.upvalueid) == "nil")
+        assert(type(package.cpath) == "string")
+        assert(package.searchpath == nil)
+        local sum = 0
+        table.foreach({1, 2, 3}, function(_, v) sum = sum + v end)
+        assert(sum == 6)
+        local isum = 0
+        table.foreachi({"a", "b"}, function(i) isum = isum + i end)
+        assert(isum == 3)
         return true
     `);
     expect(lua.lua_toboolean(L, -1)).toBe(true);
@@ -185,6 +209,67 @@ test('5.3 keeps integer values and their formatting', () => {
     expect(lua.lua_tojsstring(L, -3)).toBe("1.0");
     expect(lua.lua_isinteger(L, -2)).toBe(true);
     expect(lua.lua_isinteger(L, -1)).toBe(true);
+    lua.lua_close(L);
+});
+
+test('number formatting matches PUC across profiles', () => {
+    for (const [version, zero] of [["5.1", "-0"], ["5.2", "-0"],
+        ["5.3", "-0.0"]]) {
+        let L = open(version);
+        run(L, `
+            return tostring(1/0), tostring(-1/0), tostring(1e20),
+                   tostring(1e-7), tostring(-0.0)
+        `);
+        expect(lua.lua_tojsstring(L, -5)).toBe("inf");
+        expect(lua.lua_tojsstring(L, -4)).toBe("-inf");
+        expect(lua.lua_tojsstring(L, -3)).toBe("1e+20");
+        expect(lua.lua_tojsstring(L, -2)).toBe("1e-07");
+        expect(lua.lua_tojsstring(L, -1)).toBe(zero);
+        lua.lua_close(L);
+    }
+});
+
+test('5.1/5.2 string.format follows PUC quoting', () => {
+    let L51 = open("5.1");
+    run(L51, `
+        assert(string.format("%q", 7) == '"7"')
+        assert(string.format("%q", 1.5) == '"1.5"')
+        local ok, err = pcall(string.format, "%a", 1.0)
+        assert(not ok and tostring(err):match("invalid option"), tostring(err))
+        return true
+    `);
+    expect(lua.lua_toboolean(L51, -1)).toBe(true);
+    lua.lua_close(L51);
+
+    let L52 = open("5.2");
+    run(L52, `
+        assert(string.format("%q", 7) == '"7"')
+        assert(string.format("%q", 1.5) == '"1.5"')
+        assert(string.format("%a", 1.0) == "0x1p+0")
+        return true
+    `);
+    expect(lua.lua_toboolean(L52, -1)).toBe(true);
+    lua.lua_close(L52);
+});
+
+test('5.2 keeps the deprecated module/loadstring/unpack aliases', () => {
+    let L = open("5.2");
+    run(L, `
+        assert(type(unpack) == "function" and unpack({1, 2}) == 1)
+        assert(type(loadstring) == "function" and
+               loadstring("return 11")() == 11)
+        assert(type(table.maxn) == "function" and
+               table.maxn({[4] = true}) == 4)
+        assert(package.loaders == package.searchers)
+        module("vermod52", package.seeall)
+        local mod = package.loaded.vermod52
+        assert(mod._NAME == "vermod52" and mod._M == mod)
+        assert(getmetatable(mod).__index == _G)
+        local function current() return _NAME end
+        assert(current() == "vermod52")
+        return true
+    `);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
     lua.lua_close(L);
 });
 
@@ -256,7 +341,7 @@ test('loadbufferx hook is used by the version implementation', () => {
     lua.lua_close(L);
 });
 
-test('5.1-only APIs: newproxy, table.setn and loadstring', () => {
+test('5.1-only APIs: newproxy and table.setn', () => {
     let L = open("5.1");
     run(L, `
         local p = newproxy()
@@ -287,7 +372,8 @@ test('5.1-only APIs: newproxy, table.setn and loadstring', () => {
     run(L52, `
         assert(type(newproxy) == "nil")
         assert(type(table.setn) == "nil")
-        assert(type(loadstring) == "nil")
+        assert(type(loadstring) == "function")
+        assert(loadstring("return 9")() == 9)
         assert(load("return 9")() == 9)
         return true
     `);

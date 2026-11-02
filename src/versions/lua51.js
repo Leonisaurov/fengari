@@ -59,6 +59,25 @@ function setfenv(f, env)
     error("setfenv cannot change environment of given object", 2)
 end
 
+debug.getfenv = getfenv
+debug.setfenv = setfenv
+
+function table.foreach(t, f)
+    for k, v in pairs(t) do
+        local r = f(k, v)
+        if r ~= nil then return r end
+    end
+end
+
+function table.foreachi(t, f)
+    for i = 1, #t do
+        local r = f(i, t[i])
+        if r ~= nil then return r end
+    end
+end
+
+package.cpath = package.cpath or "./?.so"
+
 local function findtable(name)
     local t = _G
     for part in gmatch(name, "[^.]+") do
@@ -140,6 +159,7 @@ const openlibs = function(L) {
     /* 5.1 aliases that need the 5.3 implementations as a source. */
     copy_field(L, "table", "unpack", "_G", "unpack");
     copy_field(L, "string", "gmatch", "string", "gfind");
+    copy_field(L, "math", "fmod", "math", "mod");
     add_math_compat(L);
 
     let status = lauxlib.luaL_dostring(L, to_luastring(compat_code));
@@ -155,7 +175,6 @@ const openlibs = function(L) {
     unset_field(L, "string", "pack");
     unset_field(L, "string", "unpack");
     unset_field(L, "string", "packsize");
-    unset_field(L, "string", "gmatch");
     unset_field(L, "table", "pack");
     unset_field(L, "table", "unpack");
     unset_field(L, "table", "move");
@@ -166,12 +185,24 @@ const openlibs = function(L) {
     unset_field(L, "math", "ult");
     unset_field(L, "coroutine", "isyieldable");
     unset_field(L, "package", "searchers");
+    unset_field(L, "package", "searchpath");
+    unset_field(L, "debug", "getuservalue");
+    unset_field(L, "debug", "setuservalue");
+    unset_field(L, "debug", "upvalueid");
+    unset_field(L, "debug", "upvaluejoin");
 
     /* Lua 5.1-only APIs. */
     lua.lua_pushcfunction(L, lbaselib.luaB_newproxy);
     lua.lua_setglobal(L, to_luastring("newproxy"));
     lua.lua_pushcfunction(L, lbaselib.luaB_loadstring);
     lua.lua_setglobal(L, to_luastring("loadstring"));
+    lua.lua_pushcfunction(L, function(L1) {
+        let kb = lua.lua_gc(L1, lua.LUA_GCCOUNT, 0) +
+            lua.lua_gc(L1, lua.LUA_GCCOUNTB, 0) / 1024;
+        lua.lua_pushnumber(L1, kb);
+        return 1;
+    });
+    lua.lua_setglobal(L, to_luastring("gcinfo"));
     lua.lua_getglobal(L, to_luastring("table"));
     lua.lua_pushcfunction(L, ltablib.luaB_setn);
     lua.lua_setfield(L, -2, to_luastring("setn"));

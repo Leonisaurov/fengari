@@ -499,6 +499,13 @@ const addliteral = function(L, b, arg) {
             break;
         }
         case LUA_TNUMBER: {
+            let features = L.l_G && L.l_G.impl && L.l_G.impl.features;
+            if (features && features.integers === false) {
+                /* 5.1/5.2 coerce the number with the profile formatter. */
+                let s = lua_tostring(L, arg);
+                addquoted(b, s, s.length);
+                break;
+            }
             let buff;
             if (!lua_isinteger(L, arg)) {  /* float? */
                 let n = lua_tonumber(L, arg);  /* write as hexa ('%a') */
@@ -609,6 +616,10 @@ const str_format = function(L) {
                     break;
                 }
                 case 'a': case 'A': {
+                    if (L.l_G.impl && L.l_G.impl.version &&
+                        L.l_G.impl.version.num < 502)
+                        return luaL_error(L, to_luastring("invalid option '%%%c' to 'format'"),
+                            strfrmt[i-1]);
                     addlenmod(form, to_luastring(LUA_INTEGER_FRMLEN, true));
                     luaL_addstring(b, lua_number2strx(L, form, luaL_checknumber(L, arg)));
                     break;
