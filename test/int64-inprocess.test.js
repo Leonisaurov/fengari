@@ -203,3 +203,44 @@ test("in-process LUA_INT64 string positions and limits", () => {
     expect(lua.lua_toboolean(L, -1)).toBe(true);
     lua.lua_close(L);
 });
+
+test("in-process LUA_INT64 io positions and debug indices", () => {
+    let L = open("5.4");
+    run(L, `
+        -- file positions and read counts accept integer arguments
+        local f = assert(io.tmpfile())
+        assert(f:write("abcdef"))
+        assert(f:seek("set", 0) == 0)
+        assert(f:read(3) == "abc")
+        assert(f:seek("cur", 1) == 4)
+        assert(f:read(2) == "ef")
+        assert(f:setvbuf("full", 4096))
+        f:close()
+
+        -- debug levels, local indices and upvalue indices
+        local up = 5
+        local function g() return up end
+        local name, value = debug.getupvalue(g, 1)
+        assert(name == "up" and value == 5)
+        debug.setupvalue(g, 1, 6)
+        assert(g() == 6)
+
+        local function h(a, b)
+            local z = a + b
+            local lname, lvalue = debug.getlocal(1, 1)
+            assert(lname == "a" and lvalue == 2)
+            local info = debug.getinfo(1, "n")
+            assert(info.namewhat ~= nil)
+            return z
+        end
+        assert(h(2, 3) == 5)
+        assert(type(debug.traceback("msg", 1)) == "string")
+        debug.sethook(function() end, "l", 1)
+        debug.sethook()
+        assert(debug.gethook() == nil)
+
+        return true
+    `);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+    lua.lua_close(L);
+});

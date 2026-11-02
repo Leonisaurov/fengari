@@ -450,6 +450,7 @@ const g_read = function(L, f, first) {
         for (n = first; nargs-- > 0 && success; n++) {
             if (lua_type(L, n) === LUA_TNUMBER) {
                 let l = luaL_checkinteger(L, n);
+                if (typeof l === "bigint") l = Number(l);
                 if (l < 0)
                     return luaL_argerror(L, n, to_luastring("invalid count"));
                 success = (l === 0) ? test_eof(L, f) : read_chars(L, f, l);
@@ -762,6 +763,7 @@ const io_output = function(L) {
 const io_readline = function(L) {
     let p = lua_touserdata(L, lua_upvalueindex(1));
     let n = lua_tointeger(L, lua_upvalueindex(2));
+    if (typeof n === "bigint") n = Number(n);
     if (isclosed(p))  /* file is already closed? */
         return luaL_error(L, to_luastring("file is already closed"));
     lua_settop(L, 0);
@@ -827,6 +829,7 @@ const f_seek = function(L) {
     let op = luaL_checkoption(L, 2, to_luastring("cur"),
         [to_luastring("set"), to_luastring("cur"), to_luastring("end")]);
     let offset = luaL_optinteger(L, 3, 0);
+    if (typeof offset === "bigint") offset = Number(offset);
     if (f.pos === null)
         return luaL_fileresult(L, false, null, ESPIPE);
     let base;
@@ -855,6 +858,7 @@ const f_setvbuf = function(L) {
     let op = luaL_checkoption(L, 2, null,
         [to_luastring("no"), to_luastring("full"), to_luastring("line")]);
     let size = luaL_optinteger(L, 3, READ_CHUNK);
+    if (typeof size === "bigint") size = Number(size);
     if (!flush_write(f))
         return luaL_fileresult(L, false, null, f.error);
     f.vbuf = ["no", "full", "line"][op];

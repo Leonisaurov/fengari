@@ -80,6 +80,11 @@ const {
 } = require("./fengaricore.js");
 const lfs = require("./lfs.js");
 
+/* Stack levels and indices are JS numbers even in LUA_INT64 mode. */
+const asint = function(v) {
+    return typeof v === "bigint" ? Number(v) : v;
+};
+
 /*
 ** If L1 != L, L1 can be in any state, and therefore there are no
 ** guarantees about its stack space; any push in L1 must be
@@ -202,7 +207,7 @@ const db_getinfo = function(L) {
         lua_pushvalue(L, arg + 1);  /* move function to 'L1' stack */
         lua_xmove(L, L1, 1);
     } else {  /* stack level */
-        if (!lua_getstack(L1, luaL_checkinteger(L, arg + 1), ar)) {
+        if (!lua_getstack(L1, asint(luaL_checkinteger(L, arg + 1)), ar)) {
             lua_pushnil(L);  /* level out of range */
             return 1;
         }
@@ -243,13 +248,13 @@ const db_getlocal = function(L) {
     let L1 = thread.thread;
     let arg = thread.arg;
     let ar = new lua_Debug();
-    let nvar = luaL_checkinteger(L, arg + 2);  /* local-variable index */
+    let nvar = asint(luaL_checkinteger(L, arg + 2));  /* local-variable index */
     if (lua_isfunction(L, arg + 1)) {
         lua_pushvalue(L, arg + 1);  /* push function */
         lua_pushstring(L, lua_getlocal(L, null, nvar));  /* push local name */
         return 1;  /* return only name (there is no value) */
     } else {  /* stack-level argument */
-        let level = luaL_checkinteger(L, arg + 1);
+        let level = asint(luaL_checkinteger(L, arg + 1));
         if (!lua_getstack(L1, level, ar))  /* out of range? */
             return luaL_argerror(L, arg+1, "level out of range");
         checkstack(L, L1, 1);
@@ -272,8 +277,8 @@ const db_setlocal = function(L) {
     let L1 = thread.thread;
     let arg = thread.arg;
     let ar = new lua_Debug();
-    let level = luaL_checkinteger(L, arg + 1);
-    let nvar = luaL_checkinteger(L, arg + 2);
+    let level = asint(luaL_checkinteger(L, arg + 1));
+    let nvar = asint(luaL_checkinteger(L, arg + 2));
     if (!lua_getstack(L1, level, ar))  /* out of range? */
         return luaL_argerror(L, arg + 1, "level out of range");
     luaL_checkany(L, arg + 3);
@@ -291,7 +296,7 @@ const db_setlocal = function(L) {
 ** get (if 'get' is true) or set an upvalue from a closure
 */
 const auxupvalue = function(L, get) {
-    let n = luaL_checkinteger(L, 2);  /* upvalue index */
+    let n = asint(luaL_checkinteger(L, 2));  /* upvalue index */
     luaL_checktype(L, 1, LUA_TFUNCTION);  /* closure */
     let name = get ? lua_getupvalue(L, 1, n) : lua_setupvalue(L, 1, n);
     if (name === null) return 0;
@@ -315,7 +320,7 @@ const db_setupvalue = function(L) {
 ** returns its index
 */
 const checkupval = function(L, argf, argnup) {
-    let nup = luaL_checkinteger(L, argnup);  /* upvalue index */
+    let nup = asint(luaL_checkinteger(L, argnup));  /* upvalue index */
     luaL_checktype(L, argf, LUA_TFUNCTION);  /* closure */
     luaL_argcheck(L, (lua_getupvalue(L, argf, nup) !== null), argnup, "invalid upvalue index");
     return nup;
@@ -398,7 +403,7 @@ const db_sethook = function(L) {
     else {
         const smask = luaL_checkstring(L, arg + 2);
         luaL_checktype(L, arg+1, LUA_TFUNCTION);
-        count = luaL_optinteger(L, arg + 3, 0);
+        count = asint(luaL_optinteger(L, arg + 3, 0));
         func = hookf; mask = makemask(smask, count);
     }
     /* as weak tables are not supported; use a JS weak-map */
@@ -445,7 +450,7 @@ const db_traceback = function(L) {
     if (msg === null && !lua_isnoneornil(L, arg + 1))  /* non-string 'msg'? */
         lua_pushvalue(L, arg + 1);  /* return it untouched */
     else {
-        let level = luaL_optinteger(L, arg + 2, L === L1 ? 1 : 0);
+        let level = asint(luaL_optinteger(L, arg + 2, L === L1 ? 1 : 0));
         luaL_traceback(L, L1, msg, level);
     }
     return 1;
