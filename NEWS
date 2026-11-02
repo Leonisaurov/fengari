@@ -66,7 +66,8 @@ unreleased
     per-state xoshiro seeds
   - Make the 5.1/5.2 profiles version-aware in the lexer/parser: reject `//`
     and bitwise operators, treat `goto` as a name in 5.1, reject labels there,
-    and parse numeric literals as floats instead of 5.3 integers
+    and expose doubles instead of integer-tagged values (literals, tonumber,
+    lengths, string.byte, math.floor, table keys and loops)
   - Write the selected profile's version byte in string.dump and reject
     cross-profile bytecode in loadbufferx/lundump
   - Allow __close to yield during normal unwinding and resume the pending

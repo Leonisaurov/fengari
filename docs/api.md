@@ -615,8 +615,6 @@ Source: [`src/versions.js`](../src/versions.js)
 
 - **`current(L)`**  
   `src/versions.js`
-- **`features(L)`**  
-  `src/versions.js`
 - **`get(name)`**  
   `src/versions.js`
 - **`getDefault()`**  
@@ -632,6 +630,7 @@ Source: [`src/versions.js`](../src/versions.js)
 
 | Name | Source / value |
 | --- | --- |
+| `features` | `L && L.l_G && L.l_G.impl && L.l_G.impl.features` |
 | `list` | `l1` |
 
 ## Configuration (`luaconf`)

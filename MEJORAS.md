@@ -11,7 +11,7 @@ Estado actual tras referencia de API y guía de migración: 44 suites, 644 tests
 Estado actual tras completar la librería `io`: 45 suites, 672 tests que pasan y 20 skips.
 Estado actual tras el VFS de navegador: 47 suites, 692 tests que pasan y 20 skips.
 Estado actual tras benchmarks, diferencial, fuzzing y API de alto nivel: 52 suites, 736 tests que pasan y 12 skips.
-Estado actual tras rendimiento, fidelidad de `os.date`/`loadlib` y pulido: 58 suites, 771 tests que pasan, 10 skips y 93.8% de líneas / 86.9% de ramas.
+Estado actual tras rendimiento, fidelidad de `os.date`/`loadlib` y pulido: 58 suites, 772 tests que pasan, 10 skips y 93.8% de líneas / 86.9% de ramas.
 
 **Prioridad:** P0 desbloquea uso real · P1 calidad/rendimiento · P2 deseable · P3 largo plazo.
 **Esfuerzo:** S < 1 día · M 1–5 días · L > 1 semana.
@@ -129,7 +129,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 
 - [x] **Registro de implementaciones** — `versions.register/get/list/setDefault/features`, `luaL_newstate(version)` y `FENGARICONF.LUA_VERSION`; hooks `openlibs` y `loadbufferx` (`src/versions.js`). Perfiles incluidos: 5.1, 5.2, 5.3 y 5.4 (superficie de librerías).
 - [x] **Perfiles 5.1 y 5.2 de superficie de librerías** — `bit32`, aliases y eliminación de APIs 5.3, `package.loaders`, `getfenv`, `math.*` compatibles (`src/versions/`, `src/lbitlib.js`).
-- **Semántica completa 5.1/5.2** — P2, L. Hecho: lexer/parser por perfil (5.1/5.2 rechazan `//`, `&`, `|`, `~`, `<<`, `>>`; 5.1 trata `goto` como nombre y rechaza etiquetas `::`; 5.2 mantiene `goto`), literales numéricos como float y `tonumber` float en 5.1/5.2, `loadbufferx` respetado, y `getfenv`/`setfenv`/`module`/`package.seeall`/`loadstring` en 5.1. Bytecode: cada perfil escribe su byte de versión (0x51/0x52/0x53/0x54) y `lundump` rechaza chunks de otra versión; el layout de instrucciones sigue siendo el de Fengari 5.3 (no se cargan chunks binarios de PUC 5.1/5.2). Falta el instruction set/header real de PUC por versión, eliminar el subtipo entero interno en todas las rutas 5.1/5.2 y APIs menores (`newproxy`, `table.setn`, `os.exit` booleano, `load` con lector en 5.1).
+- **Semántica completa 5.1/5.2** — P2, L. Hecho: lexer/parser por perfil (5.1/5.2 rechazan `//`, `&`, `|`, `~`, `<<`, `>>`; 5.1 trata `goto` como nombre y rechaza etiquetas `::`; 5.2 mantiene `goto`), literales numéricos y `tonumber` float, y los valores visibles desde Lua en 5.1/5.2 ya no usan el subtipo entero (`luaO_setint`/`lua_pushinteger` producen float; longitudes, `string.byte`, `math.floor`, tablas y `for` también). `loadbufferx` respetado, `getfenv`/`setfenv`/`module`/`package.seeall`/`loadstring` en 5.1. Bytecode: cada perfil escribe su byte de versión y `lundump` rechaza chunks de otra versión; el layout de instrucciones sigue siendo el de Fengari 5.3. Falta el instruction set/header real de PUC 5.1/5.2, limpiar los usos internos de enteros (registry/índices de constantes) y APIs menores (`newproxy`, `table.setn`, `os.exit` booleano, `load` con lector en 5.1).
 
 ## 7. Lua 5.4 y futuro
 
@@ -144,7 +144,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 
 ## Límites conocidos actuales
 
-- **Versiones**: el parser/VM base es 5.3; 5.1/5.2 activan reglas de lexer/parser (operadores y `goto`), literales float y superficies de librerías, pero siguen usando el modelo numérico interno con subtipo entero. El bytecode lleva el byte de versión del perfil y `lundump` rechaza chunks de otra versión (el layout de instrucciones no es el de PUC 5.1/5.2). 5.4 añade `coroutine.close`, `warn`, `math.random` nuevo y `<const>`/`<close>`. Los enteros de 64 bits son opt-in (`LUA_INT64`); `setfenv`/`module` de 5.1 comparten el upvalue `_ENV`; 5.2 no expone esas funciones.
+- **Versiones**: el parser/VM base es 5.3; 5.1/5.2 activan reglas de lexer/parser, literales float y superficies de librerías, y sus valores visibles desde Lua no usan el subtipo entero (el estado interno aún usa enteros para registry/índices). El bytecode lleva el byte de versión del perfil y `lundump` rechaza chunks de otra versión (el layout de instrucciones no es el de PUC 5.1/5.2). 5.4 añade `coroutine.close`, `warn`, `math.random` nuevo y `<const>`/`<close>`. Los enteros de 64 bits son opt-in (`LUA_INT64`); `setfenv`/`module` de 5.1 comparten el upvalue `_ENV`; 5.2 no expone esas funciones.
 - **Enteros**: por defecto son de 32 bits. Con `FENGARICONF.LUA_INT64=true` pasan a `BigInt` de 64 bits con bytecode marcado (format 1) e interop controlada con format 0; están cubiertos núcleo, parser, aritmética/comparaciones, `for`, claves, `math.*`, `string.pack/unpack`, formato, `table`/`os` y dump/undump.
 - **GC**: `count` usa tamaños estimados por tipo; `collect` es atómico y solo `step` es incremental. Los valores retenidos únicamente por JS no cuentan como raíces.
 - **Fidelidad**: locale solo cubre el separador decimal (`ctype`/collation siguen en "C"); `%q` para `inf`/`nan` mantiene el estilo 5.3; los tracebacks no garantizan paridad exacta de marcos C/JS.
