@@ -67,6 +67,8 @@ unreleased
   - Make the 5.1/5.2 profiles version-aware in the lexer/parser: reject `//`
     and bitwise operators, treat `goto` as a name in 5.1, reject labels there,
     and parse numeric literals as floats instead of 5.3 integers
+  - Write the selected profile's version byte in string.dump and reject
+    cross-profile bytecode in loadbufferx/lundump
   - Allow __close to yield during normal unwinding and resume the pending
     closes/return correctly
   - Document every remaining PUC-internal skip in test/test-suite/SKIPS.md
