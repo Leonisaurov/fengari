@@ -38,6 +38,7 @@ const call_function = function(L, file, nresults) {
         return {ok: false, message: lua.lua_tojsstring(L, -1)};
     lua.lua_pushinteger(L, 10);
     lua.lua_pushinteger(L, 2);
+    lua.lua_checkstack(L, nresults + 1);
     status = lua.lua_pcall(L, 2, nresults, 0);
     if (status !== lua.LUA_OK)
         return {ok: false, message: lua.lua_tojsstring(L, -1)};
@@ -82,10 +83,11 @@ test("PUC Lua 5.2 binary chunks load natively", () => {
 test("PUC Lua 5.1 closures, jumps and upvalues translate", () => {
     let L = open("5.1");
     try {
-        expect(call_function(L, path.join(FIXTURES, "lua51_features.luac"), 14))
+        expect(call_function(L, path.join(FIXTURES, "lua51_features.luac"), 23))
             .toEqual({ok: true, values: ["242.0", "14520.0", "127.0", "31.0",
                 "6.0", "12.0", "15.0", "40.0", "9.0", "3.0", "10.0", "abc",
-                "42.0", "T"]});
+                "42.0", "T", "yes", "no", "103.0", "-10.0", "Y", "GT",
+                "nil", "3.0", "tail"]});
     } finally {
         lua.lua_close(L);
     }
@@ -94,10 +96,11 @@ test("PUC Lua 5.1 closures, jumps and upvalues translate", () => {
 test("PUC Lua 5.2 closures, jumps and upvalues translate", () => {
     let L = open("5.2");
     try {
-        expect(call_function(L, path.join(FIXTURES, "lua52_features.luac"), 14))
+        expect(call_function(L, path.join(FIXTURES, "lua52_features.luac"), 23))
             .toEqual({ok: true, values: ["242.0", "14520.0", "127.0", "31.0",
                 "6.0", "12.0", "15.0", "40.0", "9.0", "3.0", "10.0", "abc",
-                "42.0", "T"]});
+                "42.0", "T", "yes", "no", "103.0", "-10.0", "Y", "GT",
+                "nil", "3.0", "tail"]});
     } finally {
         lua.lua_close(L);
     }
