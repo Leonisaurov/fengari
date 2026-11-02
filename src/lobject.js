@@ -565,7 +565,7 @@ const l_str2int = function(s) {
         if (hex) {
             i += 2;
             for (; i < s.length && lisxdigit(s[i]); i++) {
-                a = a * 16n + BigInt(luaO_hexavalue(s[i]));
+                a = BigInt.asUintN(64, a * 16n + BigInt(luaO_hexavalue(s[i])));
                 empty = false;
             }
         } else {
@@ -577,7 +577,10 @@ const l_str2int = function(s) {
         while (i < s.length && lisspace(s[i])) i++;
         if (empty || (i !== s.length && s[i] !== 0)) return null;
         if (neg) a = -a;
-        if (a > LUA_MAXINTEGER || a < LUA_MININTEGER) return null;
+        if (hex)
+            a = BigInt.asIntN(64, a);  /* hex literals wrap modulo 2^64 */
+        else if (a > LUA_MAXINTEGER || a < LUA_MININTEGER)
+            return null;
         return { n: a, i: i };
     }
 
@@ -615,21 +618,20 @@ const l_str2int = function(s) {
 };
 
 const luaO_str2num = function(s, o, integers) {
-    let s2i = l_str2int(s);
-    if (s2i !== null) {   /* try as an integer */
-        if (integers === false)
-            o.setfltvalue(Number(s2i.n));
-        else
+    if (integers !== false) {
+        let s2i = l_str2int(s);
+        if (s2i !== null) {   /* try as an integer */
             o.setivalue(s2i.n);
-        return s2i.i+1;
-    } else {   /* else try as a float */
-        s2i = l_str2d(s);
-        if (s2i !== null) {
-            o.setfltvalue(s2i.n);
             return s2i.i+1;
-        } else
-            return 0;  /* conversion failed */
+        }
     }
+    /* else try as a float (5.1/5.2 always take this path, like strtod) */
+    let s2i = l_str2d(s);
+    if (s2i !== null) {
+        o.setfltvalue(s2i.n);
+        return s2i.i+1;
+    }
+    return 0;  /* conversion failed */
 };
 
 const luaO_tostring = function(L, obj) {

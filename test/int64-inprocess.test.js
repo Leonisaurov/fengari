@@ -105,6 +105,24 @@ test("in-process LUA_INT64 bytecode round trip", () => {
     lua.lua_close(L);
 });
 
+test("in-process LUA_INT64 hex literals wrap modulo 2^64", () => {
+    let L = open();
+    run(L, `
+        return 0x8000000000000000, 0xffffffffffffffff,
+               0x10000000000000000, 0x1ffffffffffffffff,
+               tonumber("0xffffffffffffffff"),
+               tonumber("18446744073709551615")
+    `);
+    expect(lua.lua_tointeger(L, -6)).toBe(-9223372036854775808n);
+    expect(lua.lua_tointeger(L, -5)).toBe(-1n);
+    expect(lua.lua_tointeger(L, -4)).toBe(0n);
+    expect(lua.lua_tointeger(L, -3)).toBe(-1n);
+    expect(lua.lua_tointeger(L, -2)).toBe(-1n);
+    /* decimal overflow falls back to a float */
+    expect(lua.lua_isinteger(L, -1)).toBe(false);
+    lua.lua_close(L);
+});
+
 test("in-process LUA_INT64 library paths keep BigInt values", () => {
     let L = open("5.4");
     run(L, `

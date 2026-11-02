@@ -22,6 +22,12 @@ check("value.pow", tostring(2^63) == "9.2233720368548e+18")
 check("value.fixed", tostring(0.0001) == "0.0001")
 check("value.sci", tostring(0.00001) == "1e-05")
 check("value.fmtg", string.format("%.14g", 1/3) == "0.33333333333333")
+check("value.hexbig", tostring(0x8000000000000000) == "9.2233720368548e+18")
+check("value.hexmax", tostring(0xffffffffffffffff) == "1.844674407371e+19")
+check("value.hexparse", tostring(tonumber("0x8000000000000000")) ==
+      "9.2233720368548e+18")
+check("value.decparse", tostring(tonumber("9223372036854775807")) ==
+      "9.2233720368548e+18")
 
 -- table keys are exposed as numbers
 local t = {[7] = true}

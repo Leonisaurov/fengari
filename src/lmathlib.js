@@ -331,7 +331,11 @@ const math_ult = function(L) {
 const math_log = function(L) {
     let x = luaL_checknumber(L, 1);
     let res;
-    if (lua_isnoneornil(L, 2))
+    if (Number.isNaN(x))
+        res = x;  /* preserve the NaN sign, like C libm */
+    else if (x < 0)
+        res = -NaN;  /* PUC's log of a negative value is -nan */
+    else if (lua_isnoneornil(L, 2))
         res = Math.log(x);
     else {
         let base = luaL_checknumber(L, 2);

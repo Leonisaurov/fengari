@@ -247,7 +247,8 @@ test('lua_number2str matches %.14g rounding', () => {
         .toBe("-1.2345678901234e+14");
     expect(luaconf.lua_number2str(Infinity)).toBe("inf");
     expect(luaconf.lua_number2str(-Infinity)).toBe("-inf");
-    expect(luaconf.lua_number2str(NaN)).toBe("-nan");
+    expect(luaconf.lua_number2str(NaN)).toBe("nan");
+    expect(luaconf.lua_number2str(-NaN)).toBe("-nan");
     expect(luaconf.lua_number2str(-0)).toBe("-0");
 });
 

@@ -193,7 +193,10 @@ const exact_decimal = function(n) {
 
 const lua_number2str = function(n) {
     /* Should match the behaviour of LUA_NUMBER_FMT ("%.14g"). */
-    if (Number.isNaN(n)) return "-nan";  /* PUC's x86 arithmetic NaN */
+    if (Number.isNaN(n)) {
+        FLOAT_VIEW.setFloat64(0, n, false);
+        return (FLOAT_VIEW.getUint32(0, false) >>> 31) ? "-nan" : "nan";
+    }
     if (n === Infinity) return "inf";
     if (n === -Infinity) return "-inf";
     if (n === 0) return Object.is(n, -0) ? "-0" : "0";

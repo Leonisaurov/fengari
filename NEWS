@@ -79,6 +79,9 @@ unreleased
   - Match PUC's %.14g rounding exactly (round-half-even ties, subnormals,
     inf/nan/-0) and add a 5.1/5.2 differential corpus checked against the
     real PUC Lua 5.1 and 5.2 interpreters
+  - Parse 5.1/5.2 numeric strings and hex literals as doubles (strtod
+    semantics, including values above 2^63) and wrap LUA_INT64 hex literals
+    modulo 2^64 like PUC
   - Add the remaining 5.1/5.2 APIs: newproxy, table.setn, loadstring and
     function-only load in 5.1, plus boolean os.exit from 5.2 onward
   - Load native PUC Lua 5.1/5.2 binary chunks by translating them to the
