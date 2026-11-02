@@ -36,6 +36,16 @@ test("published files include the runtime and exclude tests", () => {
 test("runtime dependencies are declared", () => {
     for (const name of ["readline-sync", "sprintf-js", "tmp"])
         expect(pkg.dependencies).toHaveProperty(name);
-    for (const name of ["eslint", "globals", "jest"])
+    for (const name of ["eslint", "globals", "jest", "typescript"])
         expect(pkg.devDependencies).toHaveProperty(name);
+});
+
+test("the typecheck config covers the declaration consumer", () => {
+    const tsconfig = require("../tsconfig.types.json");
+    expect(tsconfig.compilerOptions.noEmit).toBe(true);
+    expect(tsconfig.compilerOptions.strict).toBe(true);
+    expect(tsconfig.include).toContain("test/types/**/*.ts");
+    expect(fs.existsSync(path.join(root, "test/types/consumer.ts"))).toBe(true);
+    expect(pkg.scripts.typecheck).toBe("tsc -p tsconfig.types.json");
+    expect(pkg.scripts.check).toContain("tsc -p tsconfig.types.json");
 });
