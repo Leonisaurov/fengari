@@ -23,10 +23,12 @@ test("docs/api.md is up to date", () => {
     expect(fs.readFileSync(OUTPUT, "utf8")).toBe(generate());
 });
 
-test("the migration guide exists and is linked", () => {
-    const guide = path.join(__dirname, "..", "docs", "migrating-from-c.md");
-    expect(fs.existsSync(guide)).toBe(true);
+test("the hand-written guides exist and are linked", () => {
     const readme = fs.readFileSync(path.join(__dirname, "..", "README.md"), "utf8");
-    expect(readme).toContain("docs/migrating-from-c.md");
+    for (const name of ["migrating-from-c.md", "browser.md", "high-level-api.md"]) {
+        const file = path.join(__dirname, "..", "docs", name);
+        expect(fs.existsSync(file)).toBe(true);
+        expect(readme).toContain("docs/" + name);
+    }
     expect(readme).toContain("docs/api.md");
 });

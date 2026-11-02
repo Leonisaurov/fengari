@@ -1,15 +1,17 @@
 # AGENTS.md
 
-Fengari is a port of the Lua 5.3 VM, parser and standard libraries to ES6 JavaScript (CommonJS). This repository is the core library only: browser bundles live in `fengari-web`, the CLI in `fengari-node-cli`. `src/` ships as-is; there is no build, bundle, transpile or typecheck step.
+Fengari is a port of the Lua 5.3 VM, parser and standard libraries to ES6 JavaScript (CommonJS). This repository is the core library plus a generated browser bundle (`dist/`); the CLI lives in `fengari-node-cli` and `fengari-web` provides additional browser integration. `src/` ships as-is: there is no transpile or typecheck step, but `pnpm build` bundles `src/` for the browser.
 
 ## Run
 
 - This machine has no `npm`, `yarn` or `corepack`; use **pnpm** from the repo root.
-- `pnpm install`, then `pnpm lint` (`eslint src/ test/`), then `pnpm test` (Jest: 40 suites, ~610 tests, ~20 s).
+- `pnpm install`, then `pnpm lint` (`eslint src/ test/ scripts/`), then `pnpm test` (Jest: 52 suites, ~716 tests, ~20 s).
 - `pnpm install` exits 1 with `ERR_PNPM_IGNORED_BUILDS` for `@parcel/watcher`; dependencies are still installed. Ignore it unless you need Jest watch mode.
 - Single file: `pnpm test test/lvm.test.js`. Single test: `pnpm test test/lvm.test.js -t "MOVE"`. Do **not** put `--` before `-t`; Jest treats it as a filename pattern.
 - `test/manual-tests/debug-cli.js` is not run by Jest (it needs an interactive stdin).
-- CI (`.github/workflows/ci.yaml`) uses **yarn** on Node 20/22/24/25: `yarn lint` then `yarn test --maxWorkers=$(nproc)` with `FENGARICONF='{"LUAI_MAXSTACK":100000}'`. Keep `package.json`/`yarn.lock` consistent; `pnpm-lock.yaml` is local-only.
+- `pnpm check` runs lint, `docs:check` and Jest. `pnpm test:diff` needs `lua5.3`/`lua5.4`/`lua` (or `LUA_BIN`); `pnpm test:browser` needs Brave, Chromium or Chrome and runs `scripts/browser-test.js` (`BRAVE_BIN` selects the binary, `--keep` preserves the profile).
+- `pnpm build` writes `dist/fengari.js`, `.js.map` and `.min.js`; `prepack` rebuilds them for publishing.
+- CI (`.github/workflows/ci.yaml`) uses **yarn** on Node 20/22/24/25/26 with `FENGARICONF='{"LUAI_MAXSTACK":100000}'`; it also runs the differential corpus, benchmarks, fuzzing and a browser job that installs Brave. Keep `package.json`/`yarn.lock` consistent; `pnpm-lock.yaml` is local-only.
 
 ## Layout and flow
 
@@ -21,7 +23,7 @@ Fengari is a port of the Lua 5.3 VM, parser and standard libraries to ES6 JavaSc
 - `src/lgc.js` implements weak tables, finalizers and a mark/sweep with incremental marking; `src/versions.js` plus `src/versions/` select Lua 5.1/5.2/5.3 library profiles (`src/lbitlib.js` provides `bit32` for 5.2).
 - `test/test-suite/` is the official Lua test suite adapted to Jest; `test/test-suite/ltests.js` implements the C `T` test library. Remaining skips are mostly API harness/memory-limit tests, external fixtures and locale-specific tests.
 - `bench/` holds the Lua benchmarks, `scripts/diff-puc.js` the differential corpus under `test/differential/`, and `scripts/fuzz.js` the parser/undump fuzzer. CI runs the differential tests, benchmarks, a bounded fuzz and the browser suite (19 CDP tests) in a job that installs Brave; `pnpm test` only runs the bounded fuzz and differential tests (the latter skips without a Lua binary). Browser tests use the Chrome DevTools Protocol (`scripts/browser-test.js`), not Playwright, and cover async Lua/CommonJS/ES modules, a blocking SAB bridge, worker RPC, direct/nested OPFS, debug.debug and the minified bundle.
-- `docs/api.md` is generated from the public `module.exports` declarations by `scripts/generate-api-docs.js`; run `pnpm docs:api` after changing signatures, and `pnpm docs:check` (also part of `pnpm check`) verifies it. `docs/migrating-from-c.md` is hand-written.
+- `docs/api.md` is generated from the public `module.exports` declarations by `scripts/generate-api-docs.js`; run `pnpm docs:api` after changing signatures, and `pnpm docs:check` (also part of `pnpm check`) verifies it. `docs/migrating-from-c.md`, `docs/high-level-api.md` and `docs/browser.md` are hand-written; update them with API/browser changes.
 - Core semantics are Lua 5.3 with **32-bit integers** (`LUA_MAXINTEGER = 2147483647` in `luaconf.js`). The bundled 5.1/5.2 profiles adjust the library surface, not the parser or number model.
 
 ## Gotchas

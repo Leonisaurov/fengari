@@ -259,6 +259,9 @@ const generate = function() {
     out += "The core functions operate on a `lua_State`; strings are byte arrays\n";
     out += "(`Uint8Array`), and errors cross JS boundaries as exceptions or `lua_pcall`\n";
     out += "status codes. Module-specific notes are in each section.\n\n";
+    out += "This reference covers the C API and top-level exports. See the\n";
+    out += "[high-level API guide](high-level-api.md) for `api`/`vfs` and the\n";
+    out += "[browser guide](browser.md) for the bundle, workers and persistence.\n\n";
 
     for (const spec of MODULES) {
         const file = path.join(SRC, spec.file);

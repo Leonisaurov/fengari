@@ -94,7 +94,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - [x] **Bundle de navegador** — P1, M. `scripts/build-browser.js` genera `dist/fengari.js` (IIFE con `sprintf-js` y stubs de módulos Node) sin dependencias; se construye también en `pnpm pack` y se prueba en navegador real.
 - [x] **Tipos TypeScript** — P1, L. Publicar `.d.ts` para `lua`, `lauxlib` y `lualib`, o habilitar `tsc --checkJs` con JSDoc incremental. La API C es enorme; priorizar los símbolos usados por `fengari-web`.
 - [x] **API de alto nivel** — P1, M. `run()`, `dostring()`, `call()`, registro de funciones JS, conversión de tablas/arrays y manejo de errores, para no obligar a usar la API C.
-- [x] **API asíncrona** — P1, M. `api.pushAsyncJS` + `runAsync`/`callAsync` ejecutan el chunk en una corrutina, esperan cada `Promise` y la reanudan; una promesa rechazada se convierte en error Lua. Queda la carga asíncrona de módulos (`require` sigue siendo síncrono).
+- [x] **API asíncrona** — P1, M. `api.pushAsyncJS` + `runAsync`/`callAsync` ejecutan el chunk en una corrutina, esperan cada `Promise` y la reanudan; una promesa rechazada se convierte en error Lua. `installAsyncModules` carga Lua/CommonJS/ESM de forma asíncrona bajo `runAsync`.
 - [x] **Ciclo de vida de proxies** — P2, S. Revisado: el registro es un `WeakMap` de proxy→estado y no retiene proxies; `lua_isproxy` distingue estados y hay test de ámbito y error entre estados (`src/lapi.js`, `test/lapi.test.js`).
 - **`fengari-interop`** — P2, M. Tests de integración con objetos, arrays, funciones, promesas e iteradores JS; documentar límites y conversiones.
 - [x] **Web Workers** — P2, M. El backend en memoria y la E/S funcionan sin `window`/`process`; la suite de Brave prueba un Web Worker real, RPC asíncrono y un puente bloqueante con `SharedArrayBuffer`/`Atomics`. `test/worker.test.js` cubre io/os en `worker_threads`.
@@ -108,7 +108,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 
 - [x] **Cobertura con umbral** — `jest --coverage`, reporte en CI y umbral global (90% statements/funciones/líneas, 85% ramas).
 - **Activar tests saltados** — P1, M. Quedan 15: 12 de API (harness `T`, límites de memoria, userdata internos), 2 de internals de tabla y 1 de locale. Se eliminaron los 3 fixtures inexistentes, el test vacío de `require` y se activó el bucle enorme con `_soft`.
-- [x] **Tests de navegador** — P1, M. `scripts/browser-test.js` usa el Chrome DevTools Protocol contra Brave headless (fallback Chromium/Chrome), sin Playwright: VFS, `require`/`dofile` sin XHR, localStorage, IndexedDB, OPFS, Web Worker real, stdout y sandbox.
+- [x] **Tests de navegador** — P1, M. `scripts/browser-test.js` usa el Chrome DevTools Protocol contra Brave headless (fallback Chromium/Chrome), sin Playwright: 19 pruebas con VFS, `require`/`dofile` sin XHR, Lua/CJS/ESM asíncronos, localStorage, IndexedDB, OPFS (snapshots y directo anidado), SharedArrayBuffer, worker RPC (async y bloqueante), `debug.debug`, bundle minificado/source map, stdout y sandbox.
 - [x] **Tests diferenciales contra PUC Lua** — P1, M. `scripts/diff-puc.js` ejecuta `test/differential/` bajo Fengari y PUC y compara stdout y éxito/fallo; el test de Jest se salta si no hay intérprete.
 - [x] **Fuzzing del parser y `lundump`** — P1, M. `scripts/fuzz.js` con PRNG sembrado, bytes aleatorios, fuente aleatoria y bytecode mutado; `test/fuzz.test.js` ejecuta una tanda acotada.
 - [x] **CI más completa** — Node 20–26, caché de yarn, `--frozen-lockfile`, cobertura, tarball, diferencial contra PUC, benchmarks y fuzzing. Queda un workflow de publicación.
@@ -146,7 +146,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - **Versiones**: el parser/VM es 5.3; los perfiles 5.1/5.2 ajustan la superficie de librerías, no la sintaxis ni el modelo numérico. `setfenv`/`module` no están disponibles.
 - **GC**: `count` usa tamaños estimados por tipo; `collect` es atómico y solo `step` es incremental. Los valores retenidos únicamente por JS no cuentan como raíces.
 - **Fidelidad**: locale solo cubre el separador decimal (`ctype`/collation siguen en "C"); `%q` para `inf`/`nan` mantiene el estilo 5.3; los tracebacks no garantizan paridad exacta de marcos C/JS.
-- **Navegador**: `require`/`package.loadlib` caen a XHR síncrono si el módulo no está montado y la red está permitida; `installAsyncModules` cubre la carga asíncrona de Lua (sin ESM). El VFS es en memoria salvo `mountOPFS` en workers (archivos planos presentes al montar); la persistencia usa `saveToStorage`/`saveToIndexedDB`/`saveToOPFS`. `vfs.allowNetwork(false)` elimina el XHR.
+- **Navegador**: `require`/`package.loadlib` caen a XHR síncrono si el módulo no está montado y la red está permitida; `installAsyncModules` cubre Lua, CommonJS y ESM asíncronos (import maps), pero `package.loadlib` sigue siendo síncrono. El VFS es en memoria salvo `mountOPFS` en workers (rutas anidadas y archivos precreados); la persistencia usa `saveToStorage`/`saveToIndexedDB`/`saveToOPFS`. `vfs.allowNetwork(false)` elimina el XHR.
 - **`io`**: `popen`, `os.execute` y `os.exit` necesitan una API de procesos; en el VFS fallan con un error claro. `popen` ejecuta el comando de forma síncrona y bufferiza (no hay streaming); `setvbuf` controla un buffer de escritura en JS; `seek` usa una posición en JS y falla con `ESPIPE` en pipes y terminales.
 
 ---
@@ -155,7 +155,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 
 1. **Fase 1 — Completada.** P0, tablas débiles/`__gc`, GC automático/incremental, `count` real, fidelidad de floats/locale/tracebacks, perfiles de versión y tooling.
 2. **Fase 2 — Versiones reales (4–8 semanas).** Lexer/parser y modelo numérico por versión, entornos por función (`setfenv`/`module`), `undump` por versión y APIs menores de 5.1/5.2.
-3. **Fase 3 — Navegador (2–4 semanas).** VFS en memoria completado; quedan `require` asíncrono/sin XHR, persistencia (OPFS/IndexedDB), bundle con source maps, tests Playwright y workers.
+3. **Fase 3 — Navegador (completada).** VFS, persistencia (localStorage/IndexedDB/OPFS), bundle con source maps y minificado, carga asíncrona de Lua/CJS/ESM y RPC de workers (async y SAB) están hechos y probados con CDP; quedan `package.loadlib` asíncrono y cobertura Firefox/Safari.
 4. **Fase 4 — Medición (en curso).** `bench/`, diferencial contra PUC y fuzzing completados; quedan la optimización de VM/tablas/strings y los tests de navegador.
 5. **Fase 5 — Largo plazo.** Lua 5.4, enteros de 64 bits con `BigInt`, WASM/FFI.
 

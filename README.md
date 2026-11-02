@@ -87,7 +87,9 @@ const snapshot = vfs.snapshot();   // [{ path, data }, ...] -> persist it yourse
 
 Relative paths resolve against the virtual root (`/`). `io.tmpfile` and `os.tmpname` use `/tmp`. Because the file system is memory only, persistence must be done by the host: read `snapshot()` after a run and `restore()` it (or `mount()` the individual files) in the next one. `vfs.flush()` emits any buffered `io.stdout`/`io.stderr` output. While the memory backend is active, `os.exit`, `os.execute` and `io.popen` are disabled, even under Node.
 
-In Node the real file system is used by default; `vfs.useMemory()` switches a Node host (or a test) to the same in-memory file system, and `vfs.useNode()` switches back. `vfs.current()` returns `"node"` or `"memory"`.
+In Node the real file system is used by default; `vfs.useMemory()` switches a Node host (or a test) to the same in-memory file system, and `vfs.useNode()` switches back. `vfs.current()` returns `"node"`, `"memory"` or `"opfs"`.
+
+See [docs/browser.md](docs/browser.md) for the browser bundle, workers, OPFS, persistence and the CDP test suite, and [docs/high-level-api.md](docs/high-level-api.md) for the full `api`/`vfs` reference.
 
 If the host has a synchronous `localStorage`, `vfs.saveToStorage(key)` serializes the current files (base64) and `vfs.loadFromStorage(key)` restores them; `vfs.clearStorage(key)` removes the entry. For larger data, `vfs.saveToIndexedDB(key)` / `loadFromIndexedDB(key)` / `clearFromIndexedDB(key)` use an IndexedDB database named `fengari-vfs`. With an OPFS `FileSystemDirectoryHandle`, `vfs.saveToOPFS(dir, key)` / `loadFromOPFS(dir, key)` / `clearFromOPFS(dir, key)` persist snapshots through `createWritable()`.
 
@@ -111,7 +113,7 @@ CI runs the same suite. The XHR path can be disabled with `vfs.allowNetwork(fals
 
 ### High-level API and sandbox
 
-`api` wraps the common flows so hosts do not need to manage the stack:
+`api` wraps the common flows so hosts do not need to manage the stack (full reference: [docs/high-level-api.md](docs/high-level-api.md)):
 
 ```js
 const { api } = require("fengari");
@@ -270,8 +272,9 @@ This library is automatically loaded by `luaL_openlibs` into the global `"fengar
 
 - `io.popen`, `os.execute` and `os.exit` need a process API and are not
   available in the browser.
-- The browser file system is in memory; persistence is explicit through
-  `vfs.saveToStorage()`/`vfs.loadFromStorage()` or a host adaptor.
+- The browser file system is in memory by default; persistence is explicit
+  through localStorage, IndexedDB or OPFS snapshots, or direct OPFS in a
+  worker (`vfs.mountOPFS`).
 - `io.popen()`: commands run to completion synchronously; output (read mode)
   and input (write mode) are buffered instead of streamed.
 - In the browser, `require` uses the VFS for mounted modules and falls back to
@@ -279,7 +282,7 @@ This library is automatically loaded by `luaL_openlibs` into the global `"fengar
   CommonJS and ES modules load through `installAsyncModules`/`runAsync`; there
   is no async `package.loadlib`.
 - `f:seek()` on pipes and terminals fails with `ESPIPE`, as in PUC Lua.
-- The sandbox memory limit is approximate (`collectgarbage("count")`), not an OS-level cap. Direct OPFS is worker-only and limited to flat files present at mount time; elsewhere OPFS is used for snapshots.
+- The sandbox memory limit is approximate (`collectgarbage("count")`), not an OS-level cap. Direct OPFS is worker-only and limited to files present at mount time or pre-created with `{ files }`; elsewhere OPFS is used for snapshots.
 
 
 ## Benchmarks and validation
@@ -303,7 +306,12 @@ The CI uses [yarn](https://yarnpkg.com/), so `yarn.lock` is the source of truth 
 - `yarn lint` (or `pnpm lint`)
 - `yarn test` (or `pnpm test`)
 - `yarn test:coverage` enforces the thresholds in `jest.config.js`
-- `yarn check` runs lint and the full test suite
+- `yarn check` runs lint, the API docs check and the full test suite
+- `yarn build` generates the browser bundle, source map and minified file
+- `yarn test:browser` runs the CDP suite against Brave/Chromium
+- `yarn bench` / `yarn bench:compare` run the benchmark suite (PUC optional)
+- `yarn test:diff` runs the PUC differential corpus
+- `yarn fuzz` fuzzes the parser and undumper
 - `yarn test test/lvm.test.js -t MOVE` to run a single test
 
 ## References

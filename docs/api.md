@@ -11,6 +11,10 @@ The core functions operate on a `lua_State`; strings are byte arrays
 (`Uint8Array`), and errors cross JS boundaries as exceptions or `lua_pcall`
 status codes. Module-specific notes are in each section.
 
+This reference covers the C API and top-level exports. See the
+[high-level API guide](high-level-api.md) for `api`/`vfs` and the
+[browser guide](browser.md) for the bundle, workers and persistence.
+
 ## Core C API (`lua`)
 
 Source: [`src/lua.js`](../src/lua.js)
