@@ -6,6 +6,7 @@ const {
     lua_compare,
     lua_gettop,
     lua_isinteger,
+    lua_isnone,
     lua_isnoneornil,
     lua_pushboolean,
     lua_pushinteger,
@@ -27,6 +28,7 @@ const {
     luaL_checknumber,
     luaL_error,
     luaL_newlib,
+    luaL_optinteger,
     luaL_optnumber
 } = require('./lauxlib.js');
 const {
@@ -85,6 +87,100 @@ const math_randomseed = function(L) {
     l_srand(luaL_checknumber(L, 1));
     l_rand(); /* discard first value to avoid undesirable correlations */
     return 0;
+};
+
+/* ---------------------------------------------------------------------- */
+/* Lua 5.4 math.random: xoshiro128** with a per-state seed               */
+/* ---------------------------------------------------------------------- */
+
+const U32 = 0x100000000;
+
+const rotl32 = function(x, k) {
+    return ((x << k) | (x >>> (32 - k))) >>> 0;
+};
+
+const mix32 = function(x) {
+    x = (x + 0x9e3779b9) >>> 0;
+    x = Math.imul(x ^ (x >>> 16), 0x21f0aaad);
+    x = Math.imul(x ^ (x >>> 15), 0x735a2d97);
+    return (x ^ (x >>> 15)) >>> 0;
+};
+
+const next54 = function(L) {
+    const g = L.l_G;
+    if (g.rand54 === null)
+        seed54(L, (Date.now() ^ Math.floor(Math.random() * U32)) >>> 0,
+            Math.floor(Math.random() * U32) >>> 0);
+    const s = g.rand54;
+    const result = Math.imul(rotl32(Math.imul(s[1], 5) >>> 0, 7), 9) >>> 0;
+    const t = (s[1] << 9) >>> 0;
+    s[2] = (s[2] ^ s[0]) >>> 0;
+    s[3] = (s[3] ^ s[1]) >>> 0;
+    s[1] = (s[1] ^ s[2]) >>> 0;
+    s[0] = (s[0] ^ s[3]) >>> 0;
+    s[2] = (s[2] ^ t) >>> 0;
+    s[3] = rotl32(s[3], 11);
+    return result;
+};
+
+const seed54 = function(L, n1, n2) {
+    let s = (n1 ^ Math.imul(n2, 0x9e3779b9)) >>> 0;
+    const state = new Array(4);
+    for (let i = 0; i < 4; i++) {
+        s = (s + 0x9e3779b9) >>> 0;
+        state[i] = mix32(s ^ Math.imul(i + 1, 0x85ebca6b));
+    }
+    L.l_G.rand54 = state;
+    /* discard initial values to spread the seed */
+    for (let i = 0; i < 16; i++)
+        next54(L);
+};
+
+const math_random54 = function(L) {
+    let r = next54(L);
+    let low, up;
+    switch (lua_gettop(L)) {
+        case 0:
+            lua_pushnumber(L, r / U32);  /* float in [0, 1) */
+            return 1;
+        case 1:
+            low = 1;
+            up = luaL_checkinteger(L, 1);
+            if (up === 0) {  /* full 32-bit random integer */
+                lua_pushinteger(L, r | 0);
+                return 1;
+            }
+            break;
+        case 2:
+            low = luaL_checkinteger(L, 1);
+            up = luaL_checkinteger(L, 2);
+            break;
+        default:
+            return luaL_error(L, "wrong number of arguments");
+    }
+
+    luaL_argcheck(L, low <= up, 1, "interval is empty");
+    let range = up - low + 1;  /* at most 2^32 */
+    let limit = Math.floor(U32 / range) * range;
+    while (r >= limit)
+        r = next54(L);
+    lua_pushinteger(L, low + (r % range));
+    return 1;
+};
+
+const math_randomseed54 = function(L) {
+    let n1, n2;
+    if (lua_isnone(L, 1)) {
+        n1 = (Date.now() ^ Math.floor(Math.random() * U32)) >>> 0;
+        n2 = Math.floor(Math.random() * U32) >>> 0;
+    } else {
+        n1 = luaL_checkinteger(L, 1) >>> 0;
+        n2 = luaL_optinteger(L, 2, 0) >>> 0;
+    }
+    seed54(L, n1, n2);
+    lua_pushinteger(L, n1 | 0);
+    lua_pushinteger(L, n2 | 0);
+    return 2;
 };
 
 const math_abs = function(L) {
@@ -318,3 +414,5 @@ const luaopen_math = function(L) {
 };
 
 module.exports.luaopen_math = luaopen_math;
+module.exports.math_random54 = math_random54;
+module.exports.math_randomseed54 = math_randomseed54;

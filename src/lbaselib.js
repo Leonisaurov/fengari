@@ -62,7 +62,8 @@ const {
     lua_tolstring,
     lua_tostring,
     lua_type,
-    lua_typename
+    lua_typename,
+    lua_warning
 } = require('./lua.js');
 const {
     luaL_argcheck,
@@ -70,6 +71,7 @@ const {
     luaL_checkinteger,
     luaL_checkoption,
     luaL_checkstack,
+    luaL_checkstring,
     luaL_checktype,
     luaL_error,
     luaL_getmetafield,
@@ -494,6 +496,17 @@ const luaB_dofile = function(L) {
     return dofilecont(L, 0, 0);
 };
 
+const luaB_warn = function(L) {
+    let n = lua_gettop(L);
+    luaL_checkstring(L, 1);  /* at least one argument */
+    for (let i = 2; i <= n; i++)
+        luaL_checkstring(L, i);
+    for (let i = 1; i < n; i++)  /* compose warning */
+        lua_warning(L, lua_tostring(L, i), 1);
+    lua_warning(L, lua_tostring(L, n), 0);  /* close warning */
+    return 0;
+};
+
 const base_funcs = {
     "assert":         luaB_assert,
     "collectgarbage": luaB_collectgarbage,
@@ -533,3 +546,4 @@ const luaopen_base = function(L) {
 };
 
 module.exports.luaopen_base = luaopen_base;
+module.exports.luaB_warn = luaB_warn;

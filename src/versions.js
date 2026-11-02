@@ -23,7 +23,7 @@ let default_version = LUA_VERSION || "5.3";
 const normalize = function(name) {
     let s = String(name).toLowerCase().trim();
     s = s.replace(/^lua\s*/, "");
-    if (/^5[123]$/.test(s))
+    if (/^5[1234]$/.test(s))
         s = s[0] + "." + s[1];
     return s;
 };
@@ -73,6 +73,7 @@ const features = function(L) {
 register(require('./versions/lua51.js'));
 register(require('./versions/lua52.js'));
 register(require('./versions/lua53.js'));
+register(require('./versions/lua54.js'));
 
 if (!implementations.has(normalize(default_version)))
     default_version = "5.3";

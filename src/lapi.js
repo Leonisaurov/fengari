@@ -37,7 +37,7 @@ const {
         LUA_TTHREAD,
         LUA_TUSERDATA
     },
-    thread_status: { LUA_OK },
+    thread_status: { LUA_OK, LUA_YIELD },
     from_userstring,
     to_luastring,
 } = require('./defs.js');
@@ -98,6 +98,27 @@ const lua_atnativeerror = function(L, errorf) {
     let old = L.l_G.atnativeerror;
     L.l_G.atnativeerror = errorf;
     return old;
+};
+
+const lua_setwarnf = function(L, warnf, ud) {
+    L.l_G.warnf = warnf || null;
+    L.l_G.warn_ud = ud === undefined ? null : ud;
+};
+
+const lua_warning = function(L, msg, tocont) {
+    let warnf = L.l_G.warnf;
+    if (warnf)
+        warnf(L.l_G.warn_ud, from_userstring(msg), !!tocont);
+};
+
+/* Close a dead or suspended thread. __close metamethods are not implemented
+   (Lua 5.4 to-be-closed variables are not supported yet). */
+const lua_closethread = function(L, from) {
+    let status = L.status;
+    if (status === LUA_OK || status === LUA_YIELD)
+        status = LUA_OK;
+    lstate.luaE_resetthread(L, status);
+    return status;
 };
 
 // Return value for idx on stack
@@ -1200,6 +1221,9 @@ module.exports.lua_absindex          = lua_absindex;
 module.exports.lua_arith             = lua_arith;
 module.exports.lua_atpanic           = lua_atpanic;
 module.exports.lua_atnativeerror     = lua_atnativeerror;
+module.exports.lua_closethread       = lua_closethread;
+module.exports.lua_setwarnf          = lua_setwarnf;
+module.exports.lua_warning           = lua_warning;
 module.exports.lua_call              = lua_call;
 module.exports.lua_callk             = lua_callk;
 module.exports.lua_checkstack        = lua_checkstack;

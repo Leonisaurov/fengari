@@ -7,6 +7,7 @@ const {
     LUA_YIELD,
     lua_Debug,
     lua_checkstack,
+    lua_closethread,
     lua_concat,
     lua_error,
     lua_getstack,
@@ -18,9 +19,11 @@ const {
     lua_pushboolean,
     lua_pushcclosure,
     lua_pushliteral,
+    lua_pushstring,
     lua_pushthread,
     lua_pushvalue,
     lua_resume,
+    lua_settop,
     lua_status,
     lua_tothread,
     lua_type,
@@ -31,9 +34,11 @@ const {
 const {
     luaL_argcheck,
     luaL_checktype,
+    luaL_error,
     luaL_newlib,
     luaL_where
 } = require('./lauxlib.js');
+const { to_luastring } = require('./fengaricore.js');
 
 const getco = function(L) {
     let co = lua_tothread(L, 1);
@@ -118,31 +123,50 @@ const luaB_yield = function(L) {
     return lua_yield(L, lua_gettop(L));
 };
 
+const costatus = function(L, co) {
+    if (L === co) return "running";
+    switch (lua_status(co)) {
+        case LUA_YIELD:
+            return "suspended";
+        case LUA_OK: {
+            let ar = new lua_Debug();
+            if (lua_getstack(co, 0, ar) > 0)  /* does it have frames? */
+                return "normal";  /* it is running */
+            else if (lua_gettop(co) === 0)
+                return "dead";
+            else
+                return "suspended";  /* initial state */
+        }
+        default:  /* some error occurred */
+            return "dead";
+    }
+};
+
 const luaB_costatus = function(L) {
     let co = getco(L);
-    if (L === co) lua_pushliteral(L, "running");
-    else {
-        switch (lua_status(co)) {
-            case LUA_YIELD:
-                lua_pushliteral(L, "suspended");
-                break;
-            case LUA_OK: {
-                let ar = new lua_Debug();
-                if (lua_getstack(co, 0, ar) > 0)  /* does it have frames? */
-                    lua_pushliteral(L, "normal");  /* it is running */
-                else if (lua_gettop(co) === 0)
-                    lua_pushliteral(L, "dead");
-                else
-                    lua_pushliteral(L, "suspended");  /* initial state */
-                break;
-            }
-            default:  /* some error occurred */
-                lua_pushliteral(L, "dead");
-                break;
-        }
+    lua_pushstring(L, to_luastring(costatus(L, co)));
+    return 1;
+};
+
+const luaB_close = function(L) {
+    let co = getco(L);
+    let status = costatus(L, co);
+    if (status === "running" || status === "normal")
+        return luaL_error(L, to_luastring("cannot close a %s coroutine"), to_luastring(status));
+
+    let result = lua_closethread(co, L);
+    if (result === LUA_OK) {
+        lua_pushboolean(L, true);
+        return 1;
     }
 
-    return 1;
+    lua_pushboolean(L, false);
+    if (lua_gettop(co) > 0)
+        lua_xmove(co, L, 1);
+    else
+        lua_pushliteral(L, "error in coroutine");
+    lua_settop(co, 0);  /* drop any remaining frames: the thread is dead */
+    return 2;
 };
 
 const luaB_yieldable = function(L) {
@@ -171,3 +195,4 @@ const luaopen_coroutine = function(L) {
 };
 
 module.exports.luaopen_coroutine = luaopen_coroutine;
+module.exports.luaB_close = luaB_close;

@@ -110,6 +110,9 @@ class global_State {
         this.locale = "C";             /* approximate locale for os.setlocale */
         this.locale_decimal = ".";     /* decimal separator of that locale */
         this.profile_opened = false;   /* version profile already applied? */
+        this.rand54 = null;            /* Lua 5.4 xoshiro state, per state */
+        this.warnf = null;             /* Lua 5.4 warning callback */
+        this.warn_ud = null;           /* opaque warning callback data */
     }
 
 }
@@ -129,6 +132,33 @@ const luaE_extendCI = function(L) {
 const luaE_freeCI = function(L) {
     let ci = L.ci;
     ci.next = null;
+};
+
+/* Reset a dead/suspended coroutine, optionally keeping its error object.
+   Lua 5.4 runs pending __close metamethods first; Fengari does not implement
+   to-be-closed variables yet, so only the stack and call frames are reset. */
+const luaE_resetthread = function(L, status) {
+    let ci = L.ci = L.base_ci;
+    L.status = LUA_OK;
+    L.errfunc = 0;
+    L.nCcalls = 0;
+    ci.previous = null;
+    ci.next = null;
+    ci.callstatus = 0;
+    ci.funcOff = 0;
+    ci.func = L.stack[0];
+
+    if (status === LUA_OK) {
+        /* close upvalues before dropping the stack */
+        require('./lfunc.js').luaF_close(L, 0);
+        L.top = 0;
+        L.stack[0] = new lobject.TValue(LUA_TNIL, null);
+        L.top = 1;
+        ci.top = L.top + LUA_MINSTACK;
+    } else {
+        /* keep the error object on the stack for the caller */
+        ci.top = L.top;
+    }
 };
 
 const stack_init = function(L1, L) {
@@ -238,4 +268,5 @@ module.exports.lua_newstate    = lua_newstate;
 module.exports.lua_newthread   = lua_newthread;
 module.exports.luaE_extendCI   = luaE_extendCI;
 module.exports.luaE_freeCI     = luaE_freeCI;
+module.exports.luaE_resetthread = luaE_resetthread;
 module.exports.luaE_freethread = luaE_freethread;

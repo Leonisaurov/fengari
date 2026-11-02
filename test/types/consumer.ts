@@ -30,6 +30,12 @@ lua.lua_pushlstring(L, to_luastring("hello"), 5);
 lua.lua_pushinteger(L, 2147483647);
 lua.lua_pushnumber(L, 1.5);
 lua.lua_setglobal(L, "greeting");
+lua.lua_setwarnf(L, (_ud, msg, tocont) => {
+    void msg;
+    void tocont;
+}, null);
+lua.lua_warning(L, "check", 0);
+const closeStatus: number = lua.lua_closethread(lua.lua_newthread(L), L);
 
 const top: number = lua.lua_gettop(L);
 const status: number = lauxlib.luaL_loadstring(L, source);
@@ -44,4 +50,4 @@ vfs.restore(snapshot);
 const sameRuntime: boolean = fengari.lua === lua;
 state.close();
 
-void [result, asyncResult, globalResult, top, status, names, defaultVersion, sameRuntime];
+void [result, asyncResult, globalResult, top, status, names, defaultVersion, sameRuntime, closeStatus];

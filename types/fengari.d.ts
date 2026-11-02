@@ -26,6 +26,9 @@ export interface LuaAPI {
     LUA_REGISTRYINDEX: number;
 
     lua_close(L: LuaState): void;
+    lua_closethread(L: LuaState, from?: LuaState | null): number;
+    lua_setwarnf(L: LuaState, f: ((ud: any, msg: LuaString, tocont: boolean) => void) | null, ud?: any): void;
+    lua_warning(L: LuaState, msg: LuaString | string, tocont?: boolean | number): void;
     lua_pcall(L: LuaState, nargs: number, nresults: number, errfunc: number): number;
     lua_call(L: LuaState, nargs: number, nresults: number): void;
     lua_gettop(L: LuaState): number;
