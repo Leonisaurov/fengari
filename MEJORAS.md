@@ -11,7 +11,7 @@ Estado actual tras referencia de API y guía de migración: 44 suites, 644 tests
 Estado actual tras completar la librería `io`: 45 suites, 672 tests que pasan y 20 skips.
 Estado actual tras el VFS de navegador: 47 suites, 692 tests que pasan y 20 skips.
 Estado actual tras benchmarks, diferencial, fuzzing y API de alto nivel: 52 suites, 736 tests que pasan y 12 skips.
-Estado actual tras rendimiento, fidelidad de `os.date`/`loadlib` y pulido: 55 suites, 753 tests que pasan, 10 skips y 94.3% de líneas / 88.0% de ramas.
+Estado actual tras rendimiento, fidelidad de `os.date`/`loadlib` y pulido: 56 suites, 758 tests que pasan, 10 skips y 93.7% de líneas / 86.1% de ramas.
 
 **Prioridad:** P0 desbloquea uso real · P1 calidad/rendimiento · P2 deseable · P3 largo plazo.
 **Esfuerzo:** S < 1 día · M 1–5 días · L > 1 semana.
@@ -134,7 +134,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 ## 7. Lua 5.4 y futuro
 
 - [x] **`<const>` y `<close>`** — P2, L. Atributos `local x <const>`/`<close>` en el perfil 5.4: comprobación de asignación a const (incluidos upvalues), `OP_TBC`/lista de cierres por hilo y `__close(valor, err)` en salida de bloque, `break`, `goto`, `return`, tail call, errores, `coroutine.close` y el cuarto valor to-be-closed del generic-for (`OP_TFORPREP`). Pendiente: `__close` que haga yield y los enteros de 64 bits.
-- **Enteros de 64 bits con `BigInt`** — P2, L. Opt-in vía `FENGARICONF.LUA_INT64` para no romper la semántica actual de 32 bits; afecta `TValue` (valor `BigInt` para `LUA_TNUMINT`), parser numérico, toda la aritmética/VM, comparaciones, formato, claves de tabla, `string.pack`/`unpack` y una versión de bytecode propia. No se ha empezado: sería incorrecto activar el flag sin esa rama completa porque los 26 puntos que hoy asumen `Number`/`|0` corromperían resultados. Requiere una decisión de diseño sobre el bytecode y el perfil (¿5.3 con `LUA_INT64` o un perfil 5.4-64 independiente?).
+- **Enteros de 64 bits con `BigInt`** — P2, L. Primer corte implementado detrás de `FENGARICONF.LUA_INT64`: `TValue`/`lua_int` con canonicalización a `BigInt`, parser numérico, literales, `tonumber`/`tostring`, aritmética y comparaciones básicas, `for` numérico, claves de tabla, `string.format("%d"/"%x")` y dump/undump con byte de formato 1. El modo por defecto sigue siendo 32 bits. Pendiente: interoperar bytecode 32/64, `math.random`/`math.*`, `string.pack/unpack`, `table.*`, `os.*` y el resto de la API que aún asume `Number`.
 - [x] **`coroutine.close`, `warn`, `math.random` nuevo** — P2, M. Perfil `5.4` con `coroutine.close` (suspended/dead/error; `__close` aún no existe), `warn` con `lua_setwarnf`/`lua_warning` y un `math.random`/`randomseed` 5.4 con xoshiro128**, semillas por estado y soporte de 0/1/2 argumentos. El parser/VM siguen siendo 5.3 y el entero es de 32 bits, así que no se replica la secuencia exacta de PUC.
 - **Paridad de `utf8` y `string`** — P3, S. Revisar diferencias 5.3→5.4 y casos límite.
 - **`debug`/`os` de 5.4** — P3, S. Nuevas funciones y cambios de comportamiento.
@@ -145,6 +145,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 ## Límites conocidos actuales
 
 - **Versiones**: el parser/VM es 5.3; los perfiles 5.1/5.2/5.4 ajustan la superficie de librerías (5.4 añade `coroutine.close`, `warn`, `math.random` nuevo y `<const>`/`<close>`), no la sintaxis ni el modelo numérico. 5.4 no incluye `__close` con yield ni enteros de 64 bits; `setfenv`/`module` de 5.1 comparten el upvalue `_ENV` y no pueden cambiar funciones sin `_ENV`; 5.2 no expone esas funciones.
+- **Enteros**: por defecto son de 32 bits. Con `FENGARICONF.LUA_INT64=true` pasan a `BigInt` de 64 bits con bytecode marcado (format 1); este primer corte cubre núcleo, parser, aritmética/comparaciones, `for` numérico, claves, formato y dump/undump, pero varias funciones de librería (`math.random`, `string.pack/unpack`, partes de `table`/`os`) todavía asumen `Number`.
 - **GC**: `count` usa tamaños estimados por tipo; `collect` es atómico y solo `step` es incremental. Los valores retenidos únicamente por JS no cuentan como raíces.
 - **Fidelidad**: locale solo cubre el separador decimal (`ctype`/collation siguen en "C"); `%q` para `inf`/`nan` mantiene el estilo 5.3; los tracebacks no garantizan paridad exacta de marcos C/JS.
 - **Navegador**: `require`/`package.loadlib` caen a XHR síncrono si el módulo no está montado y la red está permitida; `installAsyncModules` cubre Lua, CommonJS y ESM asíncronos (import maps), pero `package.loadlib` sigue siendo síncrono. El VFS es en memoria salvo `mountOPFS` en workers (rutas anidadas y archivos precreados); la persistencia usa `saveToStorage`/`saveToIndexedDB`/`saveToOPFS`. `vfs.allowNetwork(false)` elimina el XHR.

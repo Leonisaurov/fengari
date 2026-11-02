@@ -56,6 +56,9 @@ unreleased
     package searcher/loadlib error paths
   - Add a TypeScript typecheck for the published declarations and run it in
     pnpm check and CI
+  - Add the opt-in FENGARICONF.LUA_INT64 mode: BigInt integers, 64-bit
+    literals/arithmetic/comparisons, numeric for, table keys, formatting and
+    marked dump/undump; the default 32-bit mode is unchanged
   - Add a Lua 5.4 library profile: coroutine.close, warn (with
     lua_setwarnf/lua_warning) and the 5.4 math.random/randomseed API with
     per-state xoshiro seeds

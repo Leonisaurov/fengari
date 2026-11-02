@@ -648,6 +648,10 @@ Source: [`src/luaconf.js`](../src/luaconf.js)
   `src/luaconf.js`
 - **`lua_getlocaledecpoint(L)`**  
   `src/luaconf.js`
+- **`lua_int(x)`**  
+  `src/luaconf.js`
+
+  canonical integer representation for the selected mode
 - **`lua_integer2str(n)`**  
   `src/luaconf.js`
 
@@ -665,13 +669,14 @@ Source: [`src/luaconf.js`](../src/luaconf.js)
 | `LUA_DIRSEP` | `"/"` |
 | `LUA_EXEC_DIR` | `"!"` |
 | `LUA_IDSIZE` | `conf.LUA_IDSIZE \|\| (60-1); /* fengari uses 1 less than lua as we don't embed the null...` |
+| `LUA_INT64` | `conf.LUA_INT64 === true` |
 | `LUA_INTEGER_FMT` | ``%${LUA_INTEGER_FRMLEN}d`` |
 | `LUA_INTEGER_FRMLEN` | `""` |
 | `LUA_JSDIR` | `LUA_LDIR` |
 | `LUA_JSPATH_DEFAULT` | `to_luastring(` |
 | `LUA_LDIR` | `"./lua/" + LUA_VDIR + "/"` |
-| `LUA_MAXINTEGER` | `2147483647` |
-| `LUA_MININTEGER` | `-2147483648` |
+| `LUA_MAXINTEGER` | `LUA_INT64 ? 9223372036854775807n : 2147483647` |
+| `LUA_MININTEGER` | `LUA_INT64 ? -9223372036854775808n : -2147483648` |
 | `LUA_NUMBER_FMT` | `"%.14g"` |
 | `LUA_NUMBER_FRMLEN` | `""` |
 | `LUA_PATH_DEFAULT` | `to_luastring(` |
