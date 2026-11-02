@@ -623,6 +623,11 @@ const lua_resume = function(L, from, nargs) {
         }
 
         if (status > LUA_YIELD) {  /* unrecoverable error? */
+            try {
+                lfunc.luaF_close(L, 0, status);
+            } catch (e) {
+                status = LUA_ERRRUN;
+            }
             L.status = status;  /* mark thread as 'dead' */
             seterrorobj(L, status, L.top);  /* push error message */
             L.ci.top = L.top;
@@ -682,7 +687,7 @@ const luaD_pcall = function(L, func, u, old_top, ef) {
     let status = luaD_rawrunprotected(L, func, u);
 
     if (status !== LUA_OK) {
-        lfunc.luaF_close(L, old_top);
+        lfunc.luaF_close(L, old_top, status);
         seterrorobj(L, status, old_top);
         L.ci = old_ci;
         L.allowhook = old_allowhooks;

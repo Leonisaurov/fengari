@@ -26,7 +26,7 @@ jobs:
       run: yarn --frozen-lockfile
     - name: Install Lua for differential tests
       if: matrix.node-version == '24.x'
-      run: sudo apt-get update && sudo apt-get install -y lua5.3
+      run: sudo apt-get update && sudo apt-get install -y lua5.3 lua5.4
     - name: Lint
       run: yarn lint
     - name: Check generated API docs
@@ -85,7 +85,7 @@ jobs:
     - name: Install dependencies
       run: yarn --frozen-lockfile
     - name: Install Lua
-      run: sudo apt-get update && sudo apt-get install -y lua5.3
+      run: sudo apt-get update && sudo apt-get install -y lua5.3 lua5.4
     - name: Benchmarks on Fengari
       run: yarn bench --repeat=1 --warmup=0
     - name: Compare against PUC Lua

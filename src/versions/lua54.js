@@ -49,7 +49,8 @@ module.exports = {
         loaders: false,
         close: true,
         warn: true,
-        random54: true
+        random54: true,
+        attributes: true
     },
     openlibs
 };

@@ -95,6 +95,7 @@ const {
         OP_NEWTABLE,
         OP_SETTABLE,
         OP_TAILCALL,
+        OP_TBC,
         OP_TFORCALL,
         OP_TFORLOOP,
         OP_VARARG
@@ -110,6 +111,7 @@ const {
     luaS_newliteral
 } = require('./lstring.js');
 const ltable   = require('./ltable.js');
+const { to_jsstring } = require('./fengaricore.js');
 const Proto    = lfunc.Proto;
 const R        = llex.RESERVED;
 
@@ -131,6 +133,7 @@ class BlockCnt {
         this.firstgoto = NaN;  /* index of first pending goto in this block */
         this.nactvar = NaN;    /* # active locals outside the block */
         this.upval = NaN;      /* true if some variable in the block is an upvalue */
+        this.tbc = false;      /* has a to-be-closed variable */
         this.isloop = NaN;     /* true if 'block' is a loop */
     }
 }
@@ -216,6 +219,7 @@ class FuncState {
 class Vardesc {
     constructor() {
         this.idx = NaN;  /* variable index in stack */
+        this.kind = 0;   /* 0 regular, 1 const, 2 to-be-closed */
     }
 }
 
@@ -346,9 +350,15 @@ const new_localvar = function(ls, name) {
     let dyd = ls.dyd;
     let reg = registerlocalvar(ls, name);
     checklimit(fs, dyd.actvar.n + 1 - fs.firstlocal, MAXVARS, to_luastring("local variables", true));
-    dyd.actvar.arr[dyd.actvar.n] = new Vardesc();
-    dyd.actvar.arr[dyd.actvar.n].idx = reg;
+    let idx = dyd.actvar.n;
+    dyd.actvar.arr[idx] = new Vardesc();
+    dyd.actvar.arr[idx].idx = reg;
     dyd.actvar.n++;
+    return idx - fs.firstlocal;
+};
+
+const getlocalvardesc = function(fs, i) {
+    return fs.ls.dyd.actvar.arr[fs.firstlocal + i];
 };
 
 const new_localvarliteral = function(ls, name) {
@@ -386,10 +396,16 @@ const searchupvalue = function(fs, name) {
 const newupvalue = function(fs, name, v) {
     let f = fs.f;
     checklimit(fs, fs.nups + 1, lfunc.MAXUPVAL, to_luastring("upvalues", true));
+    let kind = 0;
+    if (v.k === expkind.VLOCAL && fs.prev)
+        kind = getlocalvardesc(fs.prev, v.u.info).kind;
+    else if (v.k === expkind.VUPVAL && fs.prev && fs.prev.f.upvalues[v.u.info])
+        kind = fs.prev.f.upvalues[v.u.info].kind || 0;
     f.upvalues[fs.nups] = {
         instack: v.k === expkind.VLOCAL,
         idx: v.u.info,
-        name: name
+        name: name,
+        kind: kind
     };
     return fs.nups++;
 };
@@ -412,6 +428,40 @@ const markupval = function(fs, level) {
     while (bl.nactvar > level)
         bl = bl.previous;
     bl.upval = 1;
+};
+
+const marktobeclosed = function(fs) {
+    let bl = fs.bl;
+    bl.upval = 1;
+    bl.tbc = true;
+};
+
+/* reject assignments to const and to-be-closed variables */
+const check_readonly = function(ls, e) {
+    let fs = ls.fs;
+    let varname = null;
+    switch (e.k) {
+        case expkind.VLOCAL: {
+            let vd = getlocalvardesc(fs, e.u.info);
+            if (vd.kind !== 0)
+                varname = getlocvar(fs, e.u.info).varname;
+            break;
+        }
+        case expkind.VUPVAL: {
+            let up = fs.f.upvalues[e.u.info];
+            if (up.kind !== 0)
+                varname = up.name;
+            break;
+        }
+        default:
+            return;
+    }
+    if (varname) {
+        let msg = lobject.luaO_pushfstring(ls.L,
+            to_luastring("attempt to assign to const variable '%s'"),
+            varname.getstr());
+        semerror(ls, msg);
+    }
 };
 
 /*
@@ -514,7 +564,7 @@ const findlabel = function(ls, g) {
     for (let i = bl.firstlabel; i < dyd.label.n; i++) {
         let lb = dyd.label.arr[i];
         if (eqstr(lb.name, gt.name)) {  /* correct label? */
-            if (gt.nactvar > lb.nactvar && (bl.upval || dyd.label.n > bl.firstlabel))
+            if (gt.nactvar > lb.nactvar && (bl.upval || bl.tbc || dyd.label.n > bl.firstlabel))
                 luaK_patchclose(ls.fs, gt.pc, lb.nactvar);
             closegoto(ls, g, lb);  /* close it */
             return true;
@@ -563,7 +613,7 @@ const movegotosout = function(fs, bl) {
     while (i < gl.n) {
         let gt = gl.arr[i];
         if (gt.nactvar > bl.nactvar) {
-            if (bl.upval)
+            if (bl.upval || bl.tbc)
                 luaK_patchclose(fs, gt.pc, bl.nactvar);
             gt.nactvar = bl.nactvar;
         }
@@ -578,6 +628,7 @@ const enterblock = function(fs, bl, isloop) {
     bl.firstlabel = fs.ls.dyd.label.n;
     bl.firstgoto = fs.ls.dyd.gt.n;
     bl.upval = 0;
+    bl.tbc = false;
     bl.previous = fs.bl;
     fs.bl = bl;
     lua_assert(fs.freereg === fs.nactvar);
@@ -649,14 +700,16 @@ const open_func = function(ls, fs, bl) {
 const leaveblock = function(fs) {
     let bl = fs.bl;
     let ls = fs.ls;
-    if (bl.previous && bl.upval) {
-        /* create a 'jump to here' to close upvalues */
+    if (bl.isloop && bl.tbc)
+        breaklabel(ls);  /* breaks must run the close jump */
+    if (bl.previous && (bl.upval || bl.tbc)) {
+        /* create a 'jump to here' to close upvalues and tbc variables */
         let j = luaK_jump(fs);
         luaK_patchclose(fs, j , bl.nactvar);
         luaK_patchtohere(fs, j);
     }
 
-    if (bl.isloop)
+    if (bl.isloop && !bl.tbc)
         breaklabel(ls);  /* close pending breaks */
 
     fs.bl = bl.previous;
@@ -1209,6 +1262,7 @@ const check_conflict = function(ls, lh, v) {
 const assignment = function(ls, lh, nvars) {
     let e = new expdesc();
     check_condition(ls, vkisvar(lh.v.k), to_luastring("syntax error", true));
+    check_readonly(ls, lh.v);
     if (testnext(ls, 44 /* (',').charCodeAt(0) */)) {  /* assignment -> ',' suffixedexp assignment */
         let nv = new LHS_assign();
         nv.prev = lh;
@@ -1477,13 +1531,50 @@ const localfunc = function(ls) {
     getlocvar(fs, b.u.info).startpc = fs.pc;
 };
 
+const getlocalattribute = function(ls) {
+    /* attrib -> ['<' NAME '>'] */
+    if (testnext(ls, 60 /* '<' */)) {
+        let impl = ls.L.l_G.impl;
+        if (!impl || !impl.features || !impl.features.attributes)
+            semerror(ls, "unexpected symbol near '<'");
+        let attr = to_jsstring(str_checkname(ls).getstr());
+        checknext(ls, 62 /* '>' */);
+        if (attr === "const")
+            return 1;  /* read-only */
+        else if (attr === "close")
+            return 2;  /* to-be-closed */
+        else
+            semerror(ls, lobject.luaO_pushfstring(ls.L,
+                to_luastring("unknown attribute '%s'"), to_luastring(attr)));
+    }
+    return 0;  /* regular */
+};
+
+const checktoclose = function(fs, level) {
+    if (level !== -1) {
+        marktobeclosed(fs);
+        luaK_codeABC(fs, OP_TBC, level, 0, 0);
+    }
+};
+
 const localstat = function(ls) {
-    /* stat -> LOCAL NAME {',' NAME} ['=' explist] */
+    /* stat -> LOCAL NAME ATTRIB {',' NAME ATTRIB} ['=' explist] */
+    let fs = ls.fs;
+    let toclose = -1;
+    let vidx = -1;
+    let kind;
     let nvars = 0;
     let nexps;
     let e = new expdesc();
     do {
-        new_localvar(ls, str_checkname(ls));
+        vidx = new_localvar(ls, str_checkname(ls));
+        kind = getlocalattribute(ls);
+        getlocalvardesc(fs, vidx).kind = kind;
+        if (kind === 2) {  /* to-be-closed? */
+            if (toclose !== -1)
+                semerror(ls, "multiple to-be-closed variables in local list");
+            toclose = fs.nactvar + nvars;
+        }
         nvars++;
     } while (testnext(ls, 44 /* (',').charCodeAt(0) */));
     if (testnext(ls, 61 /* ('=').charCodeAt(0) */))
@@ -1494,6 +1585,7 @@ const localstat = function(ls) {
     }
     adjust_assign(ls, nvars, nexps, e);
     adjustlocalvars(ls, nvars);
+    checktoclose(fs, toclose);
 };
 
 const funcname = function(ls, v) {

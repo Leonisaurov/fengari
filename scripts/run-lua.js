@@ -13,7 +13,7 @@ if (!file) {
     process.exit(2);
 }
 
-const L = lauxlib.luaL_newstate();
+const L = lauxlib.luaL_newstate(process.env.LUA_PROFILE || undefined);
 if (!L) {
     console.error("failed to create lua state");
     process.exit(2);

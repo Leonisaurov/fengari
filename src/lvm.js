@@ -31,6 +31,7 @@ const {
         OP_BXOR,
         OP_CALL,
         OP_CLOSURE,
+        OP_CLOSE,
         OP_CONCAT,
         OP_DIV,
         OP_EQ,
@@ -65,6 +66,7 @@ const {
         OP_SHR,
         OP_SUB,
         OP_TAILCALL,
+        OP_TBC,
         OP_TEST,
         OP_TESTSET,
         OP_TFORCALL,
@@ -471,6 +473,18 @@ const luaV_execute = function(L) {
                 dojump(L, ci, i, 0);
                 break;
             }
+            case OP_CLOSE: {
+                lfunc.luaF_close(L, base + i.A, 0);
+                break;
+            }
+            case OP_TBC: {
+                let idx = base + i.A;
+                let p = cl.p;
+                let name = lfunc.luaF_getlocalname(p, (idx - base) + 1,
+                    ci.l_savedpc - 1);
+                lfunc.luaF_newtbcupval(L, idx, name);
+                break;
+            }
             case OP_EQ: {
                 if (luaV_equalobj(L, RKB(L, base, k, i), RKC(L, base, k, i)) !== i.A)
                     ci.l_savedpc++;
@@ -527,6 +541,9 @@ const luaV_execute = function(L) {
             case OP_TAILCALL: {
                 let b = i.B;
                 if (b !== 0) ldo.adjust_top(L, ra+b);  /* else previous instruction set top */
+                if (cl.p.p.length > 0 || (L.tbc_list.length > 0 &&
+                    L.tbc_list[L.tbc_list.length - 1] >= base))
+                    lfunc.luaF_close(L, base, 0);
                 if (ldo.luaD_precall(L, ra, LUA_MULTRET)) { // JS function
                 } else {
                     /* tail call: put called frame (n) in place of caller one (o) */
@@ -555,7 +572,9 @@ const luaV_execute = function(L) {
                 break;
             }
             case OP_RETURN: {
-                if (cl.p.p.length > 0) lfunc.luaF_close(L, base);
+                if (cl.p.p.length > 0 || (L.tbc_list.length > 0 &&
+                    L.tbc_list[L.tbc_list.length - 1] >= base))
+                    lfunc.luaF_close(L, base, 0);
                 let b = ldo.luaD_poscall(L, ci, ra, (i.B !== 0 ? i.B - 1 : L.top - ra));
 
                 if (ci.callstatus & lstate.CIST_FRESH)

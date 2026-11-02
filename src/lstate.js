@@ -78,6 +78,7 @@ class lua_State {
         this.nny = 1;
         this.status = LUA_OK;
         this.errfunc = 0;
+        this.tbc_list = [];  /* stack indices of to-be-closed variables */
     }
 
 }
@@ -142,6 +143,7 @@ const luaE_resetthread = function(L, status) {
     L.status = LUA_OK;
     L.errfunc = 0;
     L.nCcalls = 0;
+    L.tbc_list = [];
     ci.previous = null;
     ci.next = null;
     ci.callstatus = 0;

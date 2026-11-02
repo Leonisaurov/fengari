@@ -130,6 +130,120 @@ test('coroutine.close closes suspended, dead and failed threads', () => {
     lua.lua_close(L);
 });
 
+test('5.4 <const> and <close> attributes', () => {
+    let L = open("5.4");
+
+    run(L, `
+        local log = {}
+        local mt = {
+            __close = function(o, err)
+                log[#log + 1] = tostring(o.n) .. ":" .. tostring(err)
+            end
+        }
+        local function mk(n) return setmetatable({n = n}, mt) end
+
+        -- const is read-only, including as an upvalue
+        local c <const> = 10
+        assert(c == 10)
+        local f1, errc = load("local x <const> = 1; x = 2")
+        assert(not f1 and errc:match("attempt to assign to const variable 'x'"), errc)
+        local f2, errup = load("local x <const> = 1; return function() x = 2 end")
+        assert(not f2 and errup:match("attempt to assign to const variable 'x'"), errup)
+
+        -- block exit closes in reverse order
+        do
+            local a <close> = mk(1)
+            local b <close> = mk(2)
+        end
+        assert(table.concat(log, ",") == "2:nil,1:nil", table.concat(log, ","))
+        log = {}
+
+        -- break and goto leave the scope
+        for i = 1, 3 do
+            local a <close> = mk(i)
+            if i == 2 then break end
+        end
+        assert(table.concat(log, ",") == "1:nil,2:nil", table.concat(log, ","))
+        log = {}
+        do
+            local a <close> = mk(1)
+            goto done
+        end
+        ::done::
+        assert(table.concat(log, ",") == "1:nil", table.concat(log, ","))
+        log = {}
+
+        -- return and nested blocks close before leaving
+        local function f()
+            local a <close> = mk(1)
+            do
+                local b <close> = mk(2)
+                return 9
+            end
+        end
+        assert(f() == 9)
+        assert(table.concat(log, ",") == "2:nil,1:nil", table.concat(log, ","))
+        log = {}
+
+        -- tail calls close the current frame
+        local function tail()
+            local a <close> = mk(1)
+            return (function() return 8 end)()
+        end
+        assert(tail() == 8)
+        assert(table.concat(log, ",") == "1:nil", table.concat(log, ","))
+        log = {}
+
+        -- errors close with the error object, outer scopes stay open
+        local ok, err = pcall(function()
+            local a <close> = mk(1)
+            pcall(function() error("inner") end)
+            log[#log + 1] = "after"
+            error("boom")
+        end)
+        assert(not ok and err:match("boom"))
+        assert(log[1] == "after")
+        assert(log[2]:match("^1:.*boom$"), log[2])
+
+        -- nil/false are not closed and need no metamethod
+        do
+            local a <close> = nil
+            local b <close> = false
+        end
+
+        -- non-closable values and multiple close variables are errors
+        local fv, errv = load("local x <close> = 42")
+        assert(fv, errv)
+        local okv, rv = pcall(fv)
+        assert(not okv and tostring(rv):match("got a non%-closable value"), rv)
+        local ft, errt = load("local a <close>, b <close> = nil, nil")
+        assert(not ft and errt:match("multiple to%-be%-closed variables"), errt)
+
+        -- coroutine.close runs pending __close handlers
+        log = {}
+        local co = coroutine.create(function()
+            local a <close> = mk(1)
+            coroutine.yield(5)
+        end)
+        assert(coroutine.resume(co))
+        assert(coroutine.close(co))
+        assert(table.concat(log, ",") == "1:nil", table.concat(log, ","))
+        return true
+    `);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+
+    let L53 = open("5.3");
+    run(L53, `
+        local f, err = load("local x <const> = 1")
+        assert(not f and err:match("unexpected symbol near '<'"), err)
+        return true
+    `);
+    expect(lua.lua_toboolean(L53, -1)).toBe(true);
+
+    lua.lua_close(L);
+    lua.lua_close(L53);
+});
+
 test('math.random uses the 5.4 API and a per-state seed', () => {
     let L = open("5.4");
 

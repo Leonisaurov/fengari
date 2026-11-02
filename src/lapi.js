@@ -117,6 +117,11 @@ const lua_closethread = function(L, from) {
     let status = L.status;
     if (status === LUA_OK || status === LUA_YIELD)
         status = LUA_OK;
+    let close_status = ldo.luaD_rawrunprotected(L, function(L1) {
+        require('./lfunc.js').luaF_close(L1, 0, status);
+    }, null);
+    if (close_status !== LUA_OK)
+        status = close_status;
     lstate.luaE_resetthread(L, status);
     return status;
 };

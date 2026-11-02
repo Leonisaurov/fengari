@@ -1,6 +1,6 @@
 "use strict";
 
-const { constant_types: { LUA_TNIL } } = require('./defs.js');
+const { constant_types: { LUA_TNIL }, to_luastring } = require('./defs.js');
 const lobject = require('./lobject.js');
 
 class Proto {
@@ -36,13 +36,57 @@ const luaF_findupval = function(L, level) {
     return L.stack[level];
 };
 
-const luaF_close = function(L, level) {
+const luaF_close = function(L, level, status) {
     /* Create new TValues on stack;
      * any closures will keep referencing old TValues */
     for (let i=level; i<L.top; i++) {
         let old = L.stack[i];
         L.stack[i] = new lobject.TValue(old.type, old.value);
     }
+
+    /* Close pending to-be-closed variables, innermost first. */
+    let list = L.tbc_list;
+    if (!list || list.length === 0)
+        return;
+    let ltm = require('./ltm.js');
+    let ldo = require('./ldo.js');
+    while (list.length > 0 && list[list.length - 1] >= level) {
+        let idx = list.pop();
+        let obj = L.stack[idx];
+        if (obj.ttisnil() || (obj.ttisboolean() && obj.value === false))
+            continue;
+        let tm = ltm.luaT_gettmbyobj(L, obj, ltm.TMS.TM_CLOSE);
+        if (tm.ttisnil())
+            continue;  /* checked when the variable was marked */
+        let funcpos = L.top;
+        ldo.luaD_checkstack(L, 3);
+        let err = (status === undefined || status === 0)
+            ? lobject.luaO_nilobject
+            : L.stack[L.top - 1];
+        lobject.pushobj2s(L, tm);
+        lobject.pushobj2s(L, obj);
+        lobject.pushobj2s(L, err);
+        ldo.luaD_call(L, funcpos, 0);
+        L.top = funcpos;
+    }
+};
+
+/* mark the variable at 'level' as to-be-closed */
+const luaF_newtbcupval = function(L, level, name) {
+    let obj = L.stack[level];
+    if (obj.ttisnil() || (obj.ttisboolean() && obj.value === false))
+        return;  /* false and nil do not need closing */
+    let ltm = require('./ltm.js');
+    let tm = ltm.luaT_gettmbyobj(L, obj, ltm.TMS.TM_CLOSE);
+    if (tm.ttisnil()) {
+        let ldebug = require('./ldebug.js');
+        let vname = name || to_luastring("?");
+        ldebug.luaG_runerror(L,
+            to_luastring("variable '%s' got a non-closable value"), vname);
+    }
+    if (!L.tbc_list)
+        L.tbc_list = [];
+    L.tbc_list.push(level);
 };
 
 /*
@@ -72,6 +116,7 @@ module.exports.MAXUPVAL          = 255;
 module.exports.Proto             = Proto;
 module.exports.luaF_findupval    = luaF_findupval;
 module.exports.luaF_close        = luaF_close;
+module.exports.luaF_newtbcupval  = luaF_newtbcupval;
 module.exports.luaF_getlocalname = luaF_getlocalname;
 module.exports.luaF_initupvals   = luaF_initupvals;
 module.exports.luaF_newLclosure  = luaF_newLclosure;

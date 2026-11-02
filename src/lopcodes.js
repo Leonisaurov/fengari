@@ -47,7 +47,9 @@ const OpCodes = [
     "SETLIST",
     "CLOSURE",
     "VARARG",
-    "EXTRAARG"
+    "EXTRAARG",
+    "CLOSE",
+    "TBC"
 ];
 
 const OpCodesI = {
@@ -97,7 +99,9 @@ const OpCodesI = {
     OP_SETLIST:  43,
     OP_CLOSURE:  44,
     OP_VARARG:   45,
-    OP_EXTRAARG: 46
+    OP_EXTRAARG: 46,
+    OP_CLOSE:    47,
+    OP_TBC:      48
 };
 
 /*
@@ -166,7 +170,9 @@ const luaP_opmodes = [
     0 << 7 | 0 << 6 | OpArgU << 4 | OpArgU << 2 | iABC,   /* OP_SETLIST */
     0 << 7 | 1 << 6 | OpArgU << 4 | OpArgN << 2 | iABx,   /* OP_CLOSURE */
     0 << 7 | 1 << 6 | OpArgU << 4 | OpArgN << 2 | iABC,   /* OP_VARARG */
-    0 << 7 | 0 << 6 | OpArgU << 4 | OpArgU << 2 | iAx     /* OP_EXTRAARG */
+    0 << 7 | 0 << 6 | OpArgU << 4 | OpArgU << 2 | iAx,    /* OP_EXTRAARG */
+    0 << 7 | 0 << 6 | OpArgN << 4 | OpArgN << 2 | iABC,   /* OP_CLOSE */
+    0 << 7 | 1 << 6 | OpArgN << 4 | OpArgN << 2 | iABC    /* OP_TBC */
 ];
 
 const getOpMode = function(m) {
