@@ -80,7 +80,7 @@ const adjust_top_call = function(L, newtop) {
     }
 };
 
-const seterrorobj = function(L, errcode, oldtop, keep, keepTop) {
+const seterrorobj = function(L, errcode, oldtop, keep) {
     let current_top = L.top;
 
     /* extend stack so that L.stack[oldtop] is sure to exist */
@@ -101,10 +101,7 @@ const seterrorobj = function(L, errcode, oldtop, keep, keepTop) {
         }
     }
 
-    if (keep) {
-        if (!keepTop)
-            L.top = oldtop + 1;  /* keep values above (pending __close slots) */
-    } else {
+    if (!keep) {
         while (L.top > oldtop + 1)
             delete L.stack[--L.top];
     }
@@ -477,7 +474,7 @@ const luaD_closeprotected = function(L, level, status) {
     for (;;) {  /* keep closing upvalues until no more errors */
         let pcl = {level: level, status: status};
         if (status !== LUA_OK)  /* keep a stable error object below pending tbc's */
-            seterrorobj(L, status, level, true, true);
+            seterrorobj(L, status, level, true);
         let close_status = luaD_rawrunprotected(L, function(L1) {
             lfunc.luaF_close(L1, pcl.level, pcl.status, false, pcl.level);
         }, null);
@@ -583,7 +580,7 @@ const recover = function(L, status) {
     if (ci === null) return 0;  /* no recovery point */
     /* "finish" luaD_pcall later, in finishpcallk */
     ci.c_recovery = status;  /* save the error status across yields */
-    seterrorobj(L, status, ci.extra, true, true);  /* keep pending __close slots */
+    seterrorobj(L, status, ci.extra, true);  /* keep pending __close slots */
     L.ci = ci;
     L.allowhook = ci.callstatus & lstate.CIST_OAH;  /* restore original 'allowhook' */
     L.nny = 0;  /* should be zero to be yieldable */

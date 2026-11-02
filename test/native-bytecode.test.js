@@ -23,6 +23,11 @@ const load_chunk = function(L, file) {
         to_luastring("=native"), null);
 };
 
+const load_bytes = function(L, bytes) {
+    return lauxlib.luaL_loadbufferx(L, bytes, bytes.length,
+        to_luastring("=native"), null);
+};
+
 const call_function = function(L, file, nresults) {
     nresults = nresults === undefined ? 7 : nresults;
     let status = load_chunk(L, file);
@@ -77,9 +82,10 @@ test("PUC Lua 5.2 binary chunks load natively", () => {
 test("PUC Lua 5.1 closures, jumps and upvalues translate", () => {
     let L = open("5.1");
     try {
-        expect(call_function(L, path.join(FIXTURES, "lua51_features.luac"), 12))
+        expect(call_function(L, path.join(FIXTURES, "lua51_features.luac"), 14))
             .toEqual({ok: true, values: ["242.0", "14520.0", "127.0", "31.0",
-                "6.0", "12.0", "15.0", "40.0", "9.0", "3.0", "10.0", "abc"]});
+                "6.0", "12.0", "15.0", "40.0", "9.0", "3.0", "10.0", "abc",
+                "42.0", "T"]});
     } finally {
         lua.lua_close(L);
     }
@@ -88,9 +94,10 @@ test("PUC Lua 5.1 closures, jumps and upvalues translate", () => {
 test("PUC Lua 5.2 closures, jumps and upvalues translate", () => {
     let L = open("5.2");
     try {
-        expect(call_function(L, path.join(FIXTURES, "lua52_features.luac"), 12))
+        expect(call_function(L, path.join(FIXTURES, "lua52_features.luac"), 14))
             .toEqual({ok: true, values: ["242.0", "14520.0", "127.0", "31.0",
-                "6.0", "12.0", "15.0", "40.0", "9.0", "3.0", "10.0", "abc"]});
+                "6.0", "12.0", "15.0", "40.0", "9.0", "3.0", "10.0", "abc",
+                "42.0", "T"]});
     } finally {
         lua.lua_close(L);
     }
@@ -133,5 +140,41 @@ test("native chunks are rejected by the wrong profile", () => {
         expect(result.message).toMatch(/version mismatch/);
     } finally {
         lua.lua_close(L52);
+    }
+});
+
+test("native chunks reject malformed headers", () => {
+    let valid = fs.readFileSync(path.join(FIXTURES, "lua51.luac"));
+    const check = function(mutate, pattern) {
+        let L = open("5.1");
+        try {
+            let bytes = Buffer.from(valid);
+            mutate(bytes);
+            expect(load_bytes(L, bytes)).not.toBe(lua.LUA_OK);
+            expect(lua.lua_tojsstring(L, -1)).toMatch(pattern);
+        } finally {
+            lua.lua_close(L);
+        }
+    };
+
+    check((b) => { b[1] = 0x78; }, /not a/);           /* signature */
+    check((b) => { b[5] = 1; }, /format mismatch/);    /* header format */
+    check((b) => { b[7] = 8; }, /incompatible/);       /* int size */
+    check((b) => { b[9] = 8; }, /incompatible/);       /* instruction size */
+    check((b) => { b[10] = 4; }, /incompatible/);      /* number size */
+    check((b) => { b[11] = 1; }, /incompatible/);      /* integral flag */
+});
+
+test("native chunks reject truncated data", () => {
+    for (const [file, version] of [["lua51.luac", "5.1"],
+        ["lua52.luac", "5.2"]]) {
+        let L = open(version);
+        try {
+            let valid = fs.readFileSync(path.join(FIXTURES, file));
+            expect(load_bytes(L, valid.subarray(0, 20))).not.toBe(lua.LUA_OK);
+            expect(lua.lua_tojsstring(L, -1)).toMatch(/truncated/);
+        } finally {
+            lua.lua_close(L);
+        }
     }
 });

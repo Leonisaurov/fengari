@@ -50,10 +50,12 @@ upvalues, varargs, generic-for and global access.
 (`test/fixtures/features.lua` was generated from the block below):
 
 ```lua
+GLOBAL_FIXTURE = 41
 local outer = 100
 
 local function make(a, b)
   local x, y = a + 1, b + 2
+  local flag = true
 
   local big = {}
   for i = 1, 120 do big[i] = i * 2 end
@@ -86,6 +88,9 @@ local function make(a, b)
   if a < b and b ~= 0 or a == 10 then acc = acc + 1 end
   if not (a > b) then acc = acc + 100 end
 
+  -- GETGLOBAL/SETGLOBAL through the synthetic environment upvalue.
+  if flag and a == 10 then GLOBAL_FIXTURE = GLOBAL_FIXTURE + 1 end
+
   -- VARARG with an exact result count and SETLIST with an open result list.
   local function pick(...)
     local p, q = ...
@@ -101,7 +106,8 @@ local function make(a, b)
   local s = "a" .. "b" .. "c"
 
   return big[1] + big[120], sum, nf(7), acc, j, g, x + y,
-         fs[1]() + fs[3](), pick(4, 5), #pack(1, 2, 3), obj:get(3), s
+         fs[1]() + fs[3](), pick(4, 5), #pack(1, 2, 3), obj:get(3), s,
+         GLOBAL_FIXTURE, flag and "T" or "F"
 end
 
 return make
@@ -110,13 +116,14 @@ return make
 `make(10, 2)` prints:
 
 ```text
-242	14520	127	31	6	12	15	40	9	3	10	abc
+242	14520	127	31	6	12	15	40	9	3	10	abc	42	T
 ```
 
 It covers multiple/nested upvalue descriptors, nested closures, `CLOSE`,
 every jump form (`JMP`, `FORPREP`/`FORLOOP`, `TFORLOOP`, comparison and test
 jumps), `SELF`, `VARARG` with both fixed and open result counts, `SETLIST`
-with an open result list, `NEWTABLE`, `CONCAT` and `#`.
+with an open result list, `NEWTABLE`, `CONCAT`, `#`, `GETGLOBAL`/`SETGLOBAL`
+through the synthetic environment upvalue, and boolean locals.
 
 ## SETLIST overflow fixture
 

@@ -97,8 +97,6 @@ const luaF_newtbcupval = function(L, level, name) {
         ldebug.luaG_runerror(L,
             to_luastring("variable '%s' got a non-closable value"), vname);
     }
-    if (!L.tbc_list)
-        L.tbc_list = [];
     L.tbc_list.push(level);
 };
 
