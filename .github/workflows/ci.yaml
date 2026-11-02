@@ -31,6 +31,8 @@ jobs:
       run: yarn lint
     - name: Check generated API docs
       run: yarn docs:check
+    - name: Typecheck published declarations
+      run: yarn typecheck
     - name: Test
       if: matrix.node-version != '24.x'
       run: yarn test --maxWorkers=$(nproc)

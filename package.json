@@ -53,7 +53,8 @@
     "fuzz": "node scripts/fuzz.js",
     "docs:api": "node scripts/generate-api-docs.js",
     "docs:check": "node scripts/generate-api-docs.js --check",
-    "check": "eslint src/ test/ scripts/ && node scripts/generate-api-docs.js --check && jest"
+    "typecheck": "tsc -p tsconfig.types.json",
+    "check": "eslint src/ test/ scripts/ && node scripts/generate-api-docs.js --check && tsc -p tsconfig.types.json && jest"
   },
   "repository": {
     "type": "git",
@@ -75,7 +76,8 @@
   "devDependencies": {
     "eslint": "^9.39.2",
     "globals": "^17.13.0",
-    "jest": "^30.2.0"
+    "jest": "^30.2.0",
+    "typescript": "^5.9.3"
   },
   "dependencies": {
     "readline-sync": "^1.4.10",
