@@ -3,6 +3,7 @@
 const lua = require("../src/lua.js");
 const lauxlib = require("../src/lauxlib.js");
 const lstring = require("../src/lstring.js");
+const lstate = require("../src/lstate.js");
 const {to_luastring} = require("../src/fengaricore.js");
 
 
@@ -616,4 +617,34 @@ test('CONCAT', () => {
     }
 
     expect(lua.lua_tojsstring(L, -1)).toBe("hello 2 you");
+});
+
+
+test('CallInfo frames are reused across recursive calls', () => {
+    let L = lauxlib.luaL_newstate();
+    if (!L) throw Error("failed to create lua state");
+
+    let created = 0;
+    let original = lstate.luaE_extendCI;
+    lstate.luaE_extendCI = function(L1) {
+        if (L1.ci.next === null)
+            created++;
+        return original(L1);
+    };
+
+    try {
+        expect(lauxlib.luaL_loadstring(L, to_luastring(`
+            local function fib(n)
+                if n < 2 then return n end
+                return fib(n - 1) + fib(n - 2)
+            end
+            return fib(12)
+        `))).toBe(lua.LUA_OK);
+        lua.lua_call(L, 0, 1);
+        expect(lua.lua_tointeger(L, -1)).toBe(144);
+        /* 465 calls, but the frame chain only grows to the recursion depth */
+        expect(created).toBeLessThan(30);
+    } finally {
+        lstate.luaE_extendCI = original;
+    }
 });
