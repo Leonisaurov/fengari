@@ -1139,10 +1139,9 @@ test("[test-suite] api: collect in cl the `val' of all collected userdata", () =
 });
 
 
-// Skipped: PUC finalizes userdata in two GC cycles (TM first, memory later).
-// Fengari releases the object when it runs the finalizer, so the intermediate
-// "count still includes the dead userdata" assertion cannot hold.
-test.skip("[test-suite] api: test whether udate collection frees memory in the right time", () => {
+// Userdata with a finalizer is kept for one extra collection cycle, matching
+// PUC's TM-then-free ordering; unreachable userdata counts until a full GC.
+test("[test-suite] api: test whether udate collection frees memory in the right time", () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
 

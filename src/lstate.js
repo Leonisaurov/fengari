@@ -101,6 +101,8 @@ class global_State {
         this.tmname = new Array(ltm.TMS.TM_N);
         this.mt = new Array(LUA_NUMTAGS);
         this.finalizable = new Set();  /* objects with a __gc metamethod */
+        this.userdata = new Set();     /* allocated userdata (memory accounting) */
+        this.pending_udata = new Set(); /* finalized, freed on the next cycle */
         this.in_gc = false;            /* running a collector cycle? */
         this.gc_auto = false;          /* enable allocation-triggered cycles? */
         this.gc_running = true;        /* collectgarbage("stop") */

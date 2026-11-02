@@ -566,6 +566,7 @@ const luaS_newudata = function(L, size) {
 
 const lua_newuserdata = function(L, size) {
     let u = luaS_newudata(L, size);
+    L.l_G.userdata.add(u);
     L.stack[L.top] = new lobject.TValue(LUA_TUSERDATA, u);
     api_incr_top(L);
     lgc.luaC_allocated(L);

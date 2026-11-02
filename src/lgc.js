@@ -367,6 +367,23 @@ const run_pending_finalizers = function(L, ctx, propagate) {
             obj.finalized = true;
             run_finalizer(L, obj, propagate);
         }
+        if (obj instanceof lobject.Udata)
+            g.pending_udata.add(obj);  /* freed on the next cycle, like PUC */
+    }
+};
+
+/* Release userdata finalized in the previous cycle. */
+const release_pending_userdata = function(g) {
+    for (const u of g.pending_udata)
+        g.userdata.delete(u);
+    g.pending_udata.clear();
+};
+
+/* Drop unreachable userdata that do not need a second finalization cycle. */
+const sweep_userdata = function(g, ctx) {
+    for (const u of Array.from(g.userdata)) {
+        if (!ctx.marked.has(u) && !g.pending_udata.has(u))
+            g.userdata.delete(u);
     }
 };
 
@@ -376,7 +393,8 @@ const reset_threshold = function(L, ctx) {
     g.gc_threshold = Math.max(256, Math.floor(ctx.marked.size * pause / 100));
     g.gc_debt = g.gc_threshold;
     g.gc_count = null;
-    g.gc_needs_auto = ctx.weak_tables.length > 0 || g.finalizable.size > 0;
+    g.gc_needs_auto = ctx.weak_tables.length > 0 || g.finalizable.size > 0 ||
+        g.pending_udata.size > 0;
 };
 
 const luaC_fullgc = function(L) {
@@ -384,6 +402,7 @@ const luaC_fullgc = function(L) {
     if (g.in_gc)
         return;
     g.gc_ctx = null;  /* discard any unfinished incremental cycle */
+    release_pending_userdata(g);
     g.in_gc = true;
     let ctx;
     try {
@@ -393,6 +412,7 @@ const luaC_fullgc = function(L) {
         ctx.finish_sweep_start();
         clear_weak_entries(ctx);
         run_pending_finalizers(L, ctx, true);
+        sweep_userdata(g, ctx);
     } finally {
         if (ctx) reset_threshold(L, ctx);
         g.in_gc = false;
@@ -414,6 +434,7 @@ const luaC_step = function(L) {
     try {
         let ctx = g.gc_ctx;
         if (!ctx) {
+            release_pending_userdata(g);
             ctx = create_context(L, false);
             g.gc_ctx = ctx;
         } else if (ctx.phase === "mark") {
@@ -471,6 +492,8 @@ const luaC_step = function(L) {
                     obj.finalized = true;
                     run_finalizer(L, obj, true);
                 }
+                if (obj instanceof lobject.Udata)
+                    g.pending_udata.add(obj);
             }
             budget--;
         }
@@ -478,6 +501,7 @@ const luaC_step = function(L) {
         if (ctx.phase === "sweep" &&
             ctx.weak_index >= ctx.weak_tables.length &&
             ctx.finalize_index >= ctx.finalize.length) {
+            sweep_userdata(g, ctx);
             g.gc_ctx = null;
             reset_threshold(L, ctx);
             return true;
@@ -530,6 +554,12 @@ const luaC_count = function(L) {
     if (ctx.strings) {
         for (const s of ctx.strings)
             bytes += STRING_OVERHEAD + s.tsslen();
+    }
+    /* Unreachable userdata still allocated (GC stopped, or waiting for the
+       second finalization cycle) count until they are actually freed. */
+    for (const u of g.userdata) {
+        if (!ctx.marked.has(u))
+            bytes += object_size(u);
     }
     g.gc_count = bytes;
     return bytes;
@@ -610,6 +640,8 @@ const luaC_freeallobjects = function(L) {
             run_finalizer(L, obj, false);
         }
     }
+    g.userdata.clear();
+    g.pending_udata.clear();
 };
 
 module.exports.luaC_allocated       = luaC_allocated;

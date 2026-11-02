@@ -4,7 +4,7 @@ The adapted PUC suite keeps a small number of tests skipped when they assert
 implementation details that do not exist in Fengari. This file records each
 one so a future change can tell a real gap from an intentional difference.
 
-Current bounded skips (9): eight in `api.test.js` and one in `nextvar.test.js`.
+Current bounded skips (8): seven in `api.test.js` and one in `nextvar.test.js`.
 Platform-conditional skips (`process.platform === "win32"`) and the
 `lua_bin === null` differential guards are not part of this list.
 
@@ -21,13 +21,6 @@ Asserts PUC C-stack limits (`LUAI_MAXCCALLS`), `checkstack 1000023` failures and
 a one-million-instruction harness. The JavaScript engine stack is not the C
 stack. The harness part could be reduced, but the test's purpose is the C stack,
 so it stays skipped.
-
-## `api: udata collection frees memory in the right time`
-
-Requires PUC's two-phase userdata finalization (first cycle runs `__gc`, the
-next releases memory) and exact byte accounting. Fengari releases the object
-when the finalizer runs, so the intermediate `collectgarbage("count")`
-assertion cannot hold.
 
 ## Memory-limit tests
 
@@ -60,10 +53,16 @@ collectable objects report `"black"` because Fengari delegates collection to
 the JS GC. The test still checks that a userdata uservalue survives a full
 collection.
 
+`api: test whether udate collection frees memory in the right time` now runs.
+Userdata are tracked for memory accounting, unreachable userdata count until a
+full collection, and userdata with a finalizer are kept for one extra cycle
+(`g.pending_udata`), so `collectgarbage("count")` follows PUC's TM-then-free
+ordering.
+
 ## Review after the 5.1/5.2 work
 
 The 5.1/5.2 library-surface and `%.14g` work did not make any of the remaining
-tests runnable. One test (`api: testing get/setuservalue`) was enabled
-separately with `T.gcstate`/`T.gccolor` shims. The remaining nine still depend
-on PUC's array/hash table split, C-stack accounting, two-phase userdata
-finalization or a settable allocator.
+tests runnable. Two tests (`api: testing get/setuservalue` and `api: udata
+collection`) were enabled separately with `T.gcstate`/`T.gccolor` shims and
+two-phase userdata accounting. The remaining eight still depend on PUC's
+array/hash table split, C-stack accounting or a settable allocator.

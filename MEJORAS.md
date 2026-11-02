@@ -11,7 +11,7 @@ Estado actual tras referencia de API y guía de migración: 44 suites, 644 tests
 Estado actual tras completar la librería `io`: 45 suites, 672 tests que pasan y 20 skips.
 Estado actual tras el VFS de navegador: 47 suites, 692 tests que pasan y 20 skips.
 Estado actual tras benchmarks, diferencial, fuzzing y API de alto nivel: 52 suites, 736 tests que pasan y 12 skips.
-Estado actual tras versiones 5.1/5.2/5.4, BigInt, formato PUC y pulido: 60 suites, 797 tests que pasan, 9 skips y 94.1% de líneas / 87.8% de ramas.
+Estado actual tras versiones 5.1/5.2/5.4, BigInt, formato PUC y pulido: 60 suites, 798 tests que pasan, 8 skips y 94.1% de líneas / 87.7% de ramas.
 
 **Prioridad:** P0 desbloquea uso real · P1 calidad/rendimiento · P2 deseable · P3 largo plazo.
 **Esfuerzo:** S < 1 día · M 1–5 días · L > 1 semana.
@@ -108,7 +108,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 ## 5. Calidad, tests y tooling
 
 - [x] **Cobertura con umbral** — `jest --coverage`, reporte en CI y umbral global (90% statements/funciones/líneas, 85% ramas).
-- **Activar tests saltados** — P1, M. Quedan 9: 8 de API (límites de memoria/`T.totalmem`, `objsize` de memoria, C-stack y finalización de userdata) y 1 de internals de tabla. Activados los de `table`/`debug.setmetatable`, reutilización de referencias, cadena larga de userdata, finalización durante la colecta, locale y `get/setuservalue` con shims `T.gcstate`/`T.gccolor`. Cada skip restante está documentado con su motivo en `test/test-suite/SKIPS.md`.
+- **Activar tests saltados** — P1, M. Quedan 8: 7 de API (límites de memoria/`T.totalmem` y C-stack) y 1 de internals de tabla. Activados los de `table`/`debug.setmetatable`, reutilización de referencias, cadena larga de userdata, finalización durante la colecta, locale, `get/setuservalue` con shims `T.gcstate`/`T.gccolor` y finalización de userdata en dos fases con contabilidad de memoria. Cada skip restante está documentado con su motivo en `test/test-suite/SKIPS.md`.
 - [x] **Tests de navegador** — P1, M. `scripts/browser-test.js` usa el Chrome DevTools Protocol contra Brave headless (fallback Chromium/Chrome), sin Playwright: 19 pruebas con VFS, `require`/`dofile` sin XHR, Lua/CJS/ESM asíncronos, localStorage, IndexedDB, OPFS (snapshots y directo anidado), SharedArrayBuffer, worker RPC (async y bloqueante), `debug.debug`, bundle minificado/source map, stdout y sandbox.
 - [x] **Tests diferenciales contra PUC Lua** — P1, M. `scripts/diff-puc.js` ejecuta `test/differential/` bajo Fengari y PUC y compara stdout y éxito/fallo; el test de Jest se salta si no hay intérprete.
 - [x] **Fuzzing del parser y `lundump`** — P1, M. `scripts/fuzz.js` con PRNG sembrado, bytes aleatorios, fuente aleatoria y bytecode mutado; `test/fuzz.test.js` ejecuta una tanda acotada.
