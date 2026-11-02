@@ -4,6 +4,7 @@ const lua     = require('../src/lua.js');
 const lauxlib = require('../src/lauxlib.js');
 const lualib  = require('../src/lualib.js');
 const lfs     = require('../src/lfs.js');
+const { api } = require('../src/fengari.js');
 const { to_luastring } = require("../src/fengaricore.js");
 
 const vfs = lfs.vfs;
@@ -308,4 +309,237 @@ test('IndexedDB helpers report when the API is unavailable', async () => {
         else
             delete globalThis.indexedDB;
     }
+});
+
+test('vfs.loadFromURL fetches and mounts a resource', async () => {
+    vfs.reset();
+    const size = await vfs.loadFromURL("data:text/plain,hello%20url", "/from-url.txt");
+    expect(size).toBe(9);
+    expect(decode(vfs.readFile("/from-url.txt"))).toBe("hello url");
+    await expect(vfs.loadFromURL("data:text/plain,", "/empty.txt")).resolves.toBe(0);
+});
+
+test('IndexedDB persistence round trips with an IndexedDB-like API', async () => {
+    const data = new Map();
+    const store = {
+        put: (value, key) => { data.set(key, value); return {}; },
+        get: (key) => ({ result: data.get(key) }),
+        delete: (key) => { data.delete(key); return {}; }
+    };
+    const db = {
+        createObjectStore: () => store,
+        close: () => {},
+        transaction: () => {
+            const tx = { objectStore: () => store };
+            setTimeout(() => { if (tx.oncomplete) tx.oncomplete(); }, 0);
+            return tx;
+        }
+    };
+    const previous = Object.getOwnPropertyDescriptor(globalThis, "indexedDB");
+    Object.defineProperty(globalThis, "indexedDB", {
+        configurable: true,
+        value: {
+            open: () => {
+                const request = {};
+                setTimeout(() => {
+                    request.result = db;
+                    if (request.onupgradeneeded) request.onupgradeneeded();
+                    if (request.onsuccess) request.onsuccess();
+                }, 0);
+                return request;
+            }
+        }
+    });
+
+    try {
+        vfs.reset();
+        vfs.mount("/idb.txt", "idb-data");
+        expect(await vfs.saveToIndexedDB("cdp")).toBe(1);
+        vfs.reset();
+        expect(await vfs.loadFromIndexedDB("cdp")).toBe(1);
+        expect(decode(vfs.readFile("/idb.txt"))).toBe("idb-data");
+        await vfs.clearFromIndexedDB("cdp");
+        expect(await vfs.loadFromIndexedDB("cdp")).toBe(0);
+    } finally {
+        if (previous)
+            Object.defineProperty(globalThis, "indexedDB", previous);
+        else
+            delete globalThis.indexedDB;
+    }
+});
+
+const make_access = function(initial) {
+    let data = Uint8Array.from(initial || [], (c) => typeof c === "string" ? c.charCodeAt(0) : c);
+    return {
+        read: (buffer, options) => {
+            const at = options.at || 0;
+            const n = Math.min(buffer.length, Math.max(0, data.length - at));
+            buffer.set(data.subarray(at, at + n));
+            return n;
+        },
+        write: (buffer, options) => {
+            const at = options.at || 0;
+            const end = at + buffer.length;
+            if (end > data.length) {
+                const grown = new Uint8Array(end);
+                grown.set(data);
+                data = grown;
+            }
+            data.set(buffer, at);
+            return buffer.length;
+        },
+        getSize: () => data.length,
+        truncate: (size) => {
+            const next = new Uint8Array(size);
+            next.set(data.subarray(0, Math.min(size, data.length)));
+            data = next;
+        },
+        flush: () => {},
+        close: () => {},
+        text: () => Buffer.from(data).toString()
+    };
+};
+
+const make_file = function(access) {
+    return {
+        kind: "file",
+        access: access,
+        createSyncAccessHandle: async () => access,
+        createWritable: async () => ({
+            write: async (text) => {
+                const bytes = Uint8Array.from(String(text), (c) => c.charCodeAt(0));
+                access.truncate(0);
+                access.write(bytes, { at: 0 });
+            },
+            close: async () => {}
+        }),
+        getFile: async () => ({
+            text: async () => access.text()
+        })
+    };
+};
+
+const make_dir = function() {
+    const files = new Map();
+    const dirs = new Map();
+    const directory = {
+        kind: "directory",
+        files: files,
+        dirs: dirs,
+        getFileHandle: async (name, options) => {
+            if (!files.has(name)) {
+                if (!(options && options.create)) {
+                    const error = new Error("NotFound");
+                    error.name = "NotFoundError";
+                    throw error;
+                }
+                files.set(name, make_file(make_access([])));
+            }
+            return files.get(name);
+        },
+        getDirectoryHandle: async (name, options) => {
+            if (!dirs.has(name)) {
+                if (!(options && options.create)) {
+                    const error = new Error("NotFound");
+                    error.name = "NotFoundError";
+                    throw error;
+                }
+                dirs.set(name, make_dir());
+            }
+            return dirs.get(name);
+        },
+        entries: async function*() {
+            for (const [name, handle] of files)
+                yield [name, handle];
+            for (const [name, handle] of dirs)
+                yield [name, handle];
+        },
+        removeEntry: async (name) => {
+            if (files.delete(name))
+                return;
+            if (dirs.delete(name))
+                return;
+            const error = new Error("NotFound");
+            error.name = "NotFoundError";
+            throw error;
+        }
+    };
+    return directory;
+};
+
+test('direct OPFS mount reads, writes and pre-creates nested files', async () => {
+    const previous = Object.getOwnPropertyDescriptor(globalThis, "FileSystemSyncAccessHandle");
+    Object.defineProperty(globalThis, "FileSystemSyncAccessHandle", {
+        configurable: true,
+        value: function FileSystemSyncAccessHandle() {}
+    });
+
+    try {
+        const root = make_dir();
+        const seed = make_access("seed");
+        root.files.set("worker.txt", make_file(seed));
+        const sub = make_dir();
+        root.dirs.set("sub", sub);
+        sub.files.set("chunk.lua", make_file(make_access("return 42")));
+
+        expect(await vfs.mountOPFS(root, { files: ["nested/new.txt"] })).toBe(3);
+        expect(vfs.current()).toBe("opfs");
+
+        const state = api.createState();
+        try {
+            const out = state.run(
+                'local f = assert(io.open("/sub/chunk.lua", "r"))' +
+                ' local chunk = f:read("a") f:close()' +
+                ' local n = assert(io.open("/worker.txt", "a")) n:write("more") n:close()' +
+                ' local w = assert(io.open("/nested/new.txt", "w")) w:write("created") w:close()' +
+                ' local ok, msg = os.remove("/worker.txt")' +
+                ' assert(ok == nil and type(msg) == "string")' +
+                ' return chunk'
+            );
+            expect(out).toBe("return 42");
+        } finally {
+            state.close();
+        }
+
+        const loaded = lfs.loadfile(to_luastring("/sub/chunk.lua"));
+        expect(Buffer.from(loaded).toString()).toBe("return 42");
+
+        expect(seed.text()).toBe("seedmore");
+        expect(root.dirs.get("nested").files.get("new.txt").access.text()).toBe("created");
+
+        expect(vfs.unmountOPFS()).toBe(true);
+        expect(vfs.current()).toBe("memory");
+        expect(vfs.unmountOPFS()).toBe(false);
+    } finally {
+        if (previous)
+            Object.defineProperty(globalThis, "FileSystemSyncAccessHandle", previous);
+        else
+            delete globalThis.FileSystemSyncAccessHandle;
+    }
+});
+
+test('mountOPFS validates its directory and worker capability', async () => {
+    await expect(vfs.mountOPFS(null)).rejects.toThrow(/DirectoryHandle/);
+    const root = make_dir();
+    await expect(vfs.mountOPFS(root)).rejects.toThrow(/worker/);
+});
+
+
+test('OPFS snapshot helpers round trip with a directory handle', async () => {
+    const root = make_dir();
+    vfs.reset();
+    vfs.mount("/snap.txt", "snapshot-data");
+    expect(await vfs.saveToOPFS(root, "snap")).toBe(1);
+
+    vfs.reset();
+    expect(await vfs.loadFromOPFS(root, "snap")).toBe(1);
+    expect(decode(vfs.readFile("/snap.txt"))).toBe("snapshot-data");
+
+    await vfs.clearFromOPFS(root, "snap");
+    expect(await vfs.loadFromOPFS(root, "snap")).toBe(0);
+    await vfs.clearFromOPFS(root, "missing");
+
+    await expect(vfs.saveToOPFS(null, "x")).rejects.toThrow(/DirectoryHandle/);
+    await expect(vfs.loadFromOPFS(null, "x")).rejects.toThrow(/DirectoryHandle/);
+    await expect(vfs.clearFromOPFS(null, "x")).rejects.toThrow(/DirectoryHandle/);
 });

@@ -236,3 +236,100 @@ test('api.installAsyncModules loads CommonJS and ES modules', async () => {
         state.close();
     }
 });
+
+const make_port = function() {
+    const listeners = new Set();
+    return {
+        addEventListener: (type, fn) => { if (type === "message") listeners.add(fn); },
+        removeEventListener: (type, fn) => { listeners.delete(fn); },
+        start: () => {},
+        close: () => {},
+        postMessage: () => {},
+        dispatch: (data) => Promise.all(Array.from(listeners).map((fn) => fn({ data }))),
+        listener_count: () => listeners.size
+    };
+};
+
+test('createSyncBridge validates arguments and reports failures', () => {
+    const port = make_port();
+    expect(() => api.createSyncBridge(null, new SharedArrayBuffer(64))).toThrow(/MessagePort/);
+    expect(() => api.createSyncBridge(port, null)).toThrow(/SharedArrayBuffer/);
+
+    const small = api.createSyncBridge(port, new SharedArrayBuffer(20));
+    expect(() => small.call("a long operation name")).toThrow(/too large/);
+
+    const stalled = api.createSyncBridge(port, new SharedArrayBuffer(64), { timeout: 5 });
+    expect(() => stalled.call("x")).toThrow(/timed out/);
+
+    const shared = new SharedArrayBuffer(64);
+    const header = new Int32Array(shared, 0, 4);
+    const racing = {
+        postMessage: () => Atomics.store(header, 0, 3),
+        close: () => {}
+    };
+    const bridge = api.createSyncBridge(racing, shared, { timeout: 5 });
+    expect(() => bridge.call("x")).toThrow(/invalid state/);
+    bridge.close();
+});
+
+test('serveSyncBridge answers requests and reports handler errors', async () => {
+    const shared = new SharedArrayBuffer(1024);
+    const port = make_port();
+    const server = api.serveSyncBridge(port, shared, async (op, a, b) => {
+        if (op === "fail")
+            throw new Error("handler boom");
+        return a + b;
+    });
+
+    const header = new Int32Array(shared, 0, 4);
+    const data = new Uint8Array(shared, 16);
+    const encoder = new TextEncoder();
+    const decoder = new TextDecoder();
+
+    const request = async (op, args) => {
+        const bytes = encoder.encode(JSON.stringify({ id: 1, op: op, args: args }));
+        data.set(bytes);
+        Atomics.store(header, 1, bytes.length);
+        Atomics.store(header, 0, 1);
+        await port.dispatch({ type: "fengari-sync-request" });
+        expect(Atomics.load(header, 0)).toBe(2);
+        const length = Atomics.load(header, 2);
+        return JSON.parse(decoder.decode(data.slice(0, length)));
+    };
+
+    expect(await request("add", [2, 3])).toEqual({ value: 5 });
+    expect(await request("fail", [])).toEqual({ error: "handler boom" });
+    expect(port.listener_count()).toBe(1);
+    server.close();
+    expect(port.listener_count()).toBe(0);
+});
+
+
+test('async helpers report load, lookup and synchronous failures', async () => {
+    const state = api.createState();
+    try {
+        await expect(state.runAsync("this is not lua")).rejects.toThrow(/unexpected|near/);
+        await expect(state.callAsync("missing_global")).rejects.toThrow(/not a function/);
+
+        state.pushAsyncJS(() => { throw new Error("sync boom"); });
+        lua.lua_setglobal(state.L, "boom");
+        await expect(state.runAsync("return boom()")).rejects.toThrow(/sync boom/);
+
+        state.installAsyncModules({
+            js: {
+                import: async () => ({ namespaceOnly: 7 }),
+                map: { ns: { url: "/namespace.mjs", format: "esm" } }
+            }
+        });
+        expect(await state.runAsync('return require("ns").namespaceOnly')).toBe(7);
+
+        state.installAsyncModules({
+            js: {
+                map: { returned: "data:text/javascript,return%20%7Bvalue%3A3%7D" }
+            }
+        });
+        expect(await state.runAsync('return require("returned").value')).toBe(3);
+    } finally {
+        state.close();
+    }
+});
