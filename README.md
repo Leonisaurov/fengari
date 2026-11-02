@@ -190,7 +190,7 @@ Some luaconf options can be chosen at library load time. Fengari looks for `proc
 
 ## Lua versions
 
-Fengari ships a registry of version implementations (`versions`), with bundled profiles for Lua 5.1, 5.2 and 5.3:
+Fengari ships a registry of version implementations (`versions`), with bundled profiles for Lua 5.1, 5.2, 5.3 and the Lua 5.4 library surface:
 
 ```js
 const { lauxlib, lualib, versions } = require("fengari");
@@ -198,7 +198,7 @@ const { lauxlib, lualib, versions } = require("fengari");
 const L = lauxlib.luaL_newstate("5.2");  // omit to use the default
 lualib.luaL_openlibs(L);
 
-versions.list();          // ["5.1", "5.2", "5.3"]
+versions.list();          // ["5.1", "5.2", "5.3", "5.4"]
 versions.getDefault();    // "5.3" unless FENGARICONF.LUA_VERSION says otherwise
 versions.setDefault("5.2");
 versions.features(L);     // { integers, bitwise, goto, env, utf8, bit32, ... }
@@ -206,7 +206,7 @@ versions.features(L);     // { integers, bitwise, goto, env, utf8, bit32, ... }
 
 A version module is an object with `name`, `version` (`{major, minor, release, num, string}`), `features`, and optional `openlibs(L)` and `loadbufferx(L, buff, size, name, mode)` hooks. `versions.register(impl)` adds a custom implementation.
 
-The bundled profiles change the library surface: 5.2 installs `bit32`, removes `utf8`, `string.pack` and other 5.3 APIs; 5.1 adds `unpack`, `loadstring`, `getfenv`, `table.maxn`, `string.gfind`, `package.loaders` and the deprecated `math.*` helpers, and removes 5.2/5.3 APIs. The lexer, parser and VM still implement Lua 5.3 semantics (including the integer subtype), so syntax-level and number-model differences require a full implementation via the `loadbufferx` hook. `setfenv`/`module` are not provided by the 5.1 profile because they need per-function environments, and locale support covers the decimal separator only (collation and character classes remain C-only).
+The bundled profiles change the library surface: 5.2 installs `bit32`, removes `utf8`, `string.pack` and other 5.3 APIs; 5.1 adds `unpack`, `loadstring`, `getfenv`/`setfenv`, `module`, `package.seeall`, `table.maxn`, `string.gfind`, `package.loaders` and the deprecated `math.*` helpers, and removes 5.2/5.3 APIs. 5.4 adds `coroutine.close`, `warn` and the 5.4 `math.random`/`randomseed` API (xoshiro, per-state seeds), but not `<const>`, `<close>` or 64-bit integers. The lexer, parser and VM still implement Lua 5.3 semantics (including the 32-bit integer subtype), so syntax-level and number-model differences require a full implementation via the `loadbufferx` hook. The 5.1 `setfenv`/`module`/`package.seeall` implementation uses the 5.3 `_ENV` upvalue, so functions that share an upvalue also share their environment and a function with no `_ENV` upvalue cannot be changed; 5.2 does not expose those functions (it uses `_ENV` directly). Locale support covers the decimal separator only (collation and character classes remain C-only).
 
 
 ## Extensions

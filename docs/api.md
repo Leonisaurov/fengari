@@ -39,6 +39,10 @@ Source: [`src/lua.js`](../src/lua.js)
   `src/lapi.js`
 - **`lua_close(L)`**  
   `src/lstate.js`
+- **`lua_closethread(L, from)`**  
+  `src/lapi.js`
+
+  Close a dead or suspended thread. __close metamethods are not implemented (Lua 5.4 to-be-closed variables are not supported yet).
 - **`lua_compare(L, index1, index2, op)`**  
   `src/lapi.js`
 - **`lua_concat(L, n)`**  
@@ -233,6 +237,8 @@ Source: [`src/lua.js`](../src/lua.js)
   `src/lapi.js`
 - **`lua_setuservalue(L, idx)`**  
   `src/lapi.js`
+- **`lua_setwarnf(L, warnf, ud)`**  
+  `src/lapi.js`
 - **`lua_status(L)`**  
   `src/lapi.js`
 - **`lua_stringtonumber(L, s)`**  
@@ -278,6 +284,8 @@ Source: [`src/lua.js`](../src/lua.js)
 - **`lua_upvaluejoin(L, fidx1, n1, fidx2, n2)`**  
   `src/lapi.js`
 - **`lua_version(L)`**  
+  `src/lapi.js`
+- **`lua_warning(L, msg, tocont)`**  
   `src/lapi.js`
 - **`lua_xmove(from, to, n)`**  
   `src/lapi.js`
@@ -683,7 +691,8 @@ target surfaces (the parser and VM remain Lua 5.3):
 
 | Version | Highlights |
 | --- | --- |
+| 5.4 | `coroutine.close`, `warn`, the 5.4 `math.random`/`randomseed` API (xoshiro, per-state seeds). No `<const>`, `<close>` or 64-bit integers. |
 | 5.3 | Current core: integers, bitwise operators, `utf8`, `string.pack`, `table.move`. |
 | 5.2 | `bit32`; no `utf8`, `string.pack` or 5.3 `math`/`coroutine` additions. |
-| 5.1 | `unpack`, `loadstring`, `getfenv`, `table.maxn/getn`, `string.gfind`, `package.loaders`. |
+| 5.1 | `unpack`, `loadstring`, `getfenv`/`setfenv`, `module`, `package.seeall`, `table.maxn/getn`, `string.gfind`, `package.loaders`. |
 

@@ -533,7 +533,7 @@ test('io.read with no arguments reads a line from the default input', () => {
     `);
 
     run(`
-        local p = assert(io.popen("kill -9 $$", "w"))
+        local p = assert(io.popen("cat >/dev/null; kill -9 $$", "w"))
         assert(p:write("x"))
         local ok, what, code = p:close()
         assert(ok == nil and what == "signal" and code == 9)
