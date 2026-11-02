@@ -18,6 +18,8 @@ However it is rare to use this repository directly.
 - To use fengari in a web browser as easily as you might use JavaScript, see [fengari-web](https://github.com/fengari-lua/fengari-web)
 - [fengari-interop](https://github.com/fengari-lua/fengari-interop) is a lua library that makes interoperating with JavaScript objects simple, it is already included in fengari-web.
 - For a clone of the `lua` command line tool, but running under node.js, see [fengari-node-cli](https://github.com/fengari-lua/fengari-node-cli)
+- API reference: [docs/api.md](docs/api.md) (generated from the source tree)
+- Migrating an embedding from Lua C: [docs/migrating-from-c.md](docs/migrating-from-c.md)
 
 ### The JS API
 

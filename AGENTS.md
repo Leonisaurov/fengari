@@ -19,6 +19,7 @@ Fengari is a port of the Lua 5.3 VM, parser and standard libraries to ES6 JavaSc
 - `src/linit.js` is the only place that registers standard libraries (`luaL_openlibs`); it then applies the selected version profile's `openlibs` hook. `io` is loaded only when `process` exists; `os`, `package` and `debug` have browser branches selected with `typeof process === "undefined"`.
 - `src/lgc.js` implements weak tables, finalizers and a mark/sweep with incremental marking; `src/versions.js` plus `src/versions/` select Lua 5.1/5.2/5.3 library profiles (`src/lbitlib.js` provides `bit32` for 5.2).
 - `test/test-suite/` is the official Lua test suite adapted to Jest; `test/test-suite/ltests.js` implements the C `T` test library. Remaining skips are mostly API harness/memory-limit tests, external fixtures and locale-specific tests.
+- `docs/api.md` is generated from the public `module.exports` declarations by `scripts/generate-api-docs.js`; run `pnpm docs:api` after changing signatures, and `pnpm docs:check` (also part of `pnpm check`) verifies it. `docs/migrating-from-c.md` is hand-written.
 - Core semantics are Lua 5.3 with **32-bit integers** (`LUA_MAXINTEGER = 2147483647` in `luaconf.js`). The bundled 5.1/5.2 profiles adjust the library surface, not the parser or number model.
 
 ## Gotchas

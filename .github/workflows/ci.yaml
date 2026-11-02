@@ -26,6 +26,8 @@ jobs:
       run: yarn --frozen-lockfile
     - name: Lint
       run: yarn lint
+    - name: Check generated API docs
+      run: yarn docs:check
     - name: Test
       if: matrix.node-version != '24.x'
       run: yarn test --maxWorkers=$(nproc)

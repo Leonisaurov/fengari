@@ -7,6 +7,7 @@ Estado actual tras tablas débiles y `__gc`: 41 suites, 614 tests que pasan y 20
 Estado actual tras GC automático/incremental y `count` real: 41 suites, 620 tests que pasan y 20 skips.
 Estado actual tras marcado incremental y fidelidad de formato: 42 suites, 630 tests que pasan y 20 skips.
 Estado actual tras versiones y locale: 43 suites, 640 tests que pasan y 20 skips.
+Estado actual tras referencia de API y guía de migración: 44 suites, 644 tests que pasan y 20 skips.
 
 **Prioridad:** P0 desbloquea uso real · P1 calidad/rendimiento · P2 deseable · P3 largo plazo.
 **Esfuerzo:** S < 1 día · M 1–5 días · L > 1 semana.
@@ -110,7 +111,8 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - [x] **CI más completa** — Node 20–26, caché de yarn, `--frozen-lockfile`, cobertura y validación del tarball. Queda un workflow de publicación.
 - [x] **Scripts de desarrollo** — `test:watch`, `test:coverage`, `lint:fix` y `check`.
 - **Typecheck** — P2, M. `tsc --checkJs` sobre `src/` con `// @ts-check` gradual; los errores encontrados suelen revelar bugs reales.
-- **Documentación** — P1, M. Referencia de API generada desde JSDoc, guía de inicio en navegador, ejemplos (REPL, host de plugins, bucle de juego) y guía de migración desde Lua C.
+- [x] **Referencia de API generada y guía C→JS** — `scripts/generate-api-docs.js` genera `docs/api.md` desde las declaraciones y exports (con `docs:check` en CI), y `docs/migrating-from-c.md` cubre strings, enteros, pila, tablas, errores, userdata, registry, corrutinas, GC, versiones y diferencias con la API C.
+- **Documentación de uso** — P1, M. Guía de inicio en navegador, ejemplos (REPL, host de plugins, bucle de juego) y una referencia con JSDoc enriquecido; el generador actual usa las declaraciones y comentarios existentes.
 - **Contribución** — P2, S. `CONTRIBUTING.md`, plantillas de issue/PR, `SECURITY.md` y código de conducta.
 - **Changelog** — P2, S. Automatizar `NEWS` desde commits etiquetados y documentar el proceso de release.
 - **Higiene de dependencias** — P2, S. Revisar `tmp` y `sprintf-js` y añadir auditoría periódica (`readline-sync` ya es opcional en tiempo de ejecución).
