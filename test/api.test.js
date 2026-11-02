@@ -205,3 +205,34 @@ test('api.installAsyncModules fetches missing Lua modules under runAsync', async
         state.close();
     }
 });
+
+test('api.installAsyncModules loads CommonJS and ES modules', async () => {
+    const state = api.createState();
+    try {
+        state.installAsyncModules({
+            js: {
+                map: {
+                    cjs: "data:text/javascript,module.exports%3D%7Bvalue%3A21%7D",
+                    fn: "data:text/javascript,module.exports%3Dfunction(x)%7Breturn%20x*2%7D"
+                }
+            }
+        });
+        expect(await state.runAsync('return require("cjs").value')).toBe(21);
+        expect(await state.runAsync('return require("fn")(4)')).toBe(8);
+
+        state.installAsyncModules({
+            js: {
+                import: async () => ({ default: { value: 7 } }),
+                map: {
+                    esm: {
+                        url: "data:text/javascript,export%20default%20%7B%20value%3A%207%20%7D",
+                        format: "esm"
+                    }
+                }
+            }
+        });
+        expect(await state.runAsync('return require("esm").value')).toBe(7);
+    } finally {
+        state.close();
+    }
+});

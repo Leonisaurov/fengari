@@ -48,7 +48,10 @@ const min_page = `<!doctype html>
 `;
 
 const MODULES = {
-    "/modules/greet.lua": 'return { hello = function() return "hi" end }'
+    "/modules/greet.lua": 'return { hello = function() return "hi" end }',
+    "/modules/cjsmod.js": "module.exports = { value: 21 };",
+    "/modules/fnmod.js": "module.exports = function(x) { return x * 2; };",
+    "/modules/esmmod.mjs": "export default { value: 7 };"
 };
 
 const HEADERS = {
@@ -60,7 +63,9 @@ const HEADERS = {
 const server = http.createServer(function(req, res) {
     if (Object.prototype.hasOwnProperty.call(MODULES, req.url)) {
         res.writeHead(200, Object.assign({
-            "content-type": "text/plain; charset=utf-8"
+            "content-type": /\.m?js$/.test(req.url)
+                ? "text/javascript; charset=utf-8"
+                : "text/plain; charset=utf-8"
         }, HEADERS));
         res.end(MODULES[req.url]);
         return;
@@ -91,6 +96,13 @@ const server = http.createServer(function(req, res) {
             "content-type": "text/javascript; charset=utf-8"
         }, HEADERS));
         res.end(fs.readFileSync(BUNDLE));
+        return;
+    }
+    if (req.url !== "/" && req.url !== "/index.html") {
+        res.writeHead(404, Object.assign({
+            "content-type": "text/plain; charset=utf-8"
+        }, HEADERS));
+        res.end("not found");
         return;
     }
     res.writeHead(200, Object.assign({
@@ -253,10 +265,10 @@ const WORKER_LUA = [
 ].join(" ");
 
 const WORKER_OPFS_LUA = [
-    'local f = assert(io.open("/worker.txt", "r"))',
+    'local f = assert(io.open("/sub/worker.txt", "r"))',
     'local s = f:read("a")',
     'f:close()',
-    'local a = assert(io.open("/worker.txt", "a"))',
+    'local a = assert(io.open("/sub/worker.txt", "a"))',
     'a:write("more")',
     'a:close()',
     'return s'
@@ -279,33 +291,64 @@ importScripts(location.origin + "/bundle.js");
         const root = await navigator.storage.getDirectory();
         const dirname = "fengari-opfs-" + Math.random().toString(36).slice(2);
         const dir = await root.getDirectoryHandle(dirname, { create: true });
-        const handle = await dir.getFileHandle("worker.txt", { create: true });
+        const sub = await dir.getDirectoryHandle("sub", { create: true });
+        const handle = await sub.getFileHandle("worker.txt", { create: true });
         let writable = await handle.createWritable();
         await writable.write("seed");
         await writable.close();
 
-        const mounted = await F.vfs.mountOPFS(dir);
+        const mounted = await F.vfs.mountOPFS(dir, { files: ["nested/new.txt"] });
         state = F.api.createState();
         const opfs_value = state.run(${JSON.stringify(WORKER_OPFS_LUA)});
+        const created = state.run(
+            "local f = assert(io.open('/nested/new.txt', 'w'))" +
+            " f:write('created') f:close() return true");
         state.close();
         F.vfs.unmountOPFS();
 
         const text = await (await handle.getFile()).text();
+        const nested = await dir.getDirectoryHandle("nested");
+        const created_handle = await nested.getFileHandle("new.txt");
+        const created_text = await (await created_handle.getFile()).text();
         await root.removeEntry(dirname, { recursive: true });
 
         postMessage({
             ok: memory_value === "worker data" && opfs_value === "seed" &&
-                text === "seedmore" && mounted === 1 &&
+                text === "seedmore" && created === true &&
+                created_text === "created" && mounted === 2 &&
                 Atomics.load(view, 0) === 7 && self.crossOriginIsolated,
             memory_value: memory_value,
             opfs_value: opfs_value,
             text: text,
+            created_text: created_text,
             mounted: mounted
         });
     } catch (e) {
         postMessage({ ok: false, error: String(e && e.stack || e) });
     }
 })();
+`;
+
+const SYNC_WORKER_SOURCE = `
+importScripts(location.origin + "/bundle.js");
+self.onmessage = (event) => {
+    const { sab, port } = event.data;
+    const F = fengari;
+    const bridge = F.api.createSyncBridge(port, sab);
+    const state = F.api.createState();
+    try {
+        state.pushJS(bridge.call);
+        F.lua.lua_setglobal(state.L, "hostCall");
+        const a = state.run("return hostCall('add', 2, 3)");
+        const b = state.run("return hostCall('double', 10)");
+        postMessage({ kind: "done", a: a, b: b });
+    } catch (e) {
+        postMessage({ kind: "error", error: String(e && e.stack || e) });
+    } finally {
+        state.close();
+        bridge.close();
+    }
+};
 `;
 
 const PAGE_TESTS = `(async function() {
@@ -517,6 +560,42 @@ const PAGE_TESTS = `(async function() {
         assert(result.value === 5, "worker RPC value: " + result.value);
     });
 
+    await test("synchronous worker RPC with SharedArrayBuffer", async () => {
+        const shared = new SharedArrayBuffer(65536);
+        const channel = new MessageChannel();
+        const server = F.api.serveSyncBridge(channel.port1, shared, async (op, a, b) => {
+            if (op === "add")
+                return a + b;
+            if (op === "double") {
+                await new Promise((resolve) => setTimeout(resolve, 5));
+                return a * 2;
+            }
+            throw new Error("unknown operation: " + op);
+        });
+
+        const source = ${JSON.stringify(SYNC_WORKER_SOURCE)};
+        const url = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
+        const worker = new Worker(url);
+        try {
+            const result = await new Promise((resolve, reject) => {
+                worker.onmessage = (event) => {
+                    if (event.data.kind === "done")
+                        resolve(event.data);
+                    else if (event.data.kind === "error")
+                        reject(new Error(event.data.error));
+                };
+                worker.onerror = (event) => reject(new Error(event.message));
+                worker.postMessage({ sab: shared, port: channel.port2 }, [channel.port2]);
+            });
+            assert(result.a === 5, "sync add: " + result.a);
+            assert(result.b === 20, "sync double: " + result.b);
+        } finally {
+            worker.terminate();
+            URL.revokeObjectURL(url);
+            server.close();
+        }
+    });
+
     await test("stdout handlers, dates and process failures", () => {
         const lines = [];
         const previous = F.vfs.setStdout((line) => lines.push(line));
@@ -596,6 +675,26 @@ const PAGE_TESTS = `(async function() {
                 message = e.message;
             }
             assert(/not found/.test(message), "missing module: " + message);
+        } finally {
+            state.close();
+        }
+    });
+
+    await test("async require loads CommonJS and ES modules", async () => {
+        const state = F.api.createState();
+        try {
+            state.installAsyncModules({
+                js: {
+                    map: {
+                        cjs: "/modules/cjsmod.js",
+                        fn: "/modules/fnmod.js",
+                        esm: { url: "/modules/esmmod.mjs", format: "esm" }
+                    }
+                }
+            });
+            assert(await state.runAsync('return require("cjs").value') === 21, "cjs value");
+            assert(await state.runAsync('return require("esm").value') === 7, "esm value");
+            assert(await state.runAsync('return require("fn")(4)') === 8, "cjs function");
         } finally {
             state.close();
         }

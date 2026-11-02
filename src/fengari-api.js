@@ -387,6 +387,8 @@ const installAsyncModules = function(L, options) {
     let extension = options.extension || ".lua";
     let map = options.map || {};
     let custom_fetch = options.fetch || null;
+    let js = options.js || null;
+    let js_modules = new Map();
 
     const fetch_module = async function(name) {
         let url = map[name];
@@ -406,8 +408,72 @@ const installAsyncModules = function(L, options) {
         }
     };
 
+    const resolve_js = function(name) {
+        if (!js)
+            return null;
+        let spec = js.map ? js.map[name] : undefined;
+        let url, format;
+        if (typeof spec === "string") {
+            url = spec;
+            format = js.format || (/\.mjs$/.test(url) ? "esm" : "cjs");
+        } else if (spec && typeof spec === "object") {
+            url = spec.url;
+            format = spec.format || js.format || (/\.mjs$/.test(url) ? "esm" : "cjs");
+        } else {
+            url = (js.base || base).replace(/\/+$/, "") + "/" +
+                String(name).replace(/\./g, "/") + (js.extension || ".js");
+            format = js.format || (/\.mjs$/.test(url) ? "esm" : "cjs");
+        }
+        return { url: url, format: format };
+    };
+
+    const fetch_js_module = async function(name) {
+        let target = resolve_js(name);
+        if (!target)
+            return false;
+        try {
+            let exports;
+            if (target.format === "esm") {
+                let imported = js.import
+                    ? await js.import(target.url)
+                    : await import(target.url);
+                exports = imported.default !== undefined ? imported.default : imported;
+            } else {
+                if (typeof fetch !== "function")
+                    return false;
+                let response = await fetch(target.url);
+                if (!response.ok)
+                    return false;
+                let code = await response.text();
+                let module = { exports: {} };
+                let load = new Function("fengari", "module", "exports",
+                    code + "\n//# sourceURL=" + target.url);
+                let returned = load(require("./fengari.js"), module, module.exports);
+                exports = returned !== undefined ? returned : module.exports;
+            }
+            js_modules.set(name, exports);
+            return true;
+        } catch (e) {
+            return false;
+        }
+    };
+
     pushAsyncJS(L, fetch_module);
     lua_setglobal(L, to_luastring("__fengari_async_modules_fetch"));
+    pushAsyncJS(L, fetch_js_module);
+    lua_setglobal(L, to_luastring("__fengari_async_modules_fetch_js"));
+
+    lua_pushcfunction(L, function(L1) {
+        let raw = lua_tostring(L1, 1);
+        let name = raw === null ? null : to_jsstring(raw);
+        if (name === null || !js_modules.has(name)) {
+            lua_pushnil(L1);
+            return 1;
+        }
+        pushJS(L1, js_modules.get(name));
+        return 1;
+    });
+    lua_setglobal(L, to_luastring("__fengari_async_modules_get_js"));
 
     run(L, `
         local searchers = package.searchers or package.loaders
@@ -421,20 +487,159 @@ const installAsyncModules = function(L, options) {
                     if found then return nil end
                 end
                 local source = __fengari_async_modules_fetch(name)
-                if not source then
-                    return "\\n\\tno async module '" .. name .. "'"
+                if source then
+                    local chunk, err = load(source, "@" .. name)
+                    if not chunk then
+                        return "\\n\\t" .. tostring(err)
+                    end
+                    return chunk, name
                 end
-                local chunk, err = load(source, "@" .. name)
-                if not chunk then
-                    return "\\n\\t" .. tostring(err)
+                if __fengari_async_modules_fetch_js and __fengari_async_modules_fetch_js(name) then
+                    return __fengari_async_modules_get_js, name
                 end
-                return chunk, name
+                return "\\n\\tno async module '" .. name .. "'"
             end
             table.insert(searchers, 2, async_searcher)
             package.__fengari_async_modules = true
         end
     `);
     return fetch_module;
+};
+
+/* ---------------------------------------------------------------------- */
+/* synchronous worker bridge (SharedArrayBuffer + Atomics)                 */
+/* ---------------------------------------------------------------------- */
+
+const SYNC_HEADER_INTS = 4;
+const SYNC_DATA_OFFSET = 16;
+const SYNC_REQUEST = "fengari-sync-request";
+
+/**
+ * Worker side: returns a blocking function that sends a request to the host
+ * through 'port' and waits on 'shared' until the host answers. Must run in a
+ * worker; the main thread cannot Atomics.wait.
+ */
+const createSyncBridge = function(port, shared, options) {
+    options = options || {};
+    let timeout = options.timeout || 30000;
+    if (!port || typeof port.postMessage !== "function")
+        throw new Error("createSyncBridge needs a MessagePort");
+    if (!shared || typeof SharedArrayBuffer === "undefined" ||
+        !(shared instanceof SharedArrayBuffer))
+        throw new Error("createSyncBridge needs a SharedArrayBuffer");
+    if (typeof Atomics.wait !== "function")
+        throw new Error("Atomics.wait is not available in this environment");
+
+    let header = new Int32Array(shared, 0, SYNC_HEADER_INTS);
+    let data = new Uint8Array(shared, SYNC_DATA_OFFSET);
+    let encoder = new TextEncoder();
+    let decoder = new TextDecoder();
+    let sequence = 0;
+
+    let call = function(op) {
+        let args = Array.prototype.slice.call(arguments, 1);
+        let payload = encoder.encode(JSON.stringify({
+            id: ++sequence,
+            op: op,
+            args: args
+        }));
+        if (payload.length > data.length)
+            throw new Error("sync bridge request is too large");
+        Atomics.store(header, 1, payload.length);
+        data.set(payload);
+        Atomics.store(header, 0, 1);
+        port.postMessage({ type: SYNC_REQUEST });
+
+        let deadline = Date.now() + timeout;
+        while (Atomics.load(header, 0) === 1) {
+            let remaining = deadline - Date.now();
+            if (remaining <= 0) {
+                Atomics.store(header, 0, 0);
+                throw new Error("sync bridge timed out");
+            }
+            Atomics.wait(header, 0, 1, Math.min(remaining, 100));
+        }
+        if (Atomics.load(header, 0) !== 2)
+            throw new Error("sync bridge received an invalid state");
+
+        let length = Atomics.load(header, 2);
+        let bytes = new Uint8Array(length);
+        bytes.set(data.subarray(0, length));
+        let response = JSON.parse(decoder.decode(bytes));
+        Atomics.store(header, 0, 0);
+        if (response && response.error)
+            throw new Error(response.error);
+        return response ? response.value : null;
+    };
+
+    return {
+        call: call,
+        close: function() {
+            if (typeof port.close === "function")
+                port.close();
+        }
+    };
+};
+
+/**
+ * Host side: serve requests from a createSyncBridge worker. The handler may
+ * return a value or a Promise; the worker stays blocked until it settles.
+ */
+const serveSyncBridge = function(port, shared, handler, options) {
+    options = options || {};
+    if (!port || typeof port.addEventListener !== "function")
+        throw new Error("serveSyncBridge needs a MessagePort");
+    if (!shared || typeof SharedArrayBuffer === "undefined" ||
+        !(shared instanceof SharedArrayBuffer))
+        throw new Error("serveSyncBridge needs a SharedArrayBuffer");
+
+    let header = new Int32Array(shared, 0, SYNC_HEADER_INTS);
+    let data = new Uint8Array(shared, SYNC_DATA_OFFSET);
+    let encoder = new TextEncoder();
+    let decoder = new TextDecoder();
+
+    let onmessage = async function(event) {
+        if (!event.data || event.data.type !== SYNC_REQUEST)
+            return;
+        let response;
+        try {
+            let length = Atomics.load(header, 1);
+            let bytes = new Uint8Array(length);
+            bytes.set(data.subarray(0, length));
+            let request = JSON.parse(decoder.decode(bytes));
+            try {
+                let value = await handler.apply(null, [request.op].concat(request.args || []));
+                response = { value: value === undefined ? null : value };
+            } catch (e) {
+                response = { error: e && e.message !== undefined ? e.message : String(e) };
+            }
+        } catch (e) {
+            response = { error: e && e.message !== undefined ? e.message : String(e) };
+        }
+
+        let payload;
+        try {
+            payload = encoder.encode(JSON.stringify(response));
+            if (payload.length > data.length)
+                payload = encoder.encode(JSON.stringify({ error: "sync bridge response is too large" }));
+        } catch (e) {
+            payload = encoder.encode(JSON.stringify({ error: "sync bridge response is not serializable" }));
+        }
+        data.set(payload);
+        Atomics.store(header, 2, payload.length);
+        Atomics.store(header, 0, 2);
+        Atomics.notify(header, 0);
+    };
+
+    port.addEventListener("message", onmessage);
+    if (typeof port.start === "function")
+        port.start();
+
+    return {
+        close: function() {
+            port.removeEventListener("message", onmessage);
+        }
+    };
 };
 
 const collect_results = function(L, base) {
@@ -609,4 +814,6 @@ module.exports.runAsync = runAsync;
 module.exports.callAsync = callAsync;
 module.exports.pushAsyncJS = pushAsyncJS;
 module.exports.installAsyncModules = installAsyncModules;
+module.exports.createSyncBridge = createSyncBridge;
+module.exports.serveSyncBridge = serveSyncBridge;
 module.exports.sandbox = sandbox;

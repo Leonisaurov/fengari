@@ -10,7 +10,7 @@ Estado actual tras versiones y locale: 43 suites, 640 tests que pasan y 20 skips
 Estado actual tras referencia de API y guía de migración: 44 suites, 644 tests que pasan y 20 skips.
 Estado actual tras completar la librería `io`: 45 suites, 672 tests que pasan y 20 skips.
 Estado actual tras el VFS de navegador: 47 suites, 692 tests que pasan y 20 skips.
-Estado actual tras benchmarks, diferencial, fuzzing y API de alto nivel: 52 suites, 715 tests que pasan y 15 skips.
+Estado actual tras benchmarks, diferencial, fuzzing y API de alto nivel: 52 suites, 716 tests que pasan y 15 skips.
 
 **Prioridad:** P0 desbloquea uso real · P1 calidad/rendimiento · P2 deseable · P3 largo plazo.
 **Esfuerzo:** S < 1 día · M 1–5 días · L > 1 semana.
@@ -65,10 +65,10 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - [x] **`io.input`/`io.output`** — P1, S. Cambian el archivo por defecto, aceptan nombres o handles y `io.close()` cierra la salida por defecto.
 - [x] **`io.tmpfile`/`os.tmpname`** — P1, S. Archivo temporal en Node que se elimina al cerrar; `os.tmpname` ya existía.
 - [x] **`io.popen`** — P2, M. `spawnSync` con shell: en modo lectura se ejecuta al abrir y se bufferiza stdout; en modo escritura los datos se acumulan y se envían al cerrar. `close` devuelve `"exit"`/`"signal"` con el código.
-- [x] **Sistema de archivos virtual para navegador** — P2, L. `src/lfs.js` selecciona `fs` en Node y un FS en memoria cuando no hay `process`; `io` y `os.remove/rename/tmpname/getenv` funcionan sobre él. La API `fengari.vfs` permite montar/leer archivos, inyectar stdin/stdout/stderr, hacer `snapshot()`/`restore()` y persistir con `localStorage`, IndexedDB u OPFS (snapshots y, en workers, montaje directo con `mountOPFS`).
+- [x] **Sistema de archivos virtual para navegador** — P2, L. `src/lfs.js` selecciona `fs` en Node y un FS en memoria cuando no hay `process`; `io` y `os.remove/rename/tmpname/getenv` funcionan sobre él. La API `fengari.vfs` permite montar/leer archivos, inyectar stdin/stdout/stderr, hacer `snapshot()`/`restore()` y persistir con `localStorage`, IndexedDB u OPFS (snapshots y, en workers, montaje directo con `mountOPFS`, rutas anidadas y archivos precreados).
 - [x] **`os.remove`/`os.rename` en navegador** — P2, S. Implementados sobre el VFS con `errno` y mensajes claros.
 - [x] **`io` en navegador** — P2, L. Registrada siempre en `luaL_openlibs`; `open/read/write/lines/seek/tmpfile` y `loadfile`/`dofile`/`require` consultan el VFS antes de caer al XHR síncrono. `popen`/`os.execute`/`os.exit` fallan con un error explícito.
-- [x] **`require` y `package.loadlib` sin XHR en navegador** — P1, M. El VFS resuelve módulos Lua y JS montados (`.lua`/`.js`) sin red, además de `package.jspath` y `T.newuserdata`. El XHR síncrono queda solo como fallback para URLs no montadas (`vfs.allowNetwork(false)` lo desactiva). `vfs.loadFromURL` y `api.installAsyncModules` (con mapa de importación) cargan módulos de forma asíncrona bajo `runAsync`; falta ejecutar módulos ES/JS arbitrarios.
+- [x] **`require` y `package.loadlib` sin XHR en navegador** — P1, M. El VFS resuelve módulos Lua y JS montados (`.lua`/`.js`) sin red, además de `package.jspath` y `T.newuserdata`. El XHR síncrono queda solo como fallback para URLs no montadas (`vfs.allowNetwork(false)` lo desactiva). `vfs.loadFromURL` y `api.installAsyncModules` cargan módulos Lua, CommonJS y ES (con mapa de importación) de forma asíncrona bajo `runAsync`; falta `package.loadlib` asíncrono.
 
 ---
 
@@ -97,7 +97,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - [x] **API asíncrona** — P1, M. `api.pushAsyncJS` + `runAsync`/`callAsync` ejecutan el chunk en una corrutina, esperan cada `Promise` y la reanudan; una promesa rechazada se convierte en error Lua. Queda la carga asíncrona de módulos (`require` sigue siendo síncrono).
 - [x] **Ciclo de vida de proxies** — P2, S. Revisado: el registro es un `WeakMap` de proxy→estado y no retiene proxies; `lua_isproxy` distingue estados y hay test de ámbito y error entre estados (`src/lapi.js`, `test/lapi.test.js`).
 - **`fengari-interop`** — P2, M. Tests de integración con objetos, arrays, funciones, promesas e iteradores JS; documentar límites y conversiones.
-- [x] **Web Workers** — P2, M. El backend en memoria y la E/S funcionan sin `window`/`process`; `test/worker.test.js` ejecuta io/os en `worker_threads`. Queda el puente de mensajes específico y `SharedArrayBuffer`.
+- [x] **Web Workers** — P2, M. El backend en memoria y la E/S funcionan sin `window`/`process`; la suite de Brave prueba un Web Worker real, RPC asíncrono y un puente bloqueante con `SharedArrayBuffer`/`Atomics`. `test/worker.test.js` cubre io/os en `worker_threads`.
 - [x] **Detección de entorno** — P2, S. Evitar falsos positivos de `typeof process` cuando un bundler inyecta un shim; centralizar la detección en un módulo.
 - [x] **Sandbox** — P1, M. `api.sandbox` oculta `io`/`os`/`package`/`debug`/`dofile`/`loadfile`/`require` y limita instrucciones, tiempo y memoria aproximada (`collectgarbage("count")`).
 - **FFI WebAssembly** — P3, L. Llamar funciones WASM desde Lua y viceversa, con manejo de memoria y tipos.

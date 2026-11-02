@@ -205,6 +205,13 @@ export interface AsyncModuleOptions {
     extension?: string;
     map?: Record<string, string>;
     fetch?: (name: string, url: string) => Promise<string | null | undefined> | string | null | undefined;
+    js?: {
+        base?: string;
+        extension?: string;
+        format?: "cjs" | "esm";
+        map?: Record<string, string | { url: string; format?: "cjs" | "esm" }>;
+        import?: (url: string) => Promise<any>;
+    };
 }
 
 export interface SandboxOptions {
@@ -237,6 +244,13 @@ export interface ApiHelpers {
     pushJS(L: LuaState, value: any): void;
     pushAsyncJS(L: LuaState, fn: (...args: any[]) => any): void;
     installAsyncModules(L: LuaState, options?: AsyncModuleOptions): void;
+    createSyncBridge(port: any, shared: SharedArrayBuffer, options?: { timeout?: number }): {
+        call: (op: string, ...args: any[]) => any;
+        close(): void;
+    };
+    serveSyncBridge(port: any, shared: SharedArrayBuffer, handler: (op: string, ...args: any[]) => any, options?: any): {
+        close(): void;
+    };
     sandbox(options?: SandboxOptions): Sandbox;
 }
 

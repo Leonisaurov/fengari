@@ -882,24 +882,37 @@ const mount_opfs = async function(directory, options) {
     const handles = new Map();
 
     const open_file = async function(name, create) {
-        if (name.indexOf("/") !== -1)
-            throw new Error("direct OPFS mount only supports flat file names");
-        let handle = await directory.getFileHandle(name, { create: !!create });
+        let parts = name.split("/").filter(function(part) { return part.length > 0; });
+        if (parts.length === 0)
+            throw new Error("invalid OPFS file name");
+        let filename = parts.pop();
+        let dir = directory;
+        for (let part of parts)
+            dir = await dir.getDirectoryHandle(part, { create: !!create });
+        let key = normalize_key("/" + parts.concat(filename).join("/"));
+        if (handles.has(key))
+            return;
+        let handle = await dir.getFileHandle(filename, { create: !!create });
         if (typeof handle.createSyncAccessHandle !== "function")
             throw new Error("createSyncAccessHandle is only available in a worker");
         let access = await handle.createSyncAccessHandle();
-        handles.set(normalize_key("/" + name), access);
+        handles.set(key, access);
+    };
+
+    const walk = async function(dir, prefix) {
+        for await (const [name, handle] of dir.entries()) {
+            if (handle.kind === "file")
+                await open_file(prefix + name, false);
+            else if (handle.kind === "directory")
+                await walk(handle, prefix + name + "/");
+        }
     };
 
     try {
+        await walk(directory, "");
         if (options.files) {
             for (let name of options.files)
                 await open_file(name, true);
-        } else {
-            for await (const [name, handle] of directory.entries()) {
-                if (handle.kind === "file")
-                    await open_file(name, false);
-            }
         }
     } catch (e) {
         for (let access of handles.values()) {

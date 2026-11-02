@@ -281,8 +281,8 @@ live under `/tmp`. Nothing is persisted automatically: use
 `vfs.saveToIndexedDB()`/`loadFromIndexedDB()` (IndexedDB) or
 `vfs.saveToOPFS()`/`loadFromOPFS()` (an OPFS directory handle), or take a
 `vfs.snapshot()` and `vfs.restore()` it later. In a worker,
-`await vfs.mountOPFS(dir)` makes OPFS files the live file system through
-synchronous access handles (flat names present at mount time); call
+`await vfs.mountOPFS(dir)` makes OPFS files (recursively) the live file system
+through synchronous access handles; `{ files: [...] }` pre-creates paths. Call
 `vfs.unmountOPFS()` to flush and close. `vfs.allowNetwork(false)`
 disables the XHR fallback so `require`/`loadfile` only read the VFS.
 `vfs.loadFromURL(url, path)` fetches and mounts a module asynchronously, after
@@ -313,8 +313,10 @@ errors into `Error` objects with `luaMessage` and `luaTraceback`.
 run the chunk in a coroutine, await the Promise and resume it, so Lua sees the
 resolved value (a rejection becomes a Lua error). Async functions only work
 under those drivers; plain `run`/`call` stay synchronous.
-`installAsyncModules({ base, map })` installs a searcher that fetches missing
-Lua modules through that bridge while under `runAsync`. The sandbox
+`installAsyncModules({ base, map, js })` installs a searcher that fetches
+missing Lua modules and can evaluate CommonJS/ES modules (with import-map
+overrides) while under `runAsync`. `api.createSyncBridge`/`serveSyncBridge`
+implement a blocking worker→host call with `SharedArrayBuffer` and `Atomics`. The sandbox
 hides `io`, `os`, `package`, `debug`, `dofile`, `loadfile` and `require` by
 default and enforces instruction, wall-clock and approximate memory limits
 (`instructions`, `milliseconds`, `memory` in KB). The memory limit uses
