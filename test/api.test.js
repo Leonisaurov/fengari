@@ -84,6 +84,35 @@ test('api.pushJS exposes JS functions and values to Lua', () => {
     }
 });
 
+test('api.toJS rejects deep nesting and pushJS handles bytes and errors', () => {
+    const state = api.createState();
+    try {
+        expect(() => state.run(`
+            local root = {}
+            local cur = root
+            for i = 1, 102 do
+                cur[1] = {}
+                cur = cur[1]
+            end
+            return root
+        `)).toThrow(/nested too deeply/);
+
+        state.pushJS(new Uint8Array([104, 105]));
+        lua.lua_setglobal(state.L, "bytes");
+        expect(state.run("return bytes, #bytes")).toEqual(["hi", 2]);
+
+        state.pushJS(() => { throw new Error("js boom"); });
+        lua.lua_setglobal(state.L, "boom");
+        expect(() => state.run("return boom()")).toThrow(/js boom/);
+
+        state.pushJS(2 ** 40);
+        lua.lua_setglobal(state.L, "big");
+        expect(state.run("return big")).toBe(2 ** 40);
+    } finally {
+        state.close();
+    }
+});
+
 test('api.sandbox hides dangerous globals', () => {
     const box = api.sandbox({ instructions: 1000000 });
     try {

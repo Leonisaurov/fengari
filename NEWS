@@ -49,6 +49,9 @@ unreleased
   - Fix package.loadlib/require for module names with the '-' ignore mark
   - lua_pushlstring now returns the pushed bytes (Uint8Array), matching its
     documented type
+  - api.toJS reserves Lua stack space while walking nested tables, so deep
+    tables either convert or fail with the documented depth error, and restores
+    the stack if conversion throws
   - Cover every os.date conversion and the package searcher/loadlib error paths
   - Re-enable official tests for table/userdata libraries and package refs
 

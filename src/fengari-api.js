@@ -16,6 +16,7 @@ const {
     LUA_MULTRET,
     LUA_OK,
     LUA_YIELD,
+    lua_checkstack,
     lua_close,
     lua_createtable,
     lua_gc,
@@ -125,6 +126,7 @@ const convert = function(L, idx, seen, depth) {
 };
 
 const convert_table = function(L, idx, seen, depth) {
+    lua_checkstack(L, 2);  /* room for lua_rawgeti/lua_next during recursion */
     let pointer = lua_topointer(L, idx);
     if (pointer !== null && seen.has(pointer))
         throw new Error("Lua table contains a cycle");
@@ -144,26 +146,29 @@ const convert_table = function(L, idx, seen, depth) {
     }
 
     let result;
-    if (is_array) {
-        result = [];
-        for (let i = 1; i <= length; i++) {
-            lua_rawgeti(L, idx, i);
-            result.push(convert(L, -1, seen, depth + 1));
-            lua_pop(L, 1);
+    try {
+        if (is_array) {
+            result = [];
+            for (let i = 1; i <= length; i++) {
+                lua_rawgeti(L, idx, i);
+                result.push(convert(L, -1, seen, depth + 1));
+                lua_pop(L, 1);
+            }
+        } else {
+            result = {};
+            lua_pushnil(L);
+            while (lua_next(L, idx) !== 0) {
+                let key = convert(L, -2, seen, depth + 1);
+                let value = convert(L, -1, seen, depth + 1);
+                result[String(key)] = value;
+                lua_pop(L, 1);
+            }
         }
-    } else {
-        result = {};
-        lua_pushnil(L);
-        while (lua_next(L, idx) !== 0) {
-            let key = convert(L, -2, seen, depth + 1);
-            let value = convert(L, -1, seen, depth + 1);
-            result[String(key)] = value;
-            lua_pop(L, 1);
-        }
+    } finally {
+        lua_settop(L, top);  /* restore the stack even when conversion throws */
+        if (pointer !== null)
+            seen.delete(pointer);
     }
-    lua_settop(L, top);
-    if (pointer !== null)
-        seen.delete(pointer);
     return result;
 };
 

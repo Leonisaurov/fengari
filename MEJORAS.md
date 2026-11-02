@@ -11,7 +11,7 @@ Estado actual tras referencia de API y guía de migración: 44 suites, 644 tests
 Estado actual tras completar la librería `io`: 45 suites, 672 tests que pasan y 20 skips.
 Estado actual tras el VFS de navegador: 47 suites, 692 tests que pasan y 20 skips.
 Estado actual tras benchmarks, diferencial, fuzzing y API de alto nivel: 52 suites, 736 tests que pasan y 12 skips.
-Estado actual tras rendimiento, fidelidad de `os.date`/`loadlib` y pulido: 52 suites, 736 tests que pasan y 12 skips.
+Estado actual tras rendimiento, fidelidad de `os.date`/`loadlib` y pulido: 52 suites, 737 tests que pasan y 12 skips.
 
 **Prioridad:** P0 desbloquea uso real · P1 calidad/rendimiento · P2 deseable · P3 largo plazo.
 **Esfuerzo:** S < 1 día · M 1–5 días · L > 1 semana.
