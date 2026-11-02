@@ -11,7 +11,7 @@ Estado actual tras referencia de API y guía de migración: 44 suites, 644 tests
 Estado actual tras completar la librería `io`: 45 suites, 672 tests que pasan y 20 skips.
 Estado actual tras el VFS de navegador: 47 suites, 692 tests que pasan y 20 skips.
 Estado actual tras benchmarks, diferencial, fuzzing y API de alto nivel: 52 suites, 736 tests que pasan y 12 skips.
-Estado actual tras rendimiento, fidelidad de `os.date`/`loadlib` y pulido: 56 suites, 760 tests que pasan, 10 skips y 93.2% de líneas / 85.2% de ramas.
+Estado actual tras rendimiento, fidelidad de `os.date`/`loadlib` y pulido: 56 suites, 761 tests que pasan, 10 skips y 93.1% de líneas / 85.2% de ramas.
 
 **Prioridad:** P0 desbloquea uso real · P1 calidad/rendimiento · P2 deseable · P3 largo plazo.
 **Esfuerzo:** S < 1 día · M 1–5 días · L > 1 semana.
@@ -108,7 +108,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 ## 5. Calidad, tests y tooling
 
 - [x] **Cobertura con umbral** — `jest --coverage`, reporte en CI y umbral global (90% statements/funciones/líneas, 85% ramas).
-- **Activar tests saltados** — P1, M. Quedan 10: 9 de API (límites de memoria/`T.totalmem`, colores del GC, `objsize` de memoria, C-stack) y 1 de internals de tabla. Activados los de `table`/`debug.setmetatable`, reutilización de referencias, cadena larga de userdata, finalización durante la colecta y locale (las categorías no soportadas devuelven `nil`).
+- **Activar tests saltados** — P1, M. Quedan 10: 9 de API (límites de memoria/`T.totalmem`, colores del GC, `objsize` de memoria, C-stack) y 1 de internals de tabla. Activados los de `table`/`debug.setmetatable`, reutilización de referencias, cadena larga de userdata, finalización durante la colecta y locale. Cada skip restante está documentado con su motivo en `test/test-suite/SKIPS.md`.
 - [x] **Tests de navegador** — P1, M. `scripts/browser-test.js` usa el Chrome DevTools Protocol contra Brave headless (fallback Chromium/Chrome), sin Playwright: 19 pruebas con VFS, `require`/`dofile` sin XHR, Lua/CJS/ESM asíncronos, localStorage, IndexedDB, OPFS (snapshots y directo anidado), SharedArrayBuffer, worker RPC (async y bloqueante), `debug.debug`, bundle minificado/source map, stdout y sandbox.
 - [x] **Tests diferenciales contra PUC Lua** — P1, M. `scripts/diff-puc.js` ejecuta `test/differential/` bajo Fengari y PUC y compara stdout y éxito/fallo; el test de Jest se salta si no hay intérprete.
 - [x] **Fuzzing del parser y `lundump`** — P1, M. `scripts/fuzz.js` con PRNG sembrado, bytes aleatorios, fuente aleatoria y bytecode mutado; `test/fuzz.test.js` ejecuta una tanda acotada.
@@ -133,7 +133,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 
 ## 7. Lua 5.4 y futuro
 
-- [x] **`<const>` y `<close>`** — P2, L. Atributos `local x <const>`/`<close>` en el perfil 5.4: comprobación de asignación a const (incluidos upvalues), `OP_TBC`/lista de cierres por hilo y `__close(valor, err)` en salida de bloque, `break`, `goto`, `return`, tail call, errores, `coroutine.close` y el cuarto valor to-be-closed del generic-for (`OP_TFORPREP`). Pendiente: `__close` que haga yield y los enteros de 64 bits.
+- [x] **`<const>` y `<close>`** — P2, L. Atributos `local x <const>`/`<close>` en el perfil 5.4: comprobación de asignación a const (incluidos upvalues), `OP_TBC`/lista de cierres por hilo y `__close(valor, err)` en salida de bloque, `break`, `goto`, `return`, tail call, errores, `coroutine.close` y el cuarto valor to-be-closed del generic-for (`OP_TFORPREP`). `__close` puede hacer yield en el cierre normal y la operación se reanuda (`luaV_finishOp` para `OP_CLOSE`/`OP_RETURN`/jump de cierre).
 - **Enteros de 64 bits con `BigInt`** — P2, L. Implementado detrás de `FENGARICONF.LUA_INT64`: `TValue`/`lua_int` con canonicalización a `BigInt`, parser numérico, literales, `tonumber`/`tostring`, aritmética/comparaciones, `for` numérico, claves de tabla, `math.*` (incluido `random`/`randomseed` 5.4), `string.pack/unpack` con `i8`/`I8`, `string.format`, partes de `table`/`os` y dump/undump con formato 1. La interop 0/1 es controlada: se carga el otro formato y se rechazan constantes que no caben. El modo por defecto sigue siendo 32 bits. Pendiente: cubrir cualquier función de librería restante que asuma `Number`, y `__close` con yield.
 - [x] **`coroutine.close`, `warn`, `math.random` nuevo** — P2, M. Perfil `5.4` con `coroutine.close` (suspended/dead/error; `__close` aún no existe), `warn` con `lua_setwarnf`/`lua_warning` y un `math.random`/`randomseed` 5.4 con xoshiro128**, semillas por estado y soporte de 0/1/2 argumentos. El parser/VM siguen siendo 5.3 y el entero es de 32 bits, así que no se replica la secuencia exacta de PUC.
 - **Paridad de `utf8` y `string`** — P3, S. Revisar diferencias 5.3→5.4 y casos límite.
@@ -144,7 +144,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 
 ## Límites conocidos actuales
 
-- **Versiones**: el parser/VM es 5.3; los perfiles 5.1/5.2/5.4 ajustan la superficie de librerías (5.4 añade `coroutine.close`, `warn`, `math.random` nuevo y `<const>`/`<close>`), no la sintaxis ni el modelo numérico. 5.4 no incluye `__close` con yield ni enteros de 64 bits; `setfenv`/`module` de 5.1 comparten el upvalue `_ENV` y no pueden cambiar funciones sin `_ENV`; 5.2 no expone esas funciones.
+- **Versiones**: el parser/VM es 5.3; los perfiles 5.1/5.2/5.4 ajustan la superficie de librerías (5.4 añade `coroutine.close`, `warn`, `math.random` nuevo y `<const>`/`<close>`), no la sintaxis ni el modelo numérico. 5.4 no incluye enteros de 64 bits por defecto (modo opt-in aparte); `setfenv`/`module` de 5.1 comparten el upvalue `_ENV` y no pueden cambiar funciones sin `_ENV`; 5.2 no expone esas funciones.
 - **Enteros**: por defecto son de 32 bits. Con `FENGARICONF.LUA_INT64=true` pasan a `BigInt` de 64 bits con bytecode marcado (format 1) e interop controlada con format 0; están cubiertos núcleo, parser, aritmética/comparaciones, `for`, claves, `math.*`, `string.pack/unpack`, formato, `table`/`os` y dump/undump.
 - **GC**: `count` usa tamaños estimados por tipo; `collect` es atómico y solo `step` es incremental. Los valores retenidos únicamente por JS no cuentan como raíces.
 - **Fidelidad**: locale solo cubre el separador decimal (`ctype`/collation siguen en "C"); `%q` para `inf`/`nan` mantiene el estilo 5.3; los tracebacks no garantizan paridad exacta de marcos C/JS.

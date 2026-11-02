@@ -64,6 +64,9 @@ unreleased
   - Add a Lua 5.4 library profile: coroutine.close, warn (with
     lua_setwarnf/lua_warning) and the 5.4 math.random/randomseed API with
     per-state xoshiro seeds
+  - Allow __close to yield during normal unwinding and resume the pending
+    closes/return correctly
+  - Document every remaining PUC-internal skip in test/test-suite/SKIPS.md
   - Implement Lua 5.4 <const>/<close> local attributes with __close
     finalization on block exit, break, goto, return, tail calls, errors,
     coroutine.close and the generic-for closing value
