@@ -514,10 +514,10 @@ test("[test-suite] strings: table.concat", () => {
 });
 
 
-// Skipped: Fengari only implements the decimal separator in the "numeric"
-// category. It cannot provide locale collation or ctype, which this upstream
-// test requires once a non-C Intl locale is selected.
-test.skip("[test-suite] strings: locale", () => {
+// Fengari implements the numeric category (decimal separator); os.setlocale
+// returns nil for collate/ctype/monetary/time, so the script skips those blocks
+// and still checks the C locale round trip.
+test("[test-suite] strings: locale", () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
 

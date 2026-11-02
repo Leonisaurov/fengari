@@ -11,7 +11,7 @@ Estado actual tras referencia de API y guía de migración: 44 suites, 644 tests
 Estado actual tras completar la librería `io`: 45 suites, 672 tests que pasan y 20 skips.
 Estado actual tras el VFS de navegador: 47 suites, 692 tests que pasan y 20 skips.
 Estado actual tras benchmarks, diferencial, fuzzing y API de alto nivel: 52 suites, 736 tests que pasan y 12 skips.
-Estado actual tras rendimiento, fidelidad de `os.date`/`loadlib` y pulido: 53 suites, 744 tests que pasan, 11 skips y 94.3% de líneas / 87.9% de ramas.
+Estado actual tras rendimiento, fidelidad de `os.date`/`loadlib` y pulido: 53 suites, 745 tests que pasan, 10 skips y 94.3% de líneas / 88.0% de ramas.
 
 **Prioridad:** P0 desbloquea uso real · P1 calidad/rendimiento · P2 deseable · P3 largo plazo.
 **Esfuerzo:** S < 1 día · M 1–5 días · L > 1 semana.
@@ -42,7 +42,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - [x] **Corrutinas** — P1, M. Cubrir yield a través de `pcall`/`xpcall` y metamétodos, propagación de errores, `resume` sobre hilo muerto e `isyieldable`; añadir `coroutine.close` (5.4) si se adopta esa versión (`src/lcorolib.js`, `src/ldo.js`).
 - [x] **Desbordamiento de pila** — P1, S. Traducir `RangeError: Maximum call stack size exceeded` a `"stack overflow"` de Lua, respetar `LUAI_MAXCCALLS`/`LUAI_MAXSTACK` y probar recursión profunda (hay tests oficiales saltados por esto).
 - [x] **Formato de floats (`%e`/`%f`/`%g`/`%G`)** — P2, M. Implementado con semántica de `printf` de C: exponencial, precisión por defecto, `-0`, `inf`/`nan`, flags (`+`, espacio, `#`, `0`, `-`) y ancho. Verificado contra `printf` en 238 casos (`src/lstrlib.js`).
-- [x] **Locale (separador decimal)** — `os.setlocale` acepta locales de `Intl`, `string.format`/`%a` usan el separador decimal y `%q` mantiene el punto. Collation y `ctype` siguen limitados a "C"; `tonumber` con base y casos límite de `%q` están cubiertos por tests.
+- [x] **Locale (separador decimal)** — `os.setlocale` acepta locales de `Intl` para la categoría `numeric` (y `all`), y devuelve `nil` para `collate`/`ctype`/`monetary`/`time`, que no están implementadas. `string.format`/`%a` usan el separador decimal y `%q` mantiene el punto.
 - [x] **Bordes de enteros de 32 bits** — P2, S. `MININT // -1`, `MININT % -1`, desplazamientos, `math.tointeger` y conversiones string→int cubiertos por tests (`test/fidelity.test.js`).
 - [x] **`table.sort`** — P3, S. Detecta comparadores inválidos y lanza `"invalid order function for sorting"` como PUC; cubierto por tests.
 - [x] **`next`/`pairs` con mutaciones** — P3, M. Cubierto por tests: limpiar y actualizar campos existentes durante el recorrido es seguro; preserva el orden de iteración actual.
@@ -108,7 +108,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 ## 5. Calidad, tests y tooling
 
 - [x] **Cobertura con umbral** — `jest --coverage`, reporte en CI y umbral global (90% statements/funciones/líneas, 85% ramas).
-- **Activar tests saltados** — P1, M. Quedan 11: 8 de API (límites de memoria/`T.totalmem`, colores del GC, `objsize` de memoria, C-stack), 1 de internals de tabla, 1 de locale y 1 de userdata de dos fases. Activados los de `table`/`debug.setmetatable`, reutilización de referencias, cadena larga de userdata y finalización durante la colecta.
+- **Activar tests saltados** — P1, M. Quedan 10: 9 de API (límites de memoria/`T.totalmem`, colores del GC, `objsize` de memoria, C-stack) y 1 de internals de tabla. Activados los de `table`/`debug.setmetatable`, reutilización de referencias, cadena larga de userdata, finalización durante la colecta y locale (las categorías no soportadas devuelven `nil`).
 - [x] **Tests de navegador** — P1, M. `scripts/browser-test.js` usa el Chrome DevTools Protocol contra Brave headless (fallback Chromium/Chrome), sin Playwright: 19 pruebas con VFS, `require`/`dofile` sin XHR, Lua/CJS/ESM asíncronos, localStorage, IndexedDB, OPFS (snapshots y directo anidado), SharedArrayBuffer, worker RPC (async y bloqueante), `debug.debug`, bundle minificado/source map, stdout y sandbox.
 - [x] **Tests diferenciales contra PUC Lua** — P1, M. `scripts/diff-puc.js` ejecuta `test/differential/` bajo Fengari y PUC y compara stdout y éxito/fallo; el test de Jest se salta si no hay intérprete.
 - [x] **Fuzzing del parser y `lundump`** — P1, M. `scripts/fuzz.js` con PRNG sembrado, bytes aleatorios, fuente aleatoria y bytecode mutado; `test/fuzz.test.js` ejecuta una tanda acotada.

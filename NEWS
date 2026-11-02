@@ -56,8 +56,10 @@ unreleased
     package searcher/loadlib error paths
   - Add a TypeScript typecheck for the published declarations and run it in
     pnpm check and CI
-  - Re-enable official tests for table/userdata libraries, package refs and
-    finalization during collection
+  - Re-enable official tests for table/userdata libraries, package refs,
+    finalization during collection and locale categories
+  - os.setlocale returns nil for collate/ctype/monetary/time instead of
+    reporting support that is not implemented
 
 
 0.1.5 - 2025-12-26

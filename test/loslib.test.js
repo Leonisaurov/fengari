@@ -256,6 +256,16 @@ test('os.setlocale', () => {
         assert("C" == os.setlocale("C"))
         assert("C" == os.setlocale("POSIX"))
         assert(nil == os.setlocale("any_other_locale"))
+
+        local name = os.setlocale("de-DE", "numeric")
+        if name then
+            assert(os.setlocale(nil, "numeric") == name)
+        end
+        assert(nil == os.setlocale("de-DE", "collate"))
+        assert(nil == os.setlocale("de-DE", "ctype"))
+        assert(nil == os.setlocale("de-DE", "monetary"))
+        assert(nil == os.setlocale("de-DE", "time"))
+        assert("C" == os.setlocale("C"))
     `;
     lualib.luaL_openlibs(L);
     expect(lauxlib.luaL_loadstring(L, to_luastring(luaCode))).toBe(lua.LUA_OK);

@@ -504,7 +504,7 @@ const locale_decimal = function(tag) {
 const os_setlocale = function(L) {
     const g = L.l_G;
     const l = luaL_optstring(L, 1, null);
-    luaL_checkoption(L, 2, "all", catnames);
+    const cat = luaL_checkoption(L, 2, "all", catnames);
 
     if (l === null) {  /* query the current locale */
         lua_pushstring(L, to_luastring(g.locale));
@@ -515,6 +515,13 @@ const os_setlocale = function(L) {
         g.locale = "C";
         g.locale_decimal = ".";
         lua_pushstring(L, C);
+        return 1;
+    }
+
+    /* Only the numeric category is implemented (decimal separator). Do not
+       claim success for collation, ctype, monetary or time. */
+    if (cat !== 0 /* all */ && cat !== 4 /* numeric */) {
+        lua_pushnil(L);
         return 1;
     }
 
