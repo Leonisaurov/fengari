@@ -718,6 +718,14 @@ const luaL_setfuncs = function(L, l, nup) {
 */
 const luaL_checkstack = function(L, space, msg) {
     if (!lua_checkstack(L, space)) {
+        /* Reserve a few slots so the error message can be built even when
+           the stack reached its limit. */
+        const ldo = require('./ldo.js');
+        const { LUAI_MAXSTACK } = require('./luaconf.js');
+        if (L.stack.length <= LUAI_MAXSTACK) {
+            ldo.luaD_reallocstack(L, LUAI_MAXSTACK + 200);
+            L.ci.top = L.stack_last;
+        }
         if (msg)
             luaL_error(L, to_luastring("stack overflow (%s)"), msg);
         else

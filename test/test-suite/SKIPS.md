@@ -4,7 +4,7 @@ The adapted PUC suite keeps a small number of tests skipped when they assert
 implementation details that do not exist in Fengari. This file records each
 one so a future change can tell a real gap from an intentional difference.
 
-Current bounded skips (8): seven in `api.test.js` and one in `nextvar.test.js`.
+Current bounded skips (7): six in `api.test.js` and one in `nextvar.test.js`.
 Platform-conditional skips (`process.platform === "win32"`) and the
 `lua_bin === null` differential guards are not part of this list.
 
@@ -14,13 +14,6 @@ Uses `T.int2fb` and `T.querytab` to assert PUC's array-part/hash-part sizes.
 Fengari stores table entries in a `Map` and has no array/hash split, so the
 expected numbers are not meaningful. Revisit only if the table representation
 is replaced with a PUC-like split.
-
-## `api: testing deep JS stack`
-
-Asserts PUC C-stack limits (`LUAI_MAXCCALLS`), `checkstack 1000023` failures and
-a one-million-instruction harness. The JavaScript engine stack is not the C
-stack. The harness part could be reduced, but the test's purpose is the C stack,
-so it stays skipped.
 
 ## Memory-limit tests
 
@@ -59,10 +52,16 @@ full collection, and userdata with a finalizer are kept for one extra cycle
 (`g.pending_udata`), so `collectgarbage("count")` follows PUC's TM-then-free
 ordering.
 
+`api: testing deep JS stack` now runs. It exercises `lua_checkstack`, the
+`LUAI_MAXSTACK` limit and dynamic stack growth with the JS-backed stack;
+`luaL_checkstack` now reserves error slots so a full stack still reports
+`stack overflow` instead of an empty error.
+
 ## Review after the 5.1/5.2 work
 
 The 5.1/5.2 library-surface and `%.14g` work did not make any of the remaining
-tests runnable. Two tests (`api: testing get/setuservalue` and `api: udata
-collection`) were enabled separately with `T.gcstate`/`T.gccolor` shims and
-two-phase userdata accounting. The remaining eight still depend on PUC's
-array/hash table split, C-stack accounting or a settable allocator.
+tests runnable. Three tests (`api: testing get/setuservalue`, `api: udata
+collection` and `api: testing deep JS stack`) were enabled separately with
+`T.gcstate`/`T.gccolor` shims, two-phase userdata accounting and stack-overflow
+error reservation. The remaining seven still depend on PUC's array/hash table
+split or a settable allocator (`T.totalmem`).

@@ -127,6 +127,10 @@ const luaD_growstack = function(L, n) {
         if (newsize < needed) newsize = needed;
         if (newsize > LUAI_MAXSTACK) {  /* stack overflow? */
             luaD_reallocstack(L, ERRORSTACKSIZE);
+            /* Reserve room for the error message: the stack may be full. */
+            let limit = L.stack.length - lstate.EXTRA_STACK - 20;
+            if (L.top > limit)
+                L.top = Math.max(limit, L.ci.funcOff + 1);
             ldebug.luaG_runerror(L, to_luastring("stack overflow", true));
         }
         else

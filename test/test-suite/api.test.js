@@ -598,9 +598,9 @@ test("[test-suite] api: testing panic function", () => {
 });
 
 
-// Skipped: depends on PUC C-stack limits (LUAI_MAXCCALLS) and a 1M-step
-// harness; the JavaScript engine stack is not comparable.
-test.skip("[test-suite] api: testing deep JS stack", () => {
+// PUC's C-stack test also exercises lua_checkstack and dynamic stack growth;
+// Fengari runs the same assertions with its JS-backed stack.
+test("[test-suite] api: testing deep JS stack", () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
 
@@ -641,7 +641,7 @@ test.skip("[test-suite] api: testing deep JS stack", () => {
     if (lauxlib.luaL_loadstring(L, to_luastring(prefix + luaCode)) === lua.LUA_ERRSYNTAX)
         throw new SyntaxError(lua.lua_tojsstring(L, -1));
     lua.lua_call(L, 0, 0);
-});
+}, 120000);
 
 
 test("[test-suite] api: testing errors", () => {
