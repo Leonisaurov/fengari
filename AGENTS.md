@@ -5,7 +5,7 @@ Fengari is a port of the Lua 5.3 VM, parser and standard libraries to ES6 JavaSc
 ## Run
 
 - This machine has no `npm`, `yarn` or `corepack`; use **pnpm** from the repo root.
-- `pnpm install`, then `pnpm lint` (`eslint src/ test/ scripts/`), then `pnpm test` (Jest: 56 suites, ~761 tests, ~16 s).
+- `pnpm install`, then `pnpm lint` (`eslint src/ test/ scripts/`), then `pnpm test` (Jest: 56 suites, ~764 tests, ~16 s).
 - `pnpm install` exits 1 with `ERR_PNPM_IGNORED_BUILDS` for `@parcel/watcher`; dependencies are still installed. Ignore it unless you need Jest watch mode.
 - Single file: `pnpm test test/lvm.test.js`. Single test: `pnpm test test/lvm.test.js -t "MOVE"`. Do **not** put `--` before `-t`; Jest treats it as a filename pattern.
 - `test/manual-tests/debug-cli.js` is not run by Jest (it needs an interactive stdin).
@@ -24,7 +24,7 @@ Fengari is a port of the Lua 5.3 VM, parser and standard libraries to ES6 JavaSc
 - `test/test-suite/` is the official Lua test suite adapted to Jest; `test/test-suite/ltests.js` implements the C `T` test library. Remaining skips are documented in `test/test-suite/SKIPS.md` (PUC GC colors, memory-limit harness, table internals and the C stack).
 - `bench/` holds the Lua benchmarks, `scripts/diff-puc.js` the differential corpus under `test/differential/`, and `scripts/fuzz.js` the parser/undump fuzzer. CI runs the differential tests, benchmarks, a bounded fuzz and the browser suite (19 CDP tests) in a job that installs Brave; `pnpm test` only runs the bounded fuzz and differential tests (the latter skips without a Lua binary). Browser tests use the Chrome DevTools Protocol (`scripts/browser-test.js`), not Playwright, and cover async Lua/CommonJS/ES modules, a blocking SAB bridge, worker RPC, direct/nested OPFS, debug.debug and the minified bundle.
 - `docs/api.md` is generated from the public `module.exports` declarations by `scripts/generate-api-docs.js`; run `pnpm docs:api` after changing signatures, and `pnpm docs:check` (also part of `pnpm check`) verifies it. `docs/migrating-from-c.md`, `docs/high-level-api.md` and `docs/browser.md` are hand-written; update them with API/browser changes.
-- Core semantics are Lua 5.3 with **32-bit integers** (`LUA_MAXINTEGER = 2147483647` in `luaconf.js`). `FENGARICONF.LUA_INT64=true` selects the opt-in `BigInt` integer mode (`LUA_MAXINTEGER` becomes `9223372036854775807n`, bytecode format byte 1, `lua_int` canonicalizes integer values, formats 0/1 load in either mode when constants fit); the default remains 32-bit. The bundled 5.1/5.2/5.4 profiles adjust the library surface, not the parser or number model; the 5.4 profile additionally enables the `<const>`/`<close>` local attributes (opcodes `OP_TBC`/`OP_CLOSE`/`OP_TFORPREP` and `luaF_newtbcupval`/`luaF_close`).
+- Core semantics are Lua 5.3 with **32-bit integers** (`LUA_MAXINTEGER = 2147483647` in `luaconf.js`). `FENGARICONF.LUA_INT64=true` selects the opt-in `BigInt` integer mode (`LUA_MAXINTEGER` becomes `9223372036854775807n`, bytecode format byte 1, `lua_int` canonicalizes integer values, formats 0/1 load in either mode when constants fit); the default remains 32-bit. The bundled 5.1/5.2/5.4 profiles adjust the library surface, not the VM number model; 5.1/5.2 also gate the lexer/parser (no `//`/bitwise, `goto` is a name in 5.1, numeric literals become floats) and the 5.4 profile additionally enables the `<const>`/`<close>` local attributes (opcodes `OP_TBC`/`OP_CLOSE`/`OP_TFORPREP` and `luaF_newtbcupval`/`luaF_close`).
 
 ## Gotchas
 

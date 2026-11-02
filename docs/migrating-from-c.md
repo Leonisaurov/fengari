@@ -330,11 +330,12 @@ const L52 = lauxlib.luaL_newstate("5.2");
 lualib.luaL_openlibs(L52);
 ```
 
-The bundled 5.1/5.2/5.4 profiles change the library surface (for example
-`bit32`, `unpack`, `package.loaders`, `setfenv`/`module`, `coroutine.close`,
-`warn`, `<const>`/`<close>`), but the lexer/parser/VM remain Lua 5.3. Supply a
-full implementation via `versions.register({loadbufferx, openlibs, ...})` if
-you need real 5.1/5.2/5.4 syntax or number semantics.
+The bundled 5.1/5.2/5.4 profiles change the library surface and the accepted
+syntax (5.1/5.2 reject `//`/bitwise operators and parse literals as floats;
+5.1 treats `goto` as a name), but the VM and `undump` still share the Lua
+5.3 internal integer subtype. Supply a full implementation via
+`versions.register({loadbufferx, openlibs, ...})` if you need a double-only
+number model or per-version binary chunks.
 
 ## Differences from the C API
 

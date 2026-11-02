@@ -11,7 +11,7 @@ Estado actual tras referencia de API y guía de migración: 44 suites, 644 tests
 Estado actual tras completar la librería `io`: 45 suites, 672 tests que pasan y 20 skips.
 Estado actual tras el VFS de navegador: 47 suites, 692 tests que pasan y 20 skips.
 Estado actual tras benchmarks, diferencial, fuzzing y API de alto nivel: 52 suites, 736 tests que pasan y 12 skips.
-Estado actual tras rendimiento, fidelidad de `os.date`/`loadlib` y pulido: 56 suites, 761 tests que pasan, 10 skips y 93.1% de líneas / 85.2% de ramas.
+Estado actual tras rendimiento, fidelidad de `os.date`/`loadlib` y pulido: 56 suites, 764 tests que pasan, 10 skips y 93.1% de líneas / 85.3% de ramas.
 
 **Prioridad:** P0 desbloquea uso real · P1 calidad/rendimiento · P2 deseable · P3 largo plazo.
 **Esfuerzo:** S < 1 día · M 1–5 días · L > 1 semana.
@@ -129,7 +129,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 
 - [x] **Registro de implementaciones** — `versions.register/get/list/setDefault/features`, `luaL_newstate(version)` y `FENGARICONF.LUA_VERSION`; hooks `openlibs` y `loadbufferx` (`src/versions.js`). Perfiles incluidos: 5.1, 5.2, 5.3 y 5.4 (superficie de librerías).
 - [x] **Perfiles 5.1 y 5.2 de superficie de librerías** — `bit32`, aliases y eliminación de APIs 5.3, `package.loaders`, `getfenv`, `math.*` compatibles (`src/versions/`, `src/lbitlib.js`).
-- **Semántica completa 5.1/5.2** — P2, L. Los perfiles solo cubren librerías. Verificado: 5.1/5.2 siguen aceptando `//`, `&` y `<<`; 5.1 acepta `goto`; `tostring(1.0)` sigue dando `"1.0"`. Hecho: `getfenv`/`setfenv`, `module`, `package.seeall` y `loadstring` en 5.1 sobre el upvalue `_ENV` (las funciones que comparten `_ENV` comparten entorno). Falta lexer/parser y `undump` por versión, modelo numérico double para 5.1/5.2 y APIs menores (`newproxy`, `table.setn`, `os.exit` booleano, `load` con lector en 5.1).
+- **Semántica completa 5.1/5.2** — P2, L. Hecho: lexer/parser por perfil (5.1/5.2 rechazan `//`, `&`, `|`, `~`, `<<`, `>>`; 5.1 trata `goto` como nombre y rechaza etiquetas `::`; 5.2 mantiene `goto`), literales numéricos como float y `tonumber` float en 5.1/5.2, `loadbufferx` respetado, y `getfenv`/`setfenv`/`module`/`package.seeall`/`loadstring` en 5.1. Falta `undump` por versión, eliminar el subtipo entero interno en todas las rutas 5.1/5.2 y APIs menores (`newproxy`, `table.setn`, `os.exit` booleano, `load` con lector en 5.1).
 
 ## 7. Lua 5.4 y futuro
 
@@ -144,7 +144,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 
 ## Límites conocidos actuales
 
-- **Versiones**: el parser/VM es 5.3; los perfiles 5.1/5.2/5.4 ajustan la superficie de librerías (5.4 añade `coroutine.close`, `warn`, `math.random` nuevo y `<const>`/`<close>`), no la sintaxis ni el modelo numérico. 5.4 no incluye enteros de 64 bits por defecto (modo opt-in aparte) y `__close` solo puede hacer yield al desenrollar normalmente, no al propagar un error; `setfenv`/`module` de 5.1 comparten el upvalue `_ENV` y no pueden cambiar funciones sin `_ENV`; 5.2 no expone esas funciones.
+- **Versiones**: el parser/VM base es 5.3; 5.1/5.2 activan reglas de lexer/parser (operadores y `goto`), literales float y superficies de librerías, pero siguen usando el modelo numérico interno con subtipo entero y el `undump` 5.3. 5.4 añade `coroutine.close`, `warn`, `math.random` nuevo y `<const>`/`<close>`. Los enteros de 64 bits son opt-in (`LUA_INT64`); `setfenv`/`module` de 5.1 comparten el upvalue `_ENV`; 5.2 no expone esas funciones.
 - **Enteros**: por defecto son de 32 bits. Con `FENGARICONF.LUA_INT64=true` pasan a `BigInt` de 64 bits con bytecode marcado (format 1) e interop controlada con format 0; están cubiertos núcleo, parser, aritmética/comparaciones, `for`, claves, `math.*`, `string.pack/unpack`, formato, `table`/`os` y dump/undump.
 - **GC**: `count` usa tamaños estimados por tipo; `collect` es atómico y solo `step` es incremental. Los valores retenidos únicamente por JS no cuentan como raíces.
 - **Fidelidad**: locale solo cubre el separador decimal (`ctype`/collation siguen en "C"); `%q` para `inf`/`nan` mantiene el estilo 5.3; los tracebacks no garantizan paridad exacta de marcos C/JS.

@@ -64,6 +64,9 @@ unreleased
   - Add a Lua 5.4 library profile: coroutine.close, warn (with
     lua_setwarnf/lua_warning) and the 5.4 math.random/randomseed API with
     per-state xoshiro seeds
+  - Make the 5.1/5.2 profiles version-aware in the lexer/parser: reject `//`
+    and bitwise operators, treat `goto` as a name in 5.1, reject labels there,
+    and parse numeric literals as floats instead of 5.3 integers
   - Allow __close to yield during normal unwinding and resume the pending
     closes/return correctly
   - Document every remaining PUC-internal skip in test/test-suite/SKIPS.md
