@@ -11,7 +11,7 @@ Estado actual tras referencia de API y guía de migración: 44 suites, 644 tests
 Estado actual tras completar la librería `io`: 45 suites, 672 tests que pasan y 20 skips.
 Estado actual tras el VFS de navegador: 47 suites, 692 tests que pasan y 20 skips.
 Estado actual tras benchmarks, diferencial, fuzzing y API de alto nivel: 52 suites, 736 tests que pasan y 12 skips.
-Estado actual tras rendimiento, fidelidad de `os.date`/`loadlib` y pulido: 54 suites, 751 tests que pasan, 10 skips y 94.3% de líneas / 87.9% de ramas.
+Estado actual tras rendimiento, fidelidad de `os.date`/`loadlib` y pulido: 55 suites, 753 tests que pasan, 10 skips y 94.3% de líneas / 88.0% de ramas.
 
 **Prioridad:** P0 desbloquea uso real · P1 calidad/rendimiento · P2 deseable · P3 largo plazo.
 **Esfuerzo:** S < 1 día · M 1–5 días · L > 1 semana.
@@ -133,7 +133,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 
 ## 7. Lua 5.4 y futuro
 
-- **`<const>` y `<close>`** — P2, L. Variables de solo lectura y to-be-closed, con `__close`; requiere cambios en parser, compilador y VM.
+- [x] **`<const>` y `<close>`** — P2, L. Atributos `local x <const>`/`<close>` en el perfil 5.4: comprobación de asignación a const (incluidos upvalues), `OP_TBC`/lista de cierres por hilo y `__close(valor, err)` en salida de bloque, `break`, `goto`, `return`, tail call, errores y `coroutine.close`. Pendiente: el valor de cierre del generic-for y `__close` que haga yield. Los enteros de 64 bits siguen pendientes.
 - **Enteros de 64 bits con `BigInt`** — P2, L. Opt-in vía `FENGARICONF` para no romper la semántica actual de 32 bits; afecta aritmética, formato, `string.pack` y bytecode.
 - [x] **`coroutine.close`, `warn`, `math.random` nuevo** — P2, M. Perfil `5.4` con `coroutine.close` (suspended/dead/error; `__close` aún no existe), `warn` con `lua_setwarnf`/`lua_warning` y un `math.random`/`randomseed` 5.4 con xoshiro128**, semillas por estado y soporte de 0/1/2 argumentos. El parser/VM siguen siendo 5.3 y el entero es de 32 bits, así que no se replica la secuencia exacta de PUC.
 - **Paridad de `utf8` y `string`** — P3, S. Revisar diferencias 5.3→5.4 y casos límite.
@@ -144,7 +144,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 
 ## Límites conocidos actuales
 
-- **Versiones**: el parser/VM es 5.3; los perfiles 5.1/5.2/5.4 ajustan la superficie de librerías (5.4 añade `coroutine.close`, `warn` y `math.random` nuevo), no la sintaxis ni el modelo numérico. 5.4 no incluye `<const>`, `<close>` ni enteros de 64 bits; `setfenv`/`module` de 5.1 comparten el upvalue `_ENV` y no pueden cambiar funciones sin `_ENV`; 5.2 no expone esas funciones.
+- **Versiones**: el parser/VM es 5.3; los perfiles 5.1/5.2/5.4 ajustan la superficie de librerías (5.4 añade `coroutine.close`, `warn`, `math.random` nuevo y `<const>`/`<close>`), no la sintaxis ni el modelo numérico. 5.4 no incluye el valor de cierre del generic-for, `__close` con yield ni enteros de 64 bits; `setfenv`/`module` de 5.1 comparten el upvalue `_ENV` y no pueden cambiar funciones sin `_ENV`; 5.2 no expone esas funciones.
 - **GC**: `count` usa tamaños estimados por tipo; `collect` es atómico y solo `step` es incremental. Los valores retenidos únicamente por JS no cuentan como raíces.
 - **Fidelidad**: locale solo cubre el separador decimal (`ctype`/collation siguen en "C"); `%q` para `inf`/`nan` mantiene el estilo 5.3; los tracebacks no garantizan paridad exacta de marcos C/JS.
 - **Navegador**: `require`/`package.loadlib` caen a XHR síncrono si el módulo no está montado y la red está permitida; `installAsyncModules` cubre Lua, CommonJS y ESM asíncronos (import maps), pero `package.loadlib` sigue siendo síncrono. El VFS es en memoria salvo `mountOPFS` en workers (rutas anidadas y archivos precreados); la persistencia usa `saveToStorage`/`saveToIndexedDB`/`saveToOPFS`. `vfs.allowNetwork(false)` elimina el XHR.
