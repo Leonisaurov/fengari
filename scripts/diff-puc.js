@@ -60,6 +60,7 @@ if (lua_bin === null) {
 const files = fs.readdirSync(CORPUS)
     .filter((name) => name.endsWith(".lua"))
     .filter((name) => name !== "lua54.lua")  /* needs the 5.4 profile; see lua54-puc.test.js */
+    .filter((name) => name !== "lua51-52.lua")  /* needs the 5.1/5.2 profiles */
     .filter((name) => filter === null || filter.test(name))
     .sort();
 

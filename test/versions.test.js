@@ -7,6 +7,7 @@ const lua = require('../src/lua.js');
 const lauxlib = require('../src/lauxlib.js');
 const lualib = require('../src/lualib.js');
 const versions = require('../src/versions.js');
+const luaconf = require('../src/luaconf.js');
 const {to_luastring} = require("../src/fengaricore.js");
 
 const ROOT = path.resolve(__dirname, '..');
@@ -227,6 +228,27 @@ test('number formatting matches PUC across profiles', () => {
         expect(lua.lua_tojsstring(L, -1)).toBe(zero);
         lua.lua_close(L);
     }
+});
+
+test('lua_number2str matches %.14g rounding', () => {
+    expect(luaconf.lua_number2str(2 ** -1074)).toBe("4.9406564584125e-324");
+    expect(luaconf.lua_number2str(2 ** -1022)).toBe("2.2250738585072e-308");
+    expect(luaconf.lua_number2str(1.25)).toBe("1.25");
+    expect(luaconf.lua_number2str(1000)).toBe("1000");
+    expect(luaconf.lua_number2str(2 / 7)).toBe("0.28571428571429");
+    expect(luaconf.lua_number2str(12000000000000.5))
+        .toBe("12000000000000");
+    expect(luaconf.lua_number2str(999999999999999)).toBe("1e+15");
+    expect(luaconf.lua_number2str(123456789012345))
+        .toBe("1.2345678901234e+14");
+    expect(luaconf.lua_number2str(123456789012355))
+        .toBe("1.2345678901236e+14");
+    expect(luaconf.lua_number2str(-123456789012345))
+        .toBe("-1.2345678901234e+14");
+    expect(luaconf.lua_number2str(Infinity)).toBe("inf");
+    expect(luaconf.lua_number2str(-Infinity)).toBe("-inf");
+    expect(luaconf.lua_number2str(NaN)).toBe("-nan");
+    expect(luaconf.lua_number2str(-0)).toBe("-0");
 });
 
 test('5.1/5.2 string.format follows PUC quoting', () => {

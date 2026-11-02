@@ -76,6 +76,9 @@ unreleased
     in 5.1; unpack, loadstring, module, package.seeall, table.maxn and
     package.loaders in 5.2; plus %.14g formatting for inf/nan/-0 and the
     5.1/5.2 %q/%a behavior
+  - Match PUC's %.14g rounding exactly (round-half-even ties, subnormals,
+    inf/nan/-0) and add a 5.1/5.2 differential corpus checked against the
+    real PUC Lua 5.1 and 5.2 interpreters
   - Add the remaining 5.1/5.2 APIs: newproxy, table.setn, loadstring and
     function-only load in 5.1, plus boolean os.exit from 5.2 onward
   - Load native PUC Lua 5.1/5.2 binary chunks by translating them to the

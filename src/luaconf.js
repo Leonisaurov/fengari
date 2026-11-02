@@ -161,24 +161,108 @@ const lua_integer2str = function(n) {
     return String(n); /* should match behaviour of LUA_INTEGER_FMT */
 };
 
+const FLOAT_VIEW = new DataView(new ArrayBuffer(8));
+const POW5 = [1n];
+const pow5 = function(k) {
+    while (POW5.length <= k)
+        POW5.push(POW5[POW5.length - 1] * 5n);
+    return POW5[k];
+};
+
+/* Exact decimal digits and exponent for a finite non-zero Number. */
+const exact_decimal = function(n) {
+    FLOAT_VIEW.setFloat64(0, n, false);
+    let hi = FLOAT_VIEW.getUint32(0, false);
+    let lo = FLOAT_VIEW.getUint32(4, false);
+    let neg = (hi >>> 31) === 1;
+    let expBits = (hi >>> 20) & 0x7ff;
+    let mant = (BigInt(hi & 0xfffff) << 32n) | BigInt(lo);
+    let exp2;
+    if (expBits === 0)
+        exp2 = -1074;  /* subnormal */
+    else {
+        mant |= (1n << 52n);
+        exp2 = expBits - 1075;
+    }
+    if (exp2 >= 0)
+        return { neg, digits: (mant << BigInt(exp2)).toString(), exp10: 0 };
+    let k = -exp2;
+    /* mant / 2^k == (mant * 5^k) / 10^k */
+    return { neg, digits: (mant * pow5(k)).toString(), exp10: -k };
+};
+
 const lua_number2str = function(n) {
     /* Should match the behaviour of LUA_NUMBER_FMT ("%.14g"). */
-    if (Number.isNaN(n)) return "nan";
+    if (Number.isNaN(n)) return "-nan";  /* PUC's x86 arithmetic NaN */
     if (n === Infinity) return "inf";
     if (n === -Infinity) return "-inf";
     if (n === 0) return Object.is(n, -0) ? "-0" : "0";
-    let parts = n.toExponential(13).split("e");
-    let mant = parts[0];
-    let exp = parseInt(parts[1], 10);
+    /* Fast path: integers with at most 14 significant digits. */
+    if (Number.isInteger(n) && Math.abs(n) < 1e14)
+        return String(n);
+
+    let { neg, digits, exp10 } = exact_decimal(n);
+    let L = digits.length;
+    let exp = exp10 + L - 1;  /* exponent of the first digit */
+    let kept;
+    if (L > 14) {
+        kept = digits.slice(0, 14);
+        let rest = digits.slice(14);
+        let first = rest.charCodeAt(0) - 48;
+        let up;
+        if (first > 5)
+            up = true;
+        else if (first < 5)
+            up = false;
+        else {
+            up = false;
+            for (let i = 1; i < rest.length; i++) {
+                if (rest.charCodeAt(i) !== 48) {
+                    up = true;
+                    break;
+                }
+            }
+            /* exact tie: round half to even */
+            if (!up && ((kept.charCodeAt(13) - 48) & 1) === 1)
+                up = true;
+        }
+        if (up) {
+            let arr = kept.split("");
+            let i = 13;
+            while (i >= 0 && arr[i] === "9") {
+                arr[i] = "0";
+                i--;
+            }
+            if (i < 0) {
+                kept = "1";
+                exp += 1;
+            } else {
+                arr[i] = String.fromCharCode(arr[i].charCodeAt(0) + 1);
+                kept = arr.join("");
+            }
+        }
+    } else
+        kept = digits;
+    kept = kept.replace(/0+$/, "");
+    if (kept.length === 0)
+        kept = "0";
+
+    let s;
     if (exp < -4 || exp >= 14) {  /* scientific notation */
-        let m = mant.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
-        let sign = exp < 0 ? "-" : "+";
-        return m + "e" + sign + String(Math.abs(exp)).padStart(2, "0");
-    }
-    let fixed = n.toFixed(Math.max(0, 13 - exp));
-    if (fixed.indexOf(".") >= 0)
-        fixed = fixed.replace(/0+$/, "").replace(/\.$/, "");
-    return fixed;
+        s = kept[0];
+        if (kept.length > 1)
+            s += "." + kept.slice(1);
+        s += "e" + (exp < 0 ? "-" : "+") +
+            String(Math.abs(exp)).padStart(2, "0");
+    } else if (exp >= 0) {
+        if (kept.length <= exp + 1)
+            s = kept + "0".repeat(exp + 1 - kept.length);
+        else
+            s = kept.slice(0, exp + 1) + "." + kept.slice(exp + 1);
+    } else
+        s = "0." + "0".repeat(-exp - 1) + kept;
+
+    return (neg ? "-" : "") + s;
 };
 
 const lua_numbertointeger = function(n) {

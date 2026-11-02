@@ -58,3 +58,9 @@ A test can move out of this list when the corresponding capability is
 implemented (for example a PUC-like table representation, GC colors or a
 byte-accounted allocator). Until then, a skipped test here is a documented
 representation difference, not untested Lua behaviour.
+
+## Review after the 5.1/5.2 work
+
+The 5.1/5.2 library-surface and `%.14g` work did not make any of these tests
+runnable: they still depend on PUC's array/hash table split, GC colors,
+C-stack accounting or a settable allocator. The bounded skip count remains 10.
