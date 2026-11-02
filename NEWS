@@ -52,7 +52,8 @@ unreleased
   - api.toJS reserves Lua stack space while walking nested tables, so deep
     tables either convert or fail with the documented depth error, and restores
     the stack if conversion throws
-  - Cover every os.date conversion and the package searcher/loadlib error paths
+  - Cover every os.date conversion, utf8 invalid sequences/positions and the
+    package searcher/loadlib error paths
   - Re-enable official tests for table/userdata libraries and package refs
 
 
