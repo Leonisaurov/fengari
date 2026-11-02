@@ -298,7 +298,7 @@ const luaV_execute = function(L) {
                 let numberop1, numberop2;
 
                 if (op1.ttisinteger() && op2.ttisinteger()) {
-                    L.stack[ra].setivalue(lobject.intarith(L, LUA_OPADD, op1.value, op2.value));
+                    lobject.luaO_setint(L, L.stack[ra], lobject.intarith(L, LUA_OPADD, op1.value, op2.value));
                 } else if ((numberop1 = tonumber(op1)) !== false && (numberop2 = tonumber(op2)) !== false) {
                     L.stack[ra].setfltvalue(numberop1 + numberop2);
                 } else {
@@ -312,7 +312,7 @@ const luaV_execute = function(L) {
                 let numberop1, numberop2;
 
                 if (op1.ttisinteger() && op2.ttisinteger()) {
-                    L.stack[ra].setivalue(lobject.intarith(L, LUA_OPSUB, op1.value, op2.value));
+                    lobject.luaO_setint(L, L.stack[ra], lobject.intarith(L, LUA_OPSUB, op1.value, op2.value));
                 } else if ((numberop1 = tonumber(op1)) !== false && (numberop2 = tonumber(op2)) !== false) {
                     L.stack[ra].setfltvalue(numberop1 - numberop2);
                 } else {
@@ -326,7 +326,7 @@ const luaV_execute = function(L) {
                 let numberop1, numberop2;
 
                 if (op1.ttisinteger() && op2.ttisinteger()) {
-                    L.stack[ra].setivalue(luaV_imul(op1.value, op2.value));
+                    lobject.luaO_setint(L, L.stack[ra], luaV_imul(op1.value, op2.value));
                 } else if ((numberop1 = tonumber(op1)) !== false && (numberop2 = tonumber(op2)) !== false) {
                     L.stack[ra].setfltvalue(numberop1 * numberop2);
                 } else {
@@ -340,7 +340,7 @@ const luaV_execute = function(L) {
                 let numberop1, numberop2;
 
                 if (op1.ttisinteger() && op2.ttisinteger()) {
-                    L.stack[ra].setivalue(luaV_mod(L, op1.value, op2.value));
+                    lobject.luaO_setint(L, L.stack[ra], luaV_mod(L, op1.value, op2.value));
                 } else if ((numberop1 = tonumber(op1)) !== false && (numberop2 = tonumber(op2)) !== false) {
                     L.stack[ra].setfltvalue(luai_nummod(L, numberop1, numberop2));
                 } else {
@@ -378,7 +378,7 @@ const luaV_execute = function(L) {
                 let numberop1, numberop2;
 
                 if (op1.ttisinteger() && op2.ttisinteger()) {
-                    L.stack[ra].setivalue(luaV_div(L, op1.value, op2.value));
+                    lobject.luaO_setint(L, L.stack[ra], luaV_div(L, op1.value, op2.value));
                 } else if ((numberop1 = tonumber(op1)) !== false && (numberop2 = tonumber(op2)) !== false) {
                     L.stack[ra].setfltvalue(Math.floor(numberop1 / numberop2));
                 } else {
@@ -392,7 +392,7 @@ const luaV_execute = function(L) {
                 let numberop1, numberop2;
 
                 if ((numberop1 = tointeger(op1)) !== false && (numberop2 = tointeger(op2)) !== false) {
-                    L.stack[ra].setivalue(numberop1 & numberop2);
+                    lobject.luaO_setint(L, L.stack[ra], numberop1 & numberop2);
                 } else {
                     ltm.luaT_trybinTM(L, op1, op2, L.stack[ra], ltm.TMS.TM_BAND);
                 }
@@ -404,7 +404,7 @@ const luaV_execute = function(L) {
                 let numberop1, numberop2;
 
                 if ((numberop1 = tointeger(op1)) !== false && (numberop2 = tointeger(op2)) !== false) {
-                    L.stack[ra].setivalue(numberop1 | numberop2);
+                    lobject.luaO_setint(L, L.stack[ra], numberop1 | numberop2);
                 } else {
                     ltm.luaT_trybinTM(L, op1, op2, L.stack[ra], ltm.TMS.TM_BOR);
                 }
@@ -416,7 +416,7 @@ const luaV_execute = function(L) {
                 let numberop1, numberop2;
 
                 if ((numberop1 = tointeger(op1)) !== false && (numberop2 = tointeger(op2)) !== false) {
-                    L.stack[ra].setivalue(numberop1 ^ numberop2);
+                    lobject.luaO_setint(L, L.stack[ra], numberop1 ^ numberop2);
                 } else {
                     ltm.luaT_trybinTM(L, op1, op2, L.stack[ra], ltm.TMS.TM_BXOR);
                 }
@@ -428,7 +428,7 @@ const luaV_execute = function(L) {
                 let numberop1, numberop2;
 
                 if ((numberop1 = tointeger(op1)) !== false && (numberop2 = tointeger(op2)) !== false) {
-                    L.stack[ra].setivalue(luaV_shiftl(numberop1, numberop2));
+                    lobject.luaO_setint(L, L.stack[ra], luaV_shiftl(numberop1, numberop2));
                 } else {
                     ltm.luaT_trybinTM(L, op1, op2, L.stack[ra], ltm.TMS.TM_SHL);
                 }
@@ -440,7 +440,7 @@ const luaV_execute = function(L) {
                 let numberop1, numberop2;
 
                 if ((numberop1 = tointeger(op1)) !== false && (numberop2 = tointeger(op2)) !== false) {
-                    L.stack[ra].setivalue(luaV_shiftl(numberop1, -numberop2));
+                    lobject.luaO_setint(L, L.stack[ra], luaV_shiftl(numberop1, -numberop2));
                 } else {
                     ltm.luaT_trybinTM(L, op1, op2, L.stack[ra], ltm.TMS.TM_SHR);
                 }
@@ -451,7 +451,7 @@ const luaV_execute = function(L) {
                 let numberop;
 
                 if (op.ttisinteger()) {
-                    L.stack[ra].setivalue(lobject.intarith(L, LUA_OPUNM, op.value, 0));
+                    lobject.luaO_setint(L, L.stack[ra], lobject.intarith(L, LUA_OPUNM, op.value, 0));
                 } else if ((numberop = tonumber(op)) !== false) {
                     L.stack[ra].setfltvalue(-numberop);
                 } else {
@@ -463,7 +463,7 @@ const luaV_execute = function(L) {
                 let op = L.stack[RB(L, base, i)];
 
                 if (op.ttisinteger()) {
-                    L.stack[ra].setivalue(~op.value);
+                    lobject.luaO_setint(L, L.stack[ra], ~op.value);
                 } else {
                     ltm.luaT_trybinTM(L, op, op, L.stack[ra], ltm.TMS.TM_BNOT);
                 }
@@ -624,7 +624,7 @@ const luaV_execute = function(L) {
                     if (keep) {
                         ci.l_savedpc += i.sBx;
                         L.stack[ra].chgivalue(idx);  /* update internal index... */
-                        L.stack[ra + 3].setivalue(idx);
+                        lobject.luaO_setint(L, L.stack[ra + 3], idx);
                     }
                 } else { /* floating loop */
                     let step = L.stack[ra + 2].value;
@@ -991,12 +991,12 @@ const luaV_objlen = function(L, ra, rb) {
             let h = rb.value;
             tm = ltm.fasttm(L, h.metatable, ltm.TMS.TM_LEN);
             if (tm !== null) break; /* metamethod? break switch to call it */
-            ra.setivalue(ltable.luaH_getn(h)); /* else primitive len */
+            lobject.luaO_setint(L, ra, ltable.luaH_getn(h)); /* else primitive len */
             return;
         }
         case LUA_TSHRSTR:
         case LUA_TLNGSTR:
-            ra.setivalue(rb.vslen());
+            lobject.luaO_setint(L, ra, rb.vslen());
             return;
         default: {
             tm = ltm.luaT_gettmbyobj(L, rb, ltm.TMS.TM_LEN);

@@ -143,6 +143,25 @@ test('5.1 profile adds compatibility globals and uses package.loaders', () => {
     expect(lua.lua_toboolean(L, -1)).toBe(true);
 });
 
+test('5.1/5.2 values never use the integer subtype', () => {
+    for (const version of ["5.1", "5.2"]) {
+        let L = open(version);
+        run(L, `
+            local t = {}
+            for i = 1, 3 do t[i] = i end
+            for k in pairs(t) do assert(type(k) == "number") end
+            return 1, 1 + 2, #"abc", tonumber("4"),
+                   string.byte("A"), math.floor(3.7), math.abs(-2),
+                   2^2, (function() return 5 end)()
+        `);
+        for (let i = 1; i <= lua.lua_gettop(L); i++) {
+            expect(lua.lua_type(L, i)).toBe(lua.LUA_TNUMBER);
+            expect(lua.lua_isinteger(L, i)).toBe(false);
+        }
+        lua.lua_close(L);
+    }
+});
+
 test('5.2 profile rejects 5.3 operators and keeps goto', () => {
     let L = open("5.2");
     run(L, `

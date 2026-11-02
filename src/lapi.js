@@ -31,7 +31,6 @@ const {
         LUA_TNIL,
         LUA_TNONE,
         LUA_TNUMFLT,
-        LUA_TNUMINT,
         LUA_TSHRSTR,
         LUA_TTABLE,
         LUA_TTHREAD,
@@ -306,7 +305,9 @@ const lua_pushinteger = function(L, n) {
             (typeof n === "number" && Number.isInteger(n)));
     else
         fengari_argcheckinteger(n);
-    L.stack[L.top] = new TValue(LUA_TNUMINT, n);
+    let tv = new TValue();
+    lobject.luaO_setint(L, tv, n);
+    L.stack[L.top] = tv;
     api_incr_top(L);
 };
 
@@ -483,7 +484,9 @@ const lua_seti = function(L, idx, n) {
     fengari_argcheckinteger(n);
     api_checknelems(L, 1);
     let t = index2addr(L, idx);
-    L.stack[L.top] = new TValue(LUA_TNUMINT, n);
+    let tv = new TValue();
+    lobject.luaO_setint(L, tv, n);
+    L.stack[L.top] = tv;
     api_incr_top(L);
     lvm.settable(L, t, L.stack[L.top - 1], L.stack[L.top - 2]);
     /* pop value and key */
@@ -685,7 +688,9 @@ const lua_getfield = function(L, idx, k) {
 const lua_geti = function(L, idx, n) {
     let t = index2addr(L, idx);
     fengari_argcheckinteger(n);
-    L.stack[L.top] = new TValue(LUA_TNUMINT, n);
+    let tv = new TValue();
+    lobject.luaO_setint(L, tv, n);
+    L.stack[L.top] = tv;
     api_incr_top(L);
     lvm.luaV_gettable(L, t, L.stack[L.top - 1], L.top - 1);
     return L.stack[L.top - 1].ttnov();
@@ -858,7 +863,9 @@ const lua_compare = function(L, index1, index2, op) {
 
 const lua_stringtonumber = function(L, s) {
     let tv = new TValue();
-    let sz = lobject.luaO_str2num(s, tv);
+    let integers = !(L.l_G.impl && L.l_G.impl.features &&
+        L.l_G.impl.features.integers === false);
+    let sz = lobject.luaO_str2num(s, tv, integers);
     if (sz !== 0) {
         L.stack[L.top] = tv;
         api_incr_top(L);

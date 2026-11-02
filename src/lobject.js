@@ -294,7 +294,17 @@ const setsvalue2s = function(L, newidx, ts) {
 
 const luaO_nilobject = new TValue(LUA_TNIL, null);
 Object.freeze(luaO_nilobject);
+
+/* set an integer value, unless the active profile only has doubles */
+const luaO_setint = function(L, tv, n) {
+    let features = L && L.l_G && L.l_G.impl && L.l_G.impl.features;
+    if (features && features.integers === false)
+        tv.setfltvalue(Number(n));
+    else
+        tv.setivalue(n);
+};
 module.exports.luaO_nilobject = luaO_nilobject;
+module.exports.luaO_setint = luaO_setint;
 
 class LClosure {
 
@@ -603,10 +613,13 @@ const l_str2int = function(s) {
     }
 };
 
-const luaO_str2num = function(s, o) {
+const luaO_str2num = function(s, o, integers) {
     let s2i = l_str2int(s);
     if (s2i !== null) {   /* try as an integer */
-        o.setivalue(s2i.n);
+        if (integers === false)
+            o.setfltvalue(Number(s2i.n));
+        else
+            o.setivalue(s2i.n);
         return s2i.i+1;
     } else {   /* else try as a float */
         s2i = l_str2d(s);
@@ -671,7 +684,7 @@ const luaO_pushvfstring = function(L, fmt, argp) {
             case 100 /* ('d').charCodeAt(0) */:
             case 73 /* ('I').charCodeAt(0) */:
                 ldo.luaD_inctop(L);
-                L.stack[L.top-1].setivalue(argp[a++]);
+                luaO_setint(L, L.stack[L.top-1], argp[a++]);
                 luaO_tostring(L, L.stack[L.top-1]);
                 break;
             case 102 /* ('f').charCodeAt(0) */:
@@ -827,7 +840,7 @@ const luaO_arith = function(L, op, p1, p2, p3) {
         case LUA_OPBNOT: {  /* operate only on integers */
             let i1, i2;
             if ((i1 = lvm.tointeger(p1)) !== false && (i2 = lvm.tointeger(p2)) !== false) {
-                res.setivalue(intarith(L, op, i1, i2));
+                luaO_setint(L, res, intarith(L, op, i1, i2));
                 return;
             }
             else break;  /* go to the end */
@@ -843,7 +856,7 @@ const luaO_arith = function(L, op, p1, p2, p3) {
         default: {  /* other operations */
             let n1, n2;
             if (p1.ttisinteger() && p2.ttisinteger()) {
-                res.setivalue(intarith(L, op, p1.value, p2.value));
+                luaO_setint(L, res, intarith(L, op, p1.value, p2.value));
                 return;
             }
             else if ((n1 = lvm.tonumber(p1)) !== false && (n2 = lvm.tonumber(p2)) !== false) {

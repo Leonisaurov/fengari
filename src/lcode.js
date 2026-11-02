@@ -491,7 +491,8 @@ const luaK_stringK = function(fs, s) {
 */
 const luaK_intK = function(fs, n) {
     let k = new TValue(LUA_TLIGHTUSERDATA, n);
-    let o = new TValue(LUA_TNUMINT, n);
+    let o = new TValue();
+    lobject.luaO_setint(fs.ls.L, o, n);
     return addk(fs, k, o);
 };
 

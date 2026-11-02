@@ -302,7 +302,7 @@ const read_numeral = function(ls, seminfo) {
     // save(ls, 0);
 
     let obj = new lobject.TValue();
-    if (lobject.luaO_str2num(luaZ_buffer(ls.buff), obj) === 0)  /* format error? */
+    if (lobject.luaO_str2num(luaZ_buffer(ls.buff), obj, feature(ls, "integers")) === 0)  /* format error? */
         lexerror(ls, to_luastring("malformed number", true), TK_FLT);
     if (obj.ttisinteger()) {
         if (!feature(ls, "integers")) {  /* 5.1/5.2 have only doubles */
