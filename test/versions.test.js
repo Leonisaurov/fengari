@@ -81,8 +81,9 @@ test('5.1 profile adds compatibility globals and uses package.loaders', () => {
         assert(type(unpack) == "function")
         assert(type(loadstring) == "function")
         assert(type(getfenv) == "function")
-        assert(type(setfenv) == "nil")   -- requires per-function environments
-        assert(type(module) == "nil")
+        assert(type(setfenv) == "function")
+        assert(type(module) == "function")
+        assert(type(package.seeall) == "function")
         assert(type(table.maxn) == "function")
         assert(type(table.getn) == "function")
         assert(type(string.gfind) == "function")
@@ -96,8 +97,33 @@ test('5.1 profile adds compatibility globals and uses package.loaders', () => {
         assert(table.getn({1, 2, 3}) == 3)
         assert(loadstring("return 7")() == 7)
 
-        local f = function() return 1 end
+        local f = function() return math.pi end
         assert(getfenv(f) == _G)
+
+        -- setfenv changes the function's _ENV upvalue (5.1 exposes _ENV)
+        local chunk = load("return answer")
+        local env = { answer = 42 }
+        assert(setfenv(chunk, env) == chunk)
+        assert(getfenv(chunk) == env)
+        assert(chunk() == 42)
+        assert(setfenv(f, _G) == f)
+
+        -- module() names the caller's environment and fills package.loaded
+        package.preload.vermod2 = function()
+            module("vermod2", package.seeall)
+            value = 10
+            function getvalue() return value end
+        end
+        local mod = require("vermod2")
+        assert(mod == package.loaded.vermod2)
+        assert(_G.vermod2 == mod)
+        assert(mod.value == 10 and mod.getvalue() == 10)
+        assert(mod._M == mod and mod._NAME == "vermod2" and mod._PACKAGE == "")
+
+        local seen = setmetatable({}, { __name = "keep" })
+        package.seeall(seen)
+        assert(getmetatable(seen).__name == "keep")
+        assert(getmetatable(seen).__index == _G)
 
         package.preload.vermod = function() return {ok = true} end
         assert(require("vermod").ok == true)

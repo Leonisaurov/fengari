@@ -9,6 +9,8 @@ const {
 } = require('./helpers.js');
 
 const compat_code = `
+local gmatch = string.gmatch
+
 local function findenv(f)
     if type(f) == "number" then
         local info = debug.getinfo(f + 1, "f")
@@ -27,6 +29,88 @@ end
 function getfenv(f)
     if f == nil then f = 1 end
     return findenv(f) or _G
+end
+
+function setfenv(f, env)
+    if type(env) ~= "table" then
+        error("bad argument #2 to 'setfenv' (table expected)", 2)
+    end
+    if type(f) == "number" then
+        if f == 0 then
+            error("setfenv cannot change environment of given object", 2)
+        end
+        local info = debug.getinfo(f + 1, "f")
+        if not info then error("invalid level", 2) end
+        f = info.func
+    end
+    if type(f) ~= "function" then
+        error("bad argument #1 to 'setfenv' (function expected)", 2)
+    end
+    local i = 1
+    while true do
+        local name = debug.getupvalue(f, i)
+        if not name then break end
+        if name == "_ENV" then
+            debug.setupvalue(f, i, env)
+            return f
+        end
+        i = i + 1
+    end
+    error("setfenv cannot change environment of given object", 2)
+end
+
+local function findtable(name)
+    local t = _G
+    for part in gmatch(name, "[^.]+") do
+        local v = t[part]
+        if v == nil then
+            v = {}
+            t[part] = v
+        elseif type(v) ~= "table" then
+            return nil
+        end
+        t = v
+    end
+    return t
+end
+
+function package.seeall(mod)
+    local mt = getmetatable(mod)
+    if type(mt) ~= "table" then
+        mt = {}
+        setmetatable(mod, mt)
+    end
+    mt.__index = _G
+end
+
+function module(name, ...)
+    if type(name) ~= "string" then
+        error("bad argument #1 to 'module' (string expected)", 2)
+    end
+    local mod = package.loaded[name]
+    if type(mod) ~= "table" then
+        mod = findtable(name)
+        if not mod then
+            error("name conflict for module '" .. name .. "'", 2)
+        end
+        package.loaded[name] = mod
+    end
+    if mod._NAME == nil then
+        mod._M = mod
+        mod._NAME = name
+        mod._PACKAGE = string.match(name, "^(.*%.)") or ""
+    end
+    setfenv(2, mod)
+    for i = 1, select("#", ...) do
+        local opt = select(i, ...)
+        if opt == "seeall" then
+            package.seeall(mod)
+        elseif type(opt) == "function" then
+            opt(mod)
+        else
+            error("bad argument #" .. (i + 1) .. " to 'module'", 2)
+        end
+    end
 end
 
 function loadstring(s, name)
