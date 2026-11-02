@@ -4,7 +4,7 @@ The adapted PUC suite keeps a small number of tests skipped when they assert
 implementation details that do not exist in Fengari. This file records each
 one so a future change can tell a real gap from an intentional difference.
 
-Current bounded skips (10): nine in `api.test.js` and one in `nextvar.test.js`.
+Current bounded skips (9): eight in `api.test.js` and one in `nextvar.test.js`.
 Platform-conditional skips (`process.platform === "win32"`) and the
 `lua_bin === null` differential guards are not part of this list.
 
@@ -21,13 +21,6 @@ Asserts PUC C-stack limits (`LUAI_MAXCCALLS`), `checkstack 1000023` failures and
 a one-million-instruction harness. The JavaScript engine stack is not the C
 stack. The harness part could be reduced, but the test's purpose is the C stack,
 so it stays skipped.
-
-## `api: testing get/setuservalue`
-
-Uses `T.gcstate` and `T.gccolor` to inspect PUC's internal GC colors
-(white/gray/black). Fengari delegates to the JavaScript GC and does not expose
-those states. The userdata/uservalue behavior itself is covered by the active
-`api: testing get/setuservalue` test above it.
 
 ## `api: udata collection frees memory in the right time`
 
@@ -55,12 +48,22 @@ instead, covered by `test/api.test.js`.
 ## Revisiting
 
 A test can move out of this list when the corresponding capability is
-implemented (for example a PUC-like table representation, GC colors or a
-byte-accounted allocator). Until then, a skipped test here is a documented
-representation difference, not untested Lua behaviour.
+implemented (for example a PUC-like table representation or a byte-accounted
+allocator). Until then, a skipped test here is a documented representation
+difference, not untested Lua behaviour.
+
+## Recently enabled
+
+`api: testing get/setuservalue` now runs. `T.gcstate`/`T.gccolor` are
+compatibility shims: `"pause"` forces a full collection and reachable
+collectable objects report `"black"` because Fengari delegates collection to
+the JS GC. The test still checks that a userdata uservalue survives a full
+collection.
 
 ## Review after the 5.1/5.2 work
 
-The 5.1/5.2 library-surface and `%.14g` work did not make any of these tests
-runnable: they still depend on PUC's array/hash table split, GC colors,
-C-stack accounting or a settable allocator. The bounded skip count remains 10.
+The 5.1/5.2 library-surface and `%.14g` work did not make any of the remaining
+tests runnable. One test (`api: testing get/setuservalue`) was enabled
+separately with `T.gcstate`/`T.gccolor` shims. The remaining nine still depend
+on PUC's array/hash table split, C-stack accounting, two-phase userdata
+finalization or a settable allocator.

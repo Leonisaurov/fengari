@@ -914,12 +914,15 @@ test("[test-suite] api: testing get/setuservalue", () => {
 });
 
 
-// Skipped: needs T.gcstate/T.gccolor, i.e. PUC's internal GC colors.
-test.skip("[test-suite] api: testing get/setuservalue", () => {
+// Uses T.gcstate/T.gccolor compatibility shims: Fengari delegates collection
+// to the JS GC, so reachable objects report "black"; the test still exercises
+// uservalue survival across a full collection.
+test("[test-suite] api: testing get/setuservalue", () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
 
     let luaCode = `
+        local b = T.newuserdata(0)
         T.gcstate("atomic")
         assert(T.gccolor(b) == "black")
         debug.setuservalue(b, {x = 100})

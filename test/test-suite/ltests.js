@@ -921,11 +921,32 @@ const listk = function(L) {
     return 1;
 };
 
+const gcstate = function(L) {
+    let s = to_jsstring(lauxlib.luaL_checkstring(L, 1));
+    if (s === "pause")
+        lua.lua_gc(L, lua.LUA_GCCOLLECT, 0);
+    return 0;
+};
+
+const gccolor = function(L) {
+    let t = lua.lua_type(L, 1);
+    if (t !== lua.LUA_TSTRING && t !== lua.LUA_TTABLE &&
+        t !== lua.LUA_TFUNCTION && t !== lua.LUA_TUSERDATA &&
+        t !== lua.LUA_TTHREAD)
+        return lauxlib.luaL_argerror(L, 1,
+            to_luastring("collectable object expected"));
+    /* Fengari delegates collection to the JS GC; reachable objects are live. */
+    lua.lua_pushliteral(L, "black");
+    return 1;
+};
+
 const tests_funcs = {
     "checkpanic":   checkpanic,
     "closestate":   closestate,
     "d2s":          d2s,
     "doremote":     doremote,
+    "gccolor":      gccolor,
+    "gcstate":      gcstate,
     "listcode":     listcode,
     "listk":        listk,
     "loadlib":      loadlib,
