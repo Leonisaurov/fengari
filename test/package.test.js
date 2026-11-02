@@ -1,0 +1,41 @@
+"use strict";
+
+const fs   = require("fs");
+const path = require("path");
+
+const root = path.join(__dirname, "..");
+const pkg  = require("../package.json");
+
+test("package entry points exist and are exported", () => {
+    expect(pkg.type).toBe("commonjs");
+    expect(pkg.main).toBe("src/fengari.js");
+    expect(pkg.module).toBe("src/fengari.mjs");
+    expect(pkg.types).toBe("types/fengari.d.ts");
+
+    for (const file of [pkg.main, pkg.module, pkg.types])
+        expect(fs.existsSync(path.join(root, file))).toBe(true);
+
+    expect(pkg.exports["."].require).toBe("./src/fengari.js");
+    expect(pkg.exports["."].import).toBe("./src/fengari.mjs");
+    expect(pkg.exports["."].types).toBe("./types/fengari.d.ts");
+    expect(pkg.exports["./versions"]).toBe("./src/versions.js");
+    expect(pkg.exports["./src/*"]).toBe("./src/*");
+    expect(pkg.exports["./package.json"]).toBe("./package.json");
+});
+
+test("published files include the runtime and exclude tests", () => {
+    for (const entry of ["src/", "types/", "dist/", "docs/", "bench/",
+        "README.md", "LICENSE", "NEWS"])
+        expect(pkg.files).toContain(entry);
+
+    expect(pkg.files.some((entry) => entry.startsWith("test"))).toBe(false);
+    expect(pkg.files.some((entry) => entry.startsWith("coverage"))).toBe(false);
+    expect(pkg.engines.node).toMatch(/^>=/);
+});
+
+test("runtime dependencies are declared", () => {
+    for (const name of ["readline-sync", "sprintf-js", "tmp"])
+        expect(pkg.dependencies).toHaveProperty(name);
+    for (const name of ["eslint", "globals", "jest"])
+        expect(pkg.devDependencies).toHaveProperty(name);
+});
