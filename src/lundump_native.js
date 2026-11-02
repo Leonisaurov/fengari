@@ -236,6 +236,16 @@ const remap51 = function(f, raws, protos, envIndex) {
             continue;
         }
 
+        if (name === "SETLIST" && ins.C === 0) {
+            /* 5.1 stores the large block number as a bare word, 5.3 wants
+               an EXTRAARG instruction carrying it in Ax. */
+            emit(lopcodes.CREATE_ABC(OP("SETLIST"), ins.A, ins.B, 0), pc);
+            map[pc + 1] = out.length;
+            emit(lopcodes.CREATE_Ax(OP("EXTRAARG"), raws[pc + 1]), pc + 1);
+            pc += 2;
+            continue;
+        }
+
         if (name === "GETGLOBAL") {
             emit(lopcodes.CREATE_ABC(OP("GETTABUP"), ins.A, envIndex,
                 lopcodes.RKASK(ins.Bx)), pc);
