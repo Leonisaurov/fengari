@@ -1113,17 +1113,22 @@ const simpleexp = function(ls, v) {
     llex.luaX_next(ls);
 };
 
-const getunopr = function(op) {
+const getunopr = function(ls, op) {
     switch (op) {
         case R.TK_NOT: return OPR_NOT;
         case 45 /* ('-').charCodeAt(0) */: return OPR_MINUS;
-        case 126 /* ('~').charCodeAt(0) */: return OPR_BNOT;
+        case 126 /* ('~').charCodeAt(0) */: {
+            let f = ls.L.l_G.impl && ls.L.l_G.impl.features;
+            return f && f.bitwise ? OPR_BNOT : OPR_NOUNOPR;
+        }
         case 35 /* ('#').charCodeAt(0) */: return OPR_LEN;
         default: return OPR_NOUNOPR;
     }
 };
 
-const getbinopr = function(op) {
+const getbinopr = function(ls, op) {
+    let f = ls.L.l_G.impl && ls.L.l_G.impl.features;
+    let bitwise = !!(f && f.bitwise);
     switch (op) {
         case 43 /* ('+').charCodeAt(0) */: return OPR_ADD;
         case 45 /* ('-').charCodeAt(0) */: return OPR_SUB;
@@ -1131,12 +1136,12 @@ const getbinopr = function(op) {
         case 37 /* ('%').charCodeAt(0) */: return OPR_MOD;
         case 94 /* ('^').charCodeAt(0) */: return OPR_POW;
         case 47 /* ('/').charCodeAt(0) */: return OPR_DIV;
-        case R.TK_IDIV:   return OPR_IDIV;
-        case 38 /* ('&').charCodeAt(0) */: return OPR_BAND;
-        case 124 /* ('|').charCodeAt(0) */: return OPR_BOR;
-        case 126 /* ('~').charCodeAt(0) */: return OPR_BXOR;
-        case R.TK_SHL:    return OPR_SHL;
-        case R.TK_SHR:    return OPR_SHR;
+        case R.TK_IDIV:   return bitwise ? OPR_IDIV : OPR_NOBINOPR;
+        case 38 /* ('&').charCodeAt(0) */: return bitwise ? OPR_BAND : OPR_NOBINOPR;
+        case 124 /* ('|').charCodeAt(0) */: return bitwise ? OPR_BOR : OPR_NOBINOPR;
+        case 126 /* ('~').charCodeAt(0) */: return bitwise ? OPR_BXOR : OPR_NOBINOPR;
+        case R.TK_SHL:    return bitwise ? OPR_SHL : OPR_NOBINOPR;
+        case R.TK_SHR:    return bitwise ? OPR_SHR : OPR_NOBINOPR;
         case R.TK_CONCAT: return OPR_CONCAT;
         case R.TK_NE:     return OPR_NE;
         case R.TK_EQ:     return OPR_EQ;
@@ -1171,7 +1176,7 @@ const UNARY_PRIORITY = 12;
 */
 const subexpr = function(ls, v, limit) {
     enterlevel(ls);
-    let uop = getunopr(ls.t.token);
+    let uop = getunopr(ls, ls.t.token);
     if (uop !== OPR_NOUNOPR) {
         let line = ls.linenumber;
         llex.luaX_next(ls);
@@ -1180,7 +1185,7 @@ const subexpr = function(ls, v, limit) {
     } else
         simpleexp(ls, v);
     /* expand while operators have priorities higher than 'limit' */
-    let op = getbinopr(ls.t.token);
+    let op = getbinopr(ls, ls.t.token);
     while (op !== OPR_NOBINOPR && priority[op].left > limit) {
         let v2 = new expdesc();
         let line = ls.linenumber;
@@ -1719,6 +1724,9 @@ const statement = function(ls) {
             break;
         }
         case R.TK_DBCOLON: {  /* stat -> label */
+            let impl = ls.L.l_G.impl;
+            if (!impl || !impl.features || !impl.features.goto)
+                semerror(ls, "unexpected symbol near '::'");
             llex.luaX_next(ls);  /* skip double colon */
             labelstat(ls, str_checkname(ls), line);
             break;

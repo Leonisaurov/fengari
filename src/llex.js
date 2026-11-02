@@ -276,6 +276,11 @@ const check_next2 = function(ls, set) {
     return false;
 };
 
+const feature = function(ls, name) {
+    return !!(ls.L && ls.L.l_G && ls.L.l_G.impl &&
+        ls.L.l_G.impl.features && ls.L.l_G.impl.features[name]);
+};
+
 const read_numeral = function(ls, seminfo) {
     let expo = "Ee";
     let first = ls.current;
@@ -300,6 +305,10 @@ const read_numeral = function(ls, seminfo) {
     if (lobject.luaO_str2num(luaZ_buffer(ls.buff), obj) === 0)  /* format error? */
         lexerror(ls, to_luastring("malformed number", true), TK_FLT);
     if (obj.ttisinteger()) {
+        if (!feature(ls, "integers")) {  /* 5.1/5.2 have only doubles */
+            seminfo.r = Number(obj.value);
+            return TK_FLT;
+        }
         seminfo.i = obj.value;
         return TK_INT;
     } else {
@@ -633,9 +642,12 @@ const llex = function(ls, seminfo) {
                     let ts = luaX_newstring(ls, luaZ_buffer(ls.buff));
                     seminfo.ts = ts;
                     let kidx = token_to_index[luaS_hashlongstr(ts)];
-                    if (kidx !== void 0 && kidx <= 22)  /* reserved word? */
-                        return kidx + FIRST_RESERVED;
-                    else
+                    if (kidx !== void 0 && kidx <= 22) {  /* reserved word? */
+                        let token = kidx + FIRST_RESERVED;
+                        if (token === TK_GOTO && !feature(ls, "goto"))
+                            return TK_NAME;  /* 'goto' is a regular name in 5.1 */
+                        return token;
+                    } else
                         return TK_NAME;
                 } else {  /* single-char tokens (+ - / ...) */
                     let c = ls.current;

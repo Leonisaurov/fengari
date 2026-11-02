@@ -143,6 +143,74 @@ test('5.1 profile adds compatibility globals and uses package.loaders', () => {
     expect(lua.lua_toboolean(L, -1)).toBe(true);
 });
 
+test('5.2 profile rejects 5.3 operators and keeps goto', () => {
+    let L = open("5.2");
+    run(L, `
+        local f, e = load("return 1 // 2")
+        assert(not f and e:match("near '//'"), e)
+        local g, ge = load("return 1 & 2")
+        assert(not g and ge:match("near '&'"), ge)
+        local h, he = load("return ~1")
+        assert(not h and he:match("near '~'"), he)
+        local i, ie = load("return 1 << 2")
+        assert(not i and ie:match("near '<<'"), ie)
+
+        goto done
+        ::done::
+        assert(2147483647 + 1 == 2147483648)
+        assert(tonumber("2147483647") + 1 == 2147483648)
+        return true
+    `);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+    lua.lua_close(L);
+});
+
+test('5.1 profile treats goto as a name and rejects labels', () => {
+    let L = open("5.1");
+    run(L, `
+        goto = 1
+        assert(goto == 1)
+        local f, e = load("goto done ::done:: return true")
+        assert(not f and e:match("syntax error"), e)
+        local g, ge = load("return 1 // 2")
+        assert(not g and ge:match("near '//'"), ge)
+        local h, he = load("return 1 | 2")
+        assert(not h and he:match("near '|'"), he)
+        return true
+    `);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+    lua.lua_close(L);
+});
+
+test('loadbufferx hook is used by the version implementation', () => {
+    let called = null;
+    versions.register({
+        name: "test-loader",
+        version: {major: 9, minor: 8, release: 0, num: 998, string: "Lua 9.8"},
+        features: {integers: false},
+        loadbufferx: function(L, buff, size, name, mode) {
+            called = {size: size, name: lua.lua_tojsstring(L, -1)};
+            let impl = L.l_G.impl;
+            let saved = impl.loadbufferx;
+            impl.loadbufferx = null;
+            try {
+                return lauxlib.luaL_loadbuffer(L, buff, size, name);
+            } finally {
+                impl.loadbufferx = saved;
+            }
+        }
+    });
+
+    let L = lauxlib.luaL_newstate("test-loader");
+    lualib.luaL_openlibs(L);
+    expect(lauxlib.luaL_loadstring(L, to_luastring("return 7"))).toBe(lua.LUA_OK);
+    expect(called).not.toBe(null);
+    expect(called.size).toBe(8);
+    lua.lua_call(L, 0, 1);
+    expect(lua.lua_tointeger(L, -1)).toBe(7);
+    lua.lua_close(L);
+});
+
 test('default version can be switched and custom implementations registered', () => {
     let called = false;
     versions.register({

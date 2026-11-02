@@ -30,6 +30,7 @@ const {
     lua_getmetatable,
     lua_gettop,
     lua_insert,
+    lua_isinteger,
     lua_isnil,
     lua_isnone,
     lua_isstring,
@@ -61,6 +62,7 @@ const {
     lua_toboolean,
     lua_tolstring,
     lua_tostring,
+    lua_tonumber,
     lua_type,
     lua_typename,
     lua_warning
@@ -322,8 +324,16 @@ const luaB_tonumber = function(L) {
             return 1;
         } else {
             let s = lua_tostring(L, 1);
-            if (s !== null && lua_stringtonumber(L, s) === s.length+1)
+            if (s !== null && lua_stringtonumber(L, s) === s.length+1) {
+                let impl = L.l_G.impl;
+                if (impl && impl.features && !impl.features.integers &&
+                    lua_isinteger(L, -1)) {
+                    let n = lua_tonumber(L, -1);
+                    lua_pop(L, 1);
+                    lua_pushnumber(L, n);
+                }
                 return 1;  /* successful conversion to number */
+            }
         }
     } else {
         let base = luaL_checkinteger(L, 2);
