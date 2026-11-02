@@ -334,7 +334,15 @@ const luaH_next = function(L, table, keyI) {
             } while (entry.key.ttisdeadkey());
         }
     }
-    lobject.setobj2s(L, keyI, entry.key);
+    let k = entry.key;
+    let features = L.l_G && L.l_G.impl && L.l_G.impl.features;
+    if (k.ttisinteger() && features && features.integers === false) {
+        /* Double-only profiles expose integer table keys as floats. */
+        let tv = new lobject.TValue();
+        lobject.luaO_setint(L, tv, k.value);
+        lobject.setobj2s(L, keyI, tv);
+    } else
+        lobject.setobj2s(L, keyI, k);
     lobject.setobj2s(L, keyI+1, entry.value);
     return true;
 };

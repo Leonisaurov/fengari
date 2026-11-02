@@ -62,8 +62,8 @@ test("PUC Lua 5.1 binary chunks load natively", () => {
     let L = open("5.1");
     try {
         expect(call_function(L, path.join(FIXTURES, "lua51.luac")))
-            .toEqual({ok: true, values: ["12.0", "6.0", "5.0", "X",
-                "16.0", "6.0", "6.0"]});
+            .toEqual({ok: true, values: ["12", "6", "5", "X",
+                "16", "6", "6"]});
     } finally {
         lua.lua_close(L);
     }
@@ -73,8 +73,8 @@ test("PUC Lua 5.2 binary chunks load natively", () => {
     let L = open("5.2");
     try {
         expect(call_function(L, path.join(FIXTURES, "lua52.luac")))
-            .toEqual({ok: true, values: ["12.0", "6.0", "5.0", "X",
-                "16.0", "6.0", "6.0"]});
+            .toEqual({ok: true, values: ["12", "6", "5", "X",
+                "16", "6", "6"]});
     } finally {
         lua.lua_close(L);
     }
@@ -84,10 +84,10 @@ test("PUC Lua 5.1 closures, jumps and upvalues translate", () => {
     let L = open("5.1");
     try {
         expect(call_function(L, path.join(FIXTURES, "lua51_features.luac"), 23))
-            .toEqual({ok: true, values: ["242.0", "14520.0", "127.0", "31.0",
-                "6.0", "12.0", "15.0", "40.0", "9.0", "3.0", "10.0", "abc",
-                "42.0", "T", "yes", "no", "103.0", "-10.0", "Y", "GT",
-                "nil", "3.0", "tail"]});
+            .toEqual({ok: true, values: ["242", "14520", "127", "31",
+                "6", "12", "15", "40", "9", "3", "10", "abc",
+                "42", "T", "yes", "no", "103", "-10", "Y", "GT",
+                "nil", "3", "tail"]});
     } finally {
         lua.lua_close(L);
     }
@@ -97,10 +97,10 @@ test("PUC Lua 5.2 closures, jumps and upvalues translate", () => {
     let L = open("5.2");
     try {
         expect(call_function(L, path.join(FIXTURES, "lua52_features.luac"), 23))
-            .toEqual({ok: true, values: ["242.0", "14520.0", "127.0", "31.0",
-                "6.0", "12.0", "15.0", "40.0", "9.0", "3.0", "10.0", "abc",
-                "42.0", "T", "yes", "no", "103.0", "-10.0", "Y", "GT",
-                "nil", "3.0", "tail"]});
+            .toEqual({ok: true, values: ["242", "14520", "127", "31",
+                "6", "12", "15", "40", "9", "3", "10", "abc",
+                "42", "T", "yes", "no", "103", "-10", "Y", "GT",
+                "nil", "3", "tail"]});
     } finally {
         lua.lua_close(L);
     }
@@ -110,7 +110,7 @@ test("PUC Lua 5.1 SETLIST block numbers beyond C translate", () => {
     let L = open("5.1");
     try {
         expect(call_main(L, path.join(FIXTURES, "lua51_setlist.luac")))
-            .toEqual({ok: true, value: "2.0"});
+            .toEqual({ok: true, value: "2"});
     } finally {
         lua.lua_close(L);
     }
@@ -120,7 +120,7 @@ test("PUC Lua 5.2 SETLIST EXTRAARG blocks translate", () => {
     let L = open("5.2");
     try {
         expect(call_main(L, path.join(FIXTURES, "lua52_setlist.luac")))
-            .toEqual({ok: true, value: "2.0"});
+            .toEqual({ok: true, value: "2"});
     } finally {
         lua.lua_close(L);
     }

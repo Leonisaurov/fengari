@@ -638,7 +638,11 @@ const luaO_tostring = function(L, obj) {
         buff = to_luastring(lua_integer2str(obj.value));
     else {
         let str = lua_number2str(obj.value);
-        if (!LUA_COMPAT_FLOATSTRING && /^[-0123456789]+$/.test(str)) {  /* looks like an int? */
+        let features = L && L.l_G && L.l_G.impl && L.l_G.impl.features;
+        /* 5.1/5.2 format integral floats without a '.0' suffix (PUC %.14g) */
+        let compatFloat = LUA_COMPAT_FLOATSTRING ||
+            (features && features.integers === false);
+        if (!compatFloat && /^[-0123456789]+$/.test(str)) {  /* looks like an int? */
             str += '.0'; /* adds '.0' to result: lua_getlocaledecpoint removed as optimisation */
         }
         buff = to_luastring(str);

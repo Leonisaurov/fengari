@@ -67,8 +67,10 @@ unreleased
     per-state xoshiro seeds
   - Make the 5.1/5.2 profiles version-aware in the lexer/parser: reject `//`
     and bitwise operators, treat `goto` as a name in 5.1, reject labels there,
-    and expose doubles instead of integer-tagged values (literals, tonumber,
-    lengths, string.byte, math.floor, table keys and loops)
+    expose doubles instead of integer-tagged values (literals, tonumber,
+    lengths, string.byte, math.floor, table keys and loops) and format
+    integral floats without a '.0' suffix, including keys returned by
+    next/pairs
   - Add the remaining 5.1/5.2 APIs: newproxy, table.setn, loadstring and
     function-only load in 5.1, plus boolean os.exit from 5.2 onward
   - Load native PUC Lua 5.1/5.2 binary chunks by translating them to the

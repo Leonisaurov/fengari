@@ -155,16 +155,37 @@ test('5.1/5.2 values never use the integer subtype', () => {
             local t = {}
             for i = 1, 3 do t[i] = i end
             for k in pairs(t) do assert(type(k) == "number") end
+            assert(tostring(1.0) == "1")
+            assert(tostring(1.5) == "1.5")
+            assert(1.0 .. "" == "1")
+            local k = next({[7] = true})
+            assert(tostring(k) == "7")
+            local rk = next(debug.getregistry())
             return 1, 1 + 2, #"abc", tonumber("4"),
                    string.byte("A"), math.floor(3.7), math.abs(-2),
-                   2^2, (function() return 5 end)()
+                   2^2, (function() return 5 end)(), k, rk
         `);
         for (let i = 1; i <= lua.lua_gettop(L); i++) {
             expect(lua.lua_type(L, i)).toBe(lua.LUA_TNUMBER);
             expect(lua.lua_isinteger(L, i)).toBe(false);
         }
+        expect(lua.lua_tojsstring(L, -2)).toBe("7");
+        expect(lua.lua_tojsstring(L, -1)).toBe("1");
         lua.lua_close(L);
     }
+});
+
+test('5.3 keeps integer values and their formatting', () => {
+    let L = open("5.3");
+    run(L, `
+        local k = next({[7] = true})
+        local rk = next(debug.getregistry())
+        return tostring(1.0), k, rk
+    `);
+    expect(lua.lua_tojsstring(L, -3)).toBe("1.0");
+    expect(lua.lua_isinteger(L, -2)).toBe(true);
+    expect(lua.lua_isinteger(L, -1)).toBe(true);
+    lua.lua_close(L);
 });
 
 test('5.2 profile rejects 5.3 operators and keeps goto', () => {
