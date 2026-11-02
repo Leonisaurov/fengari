@@ -272,7 +272,7 @@ const strftime = function(L, b, s, date, utc) {
                 // 'GMT'
                 case 90 /* Z */: {
                     if (utc) {
-                        luaL_addstring(b, to_luastring("UTC"));
+                        luaL_addstring(b, to_luastring("GMT"));
                     } else {
                         let tzString = date.toString().match(/\(([\w\s]+)\)/);
                         if (tzString)
@@ -356,7 +356,7 @@ const strftime = function(L, b, s, date, utc) {
 
                 // '\t'
                 case 116 /* t */:
-                    luaL_addchar(b, 8);
+                    luaL_addchar(b, 9);
                     break;
 
                 // '4'
@@ -412,7 +412,8 @@ const checkoption = function(L, conv, i) {
         }
     }
     luaL_argerror(L, 1,
-        lua_pushfstring(L, to_luastring("invalid conversion specifier '%%%s'"), conv));
+        lua_pushfstring(L, to_luastring("invalid conversion specifier '%s'"),
+            conv.subarray(i - 1)));
 };
 
 /* maximum size for an individual 'strftime' item */

@@ -52,6 +52,23 @@ test('lua_pushinteger', () => {
 });
 
 
+test('lua_pushlstring returns the pushed bytes', () => {
+    let L = lauxlib.luaL_newstate();
+    if (!L) throw Error("failed to create lua state");
+
+    let source = to_luastring("hello world");
+    let returned = lua.lua_pushlstring(L, source, 5);
+    expect(returned).toBeInstanceOf(Uint8Array);
+    expect(Array.from(returned)).toEqual(Array.from(to_luastring("hello")));
+    expect(lua.lua_tojsstring(L, -1)).toBe("hello");
+
+    let empty = lua.lua_pushlstring(L, source, 0);
+    expect(empty).toBeInstanceOf(Uint8Array);
+    expect(empty.length).toBe(0);
+    expect(lua.lua_tostring(L, -1)).not.toBeNull();
+});
+
+
 test('lua_pushliteral', () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");

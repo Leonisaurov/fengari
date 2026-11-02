@@ -293,7 +293,7 @@ const lua_pushlstring = function(L, s, len) {
     }
     lobject.pushsvalue2s(L, ts);
     api_check(L, L.top <= L.ci.top, "stack overflow");
-    return ts.value;
+    return ts.getstr();
 };
 
 const lua_pushstring = function (L, s) {

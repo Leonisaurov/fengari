@@ -152,7 +152,7 @@ test('os.date UTC and %j', () => {
 
     expect(lua.lua_tojsstring(L, -10)).toBe("1970-01-01T00:00:00Z");
     expect(lua.lua_tojsstring(L, -9)).toBe("001");
-    expect(lua.lua_tojsstring(L, -8)).toBe("UTC +0000");
+    expect(lua.lua_tojsstring(L, -8)).toBe("GMT +0000");
     expect(lua.lua_tojsstring(L, -7)).toBe("051");
     expect(lua.lua_tointeger(L, -6)).toBe(1970);  /* year */
     expect(lua.lua_tointeger(L, -5)).toBe(1);     /* month */
@@ -160,6 +160,68 @@ test('os.date UTC and %j', () => {
     expect(lua.lua_tointeger(L, -3)).toBe(0);     /* hour */
     expect(lua.lua_tointeger(L, -2)).toBe(5);     /* wday: Thursday */
     expect(lua.lua_tointeger(L, -1)).toBe(1);     /* yday */
+});
+
+
+test('os.date conversion specifiers (UTC)', () => {
+    let L = lauxlib.luaL_newstate();
+    if (!L) throw Error("failed to create lua state");
+
+    let luaCode = `
+        local cases = {
+            { "%a", "Thu" }, { "%A", "Thursday" },
+            { "%b", "Jan" }, { "%B", "January" },
+            { "%c", "Thu Jan  1 00:00:00 1970" }, { "%C", "19" },
+            { "%d", "01" }, { "%D", "01/01/70" }, { "%e", " 1" },
+            { "%F", "1970-01-01" }, { "%h", "Jan" },
+            { "%H", "00" }, { "%I", "12" }, { "%j", "001" },
+            { "%k", " 0" }, { "%l", "12" },
+            { "%m", "01" }, { "%M", "00" }, { "%n", "\\n" },
+            { "%p", "AM" }, { "%P", "am" },
+            { "%r", "12:00:00 AM" }, { "%R", "00:00" },
+            { "%S", "00" }, { "%t", "\\t" }, { "%T", "00:00:00" },
+            { "%u", "4" }, { "%U", "00" }, { "%w", "4" }, { "%W", "00" },
+            { "%x", "01/01/70" }, { "%X", "00:00:00" },
+            { "%y", "70" }, { "%Y", "1970" }, { "%z", "+0000" },
+            { "%Z", "GMT" }, { "%%", "%" }
+        }
+        for _, case in ipairs(cases) do
+            local got = os.date("!" .. case[1], 0)
+            assert(got == case[2], case[1] .. ": " .. string.format("%q", got))
+        end
+
+        local later = {
+            { "%a", "Fri" }, { "%A", "Friday" },
+            { "%b", "Feb" }, { "%B", "February" },
+            { "%c", "Fri Feb 13 23:31:30 2009" }, { "%C", "20" },
+            { "%d", "13" }, { "%D", "02/13/09" }, { "%e", "13" },
+            { "%F", "2009-02-13" },
+            { "%H", "23" }, { "%I", "11" }, { "%j", "044" },
+            { "%k", "23" }, { "%l", "11" },
+            { "%m", "02" }, { "%M", "31" }, { "%p", "PM" }, { "%P", "pm" },
+            { "%r", "11:31:30 PM" }, { "%R", "23:31" },
+            { "%S", "30" }, { "%T", "23:31:30" }, { "%u", "5" },
+            { "%U", "06" }, { "%w", "5" }, { "%W", "06" },
+            { "%x", "02/13/09" }, { "%X", "23:31:30" },
+            { "%y", "09" }, { "%Y", "2009" }
+        }
+        for _, case in ipairs(later) do
+            local got = os.date("!" .. case[1], 1234567890)
+            assert(got == case[2], case[1] .. ": " .. string.format("%q", got))
+        end
+
+        assert(os.date("!%U %W", 259200) == "01 00")
+        assert(os.date("!%j %u", 951782400) == "060 2")
+
+        local ok, err = pcall(os.date, "!abc%Qdef", 0)
+        assert(not ok and err:match("invalid conversion specifier '%%Qdef'"), err)
+        local ok2, err2 = pcall(os.date, "!%", 0)
+        assert(not ok2 and err2:match("invalid conversion specifier '%%'"), err2)
+    `;
+
+    lualib.luaL_openlibs(L);
+    expect(lauxlib.luaL_loadstring(L, to_luastring(luaCode))).toBe(lua.LUA_OK);
+    lua.lua_call(L, 0, 0);
 });
 
 

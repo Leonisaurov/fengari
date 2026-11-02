@@ -425,10 +425,10 @@ const loadfunc = function(L, filename, modname) {
     let mark = luastring_indexOf(modname, LUA_IGMARK.charCodeAt(0));
     if (mark >= 0) {
         openfunc = lua_pushlstring(L, modname, mark);
-        openfunc = lua_pushfstring(L, to_luastring("%s%s"), LUA_POF, openfunc);
+        openfunc = lua_pushfstring(L, to_luastring("%s%s"), LUA_POF, lua_tostring(L, -1));
         let stat = lookforfunc(L, filename, openfunc);
         if (stat !== ERRFUNC) return stat;
-        modname = mark + 1;  /* else go ahead and try old-style name */
+        modname = modname.subarray(mark + 1);  /* else go ahead and try old-style name */
     }
     openfunc = lua_pushfstring(L, to_luastring("%s%s"), LUA_POF, modname);
     return lookforfunc(L, filename, openfunc);
