@@ -86,10 +86,11 @@ const {
     to_jsstring,
     to_luastring
 } = require("./fengaricore.js");
+const lfs = require("./lfs.js");
 
 let lua_writestring;
 let lua_writeline;
-if (typeof process === "undefined") {
+if (!lfs.is_node) {
     if (typeof TextDecoder === "function") { /* Older browsers don't have TextDecoder */
         let buff = "";
         let decoder = new TextDecoder("utf-8");

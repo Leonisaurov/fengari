@@ -1,0 +1,19 @@
+local s = "Hello, Lua 5.3!"
+print(#s)
+print(s:sub(1, 5), s:sub(-4))
+print(s:byte(1), s:byte(-1))
+print(string.char(72, 105))
+print(s:rep(2, "-"))
+print(s:reverse())
+print(s:upper(), s:lower())
+print(string.find(s, "Lua", 1, true))
+print(string.match("key=value", "(%w+)=(%w+)"))
+for k, v in string.gmatch("a=1,b=2", "(%w+)=(%w+)") do
+    print(k, v)
+end
+print(string.gsub("hello world", "o", "0"))
+print(("abc"):gsub("%a", string.upper))
+print(string.format("%s|%5s|%-5s|", "x", "y", "z"))
+print(string.pack("i4", 7):byte(1, 4))
+print(string.unpack("i4", string.pack("i4", 7)))
+print(load(string.dump(function() return 1 + 2 end))())

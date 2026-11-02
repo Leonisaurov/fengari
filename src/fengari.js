@@ -36,3 +36,5 @@ module.exports.lua     = lua;
 module.exports.lauxlib = lauxlib;
 module.exports.lualib  = lualib;
 module.exports.versions = require('./versions.js');
+module.exports.vfs     = require('./lfs.js').vfs;
+module.exports.api     = require('./fengari-api.js');

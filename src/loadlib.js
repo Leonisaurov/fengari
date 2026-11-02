@@ -70,10 +70,11 @@ const {
     to_luastring,
     to_uristring
 } = require("./fengaricore.js");
+const lfs = require('./lfs.js');
 const fengari  = require('./fengari.js');
 
 const global_env = (function() {
-    if (typeof process !== "undefined") {
+    if (lfs.is_node) {
         /* node */
         return global;
     } else if (typeof window !== "undefined") {
@@ -120,7 +121,7 @@ const AUXMARK = to_luastring("\x01");
 ** error string in the stack.
 */
 let lsys_load;
-if (typeof process === "undefined") {
+if (!lfs.is_node) {
     lsys_load = function(L, path, seeglb) {
         path = to_uristring(path);
         let xhr = new XMLHttpRequest();
@@ -195,7 +196,7 @@ const noenv = function(L) {
 };
 
 let readable;
-if (typeof process !== "undefined") { // Only with Node
+if (lfs.is_node) { // Only with Node
     const fs = require('fs');
 
     readable = function(filename) {
@@ -209,6 +210,8 @@ if (typeof process !== "undefined") { // Only with Node
     };
 } else {
     readable = function(path) {
+        if (lfs.loadfile(path) !== null)  /* mounted in the virtual file system? */
+            return true;
         path = to_uristring(path);
         let xhr = new XMLHttpRequest();
         /* Following GET request done by searcher_Web will be cached */
@@ -270,7 +273,7 @@ const ll_loadlib = function(L) {
 };
 
 const env = (function() {
-    if (typeof process !== "undefined") {
+    if (lfs.is_node) {
         /* node */
         return process.env;
     } else {

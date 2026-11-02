@@ -84,6 +84,7 @@ const {
     to_luastring,
     to_uristring
 } = require("./fengaricore.js");
+const lfs = require('./lfs.js');
 
 /* extra error code for 'luaL_loadfilex' */
 const LUA_ERRFILE = LUA_ERRERR+1;
@@ -822,7 +823,7 @@ const skipcomment = function(lf) {
 
 let luaL_loadfilex;
 
-if (typeof process === "undefined") {
+if (!lfs.is_node) {
     class LoadF {
         constructor() {
             this.n = NaN;  /* number of pre-read characters */
@@ -859,26 +860,31 @@ if (typeof process === "undefined") {
             throw new Error("Can't read stdin in the browser");
         } else {
             lua_pushfstring(L, to_luastring("@%s"), filename);
-            let path = to_uristring(filename);
-            let xhr = new XMLHttpRequest();
-            xhr.open("GET", path, false);
-            /*
-            Synchronous xhr in main thread always returns a js string.
-            Some browsers make console noise if you even attempt to set responseType
-            */
-            if (typeof window === "undefined") {
-                xhr.responseType = "arraybuffer";
-            }
-            xhr.send();
-            if (xhr.status >= 200 && xhr.status <= 299) {
-                if (typeof xhr.response === "string") {
-                    lf.f = to_luastring(xhr.response);
-                } else {
-                    lf.f = new Uint8Array(xhr.response);
-                }
+            let virtual = lfs.loadfile(filename);
+            if (virtual !== null) {
+                lf.f = virtual;
             } else {
-                lf.err = xhr.status;
-                return errfile(L, "open", fnameindex, { message: `${xhr.status}: ${xhr.statusText}` });
+                let path = to_uristring(filename);
+                let xhr = new XMLHttpRequest();
+                xhr.open("GET", path, false);
+                /*
+                Synchronous xhr in main thread always returns a js string.
+                Some browsers make console noise if you even attempt to set responseType
+                */
+                if (typeof window === "undefined") {
+                    xhr.responseType = "arraybuffer";
+                }
+                xhr.send();
+                if (xhr.status >= 200 && xhr.status <= 299) {
+                    if (typeof xhr.response === "string") {
+                        lf.f = to_luastring(xhr.response);
+                    } else {
+                        lf.f = new Uint8Array(xhr.response);
+                    }
+                } else {
+                    lf.err = xhr.status;
+                    return errfile(L, "open", fnameindex, { message: `${xhr.status}: ${xhr.statusText}` });
+                }
             }
         }
         let com = skipcomment(lf);
@@ -991,7 +997,7 @@ const luaL_dofile = function(L, filename) {
 const lua_writestringerror = function() {
     for (let i=0; i<arguments.length; i++) {
         let a = arguments[i];
-        if (typeof process === "undefined") {
+        if (!lfs.is_node) {
             /* split along new lines for separate console.error invocations */
             do {
                 /* regexp uses [\d\D] to work around matching new lines

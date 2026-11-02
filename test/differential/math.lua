@@ -1,0 +1,7 @@
+print(math.floor(3.7), math.ceil(3.1), math.abs(-2), math.max(1, 5, 3), math.min(1, 5, 3))
+print(math.fmod(7, 3), math.fmod(-7, 3))
+print(math.sqrt(16), math.exp(0), math.log(1), math.log(8, 2))
+print(math.sin(0), math.cos(0), math.tan(0))
+print(math.tointeger(3.0), math.tointeger(3.5))
+print(math.ult(1, 2), math.ult(2, 1))
+print(string.format("%.6f", math.pi))

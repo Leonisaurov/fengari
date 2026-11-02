@@ -267,11 +267,12 @@ test('[test-suite] constructs: silly loops', () => {
     lua.lua_call(L, 0, 0);
 });
 
-test.skip('[test-suite] constructs: huge loops, upvalue', () => {
+test('[test-suite] constructs: huge loops, upvalue', () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
 
     let luaCode = `
+        local _soft = true
         -- sometimes will be 0, sometimes will not...
         _ENV.GLOB1 = math.floor(os.time()) % 2
 

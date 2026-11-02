@@ -50,6 +50,7 @@ const {
     to_jsstring,
     to_luastring
 } = require("./fengaricore.js");
+const lfs = require('./lfs.js');
 
 /* options for ANSI C 89 (only 1-char options) */
 // const L_STRFTIMEC89 = to_luastring("aAbBcdHIjmMpSUwWxXyYZ%");
@@ -547,112 +548,79 @@ const syslib = {
     "time": os_time
 };
 
-if (typeof process === "undefined") {
-    syslib.clock = function(L) {
-        lua_pushnumber(L, performance.now()/1000);
-        return 1;
-    };
-} else {
-    /* Only with Node */
-    const fs = require('fs');
-    const tmp = require('tmp');
-    const child_process = require('child_process');
+syslib.exit = function(L) {
+    let status;
+    if (lua_isboolean(L, 1))
+        status = (lua_toboolean(L, 1) ? 0 : 1);
+    else
+        status = luaL_optinteger(L, 1, 0);
+    if (!lfs.supports_processes())
+        return luaL_error(L, to_luastring("os.exit is not available in this environment"));
+    if (lua_toboolean(L, 2))
+        lua_close(L);
+    if (L) process.exit(status);  /* 'if' to avoid warnings for unreachable 'return' */
+    return 0;
+};
 
-    syslib.exit = function(L) {
-        let status;
-        if (lua_isboolean(L, 1))
-            status = (lua_toboolean(L, 1) ? 0 : 1);
-        else
-            status = luaL_optinteger(L, 1, 0);
-        if (lua_toboolean(L, 2))
-            lua_close(L);
-        if (L) process.exit(status);  /* 'if' to avoid warnings for unreachable 'return' */
-        return 0;
-    };
+syslib.getenv = function(L) {
+    let key = luaL_checkstring(L, 1);
+    let value = lfs.getenv(to_jsstring(key)); /* https://github.com/nodejs/node/issues/16961 */
+    if (value === null || value === undefined)
+        lua_pushnil(L);
+    else
+        lua_pushliteral(L, value);
+    return 1;
+};
 
-    syslib.getenv = function(L) {
-        let key = luaL_checkstring(L, 1);
-        key = to_jsstring(key); /* https://github.com/nodejs/node/issues/16961 */
-        if (Object.prototype.hasOwnProperty.call(process.env, key)) {
-            lua_pushliteral(L, process.env[key]);
-        } else {
-            lua_pushnil(L);
-        }
-        return 1;
-    };
+syslib.clock = function(L) {
+    lua_pushnumber(L, lfs.clock());
+    return 1;
+};
 
-    syslib.clock = function(L) {
-        lua_pushnumber(L, process.uptime());
-        return 1;
-    };
+syslib.remove = function(L) {
+    let filename = luaL_checkstring(L, 1);
+    try {
+        lfs.unlink(filename);
+    } catch (e) {
+        return luaL_fileresult(L, false, filename, e);
+    }
+    return luaL_fileresult(L, true);
+};
 
-    const lua_tmpname = function() {
-        return tmp.tmpNameSync();
-    };
+syslib.rename = function(L) {
+    let fromname = luaL_checkstring(L, 1);
+    let toname = luaL_checkstring(L, 2);
+    try {
+        lfs.rename(fromname, toname);
+    } catch (e) {
+        return luaL_fileresult(L, false, false, e);
+    }
+    return luaL_fileresult(L, true);
+};
 
-    syslib.remove = function(L) {
-        let filename = luaL_checkstring(L, 1);
+syslib.tmpname = function(L) {
+    let name = lfs.tmpname();
+    if (!name)
+        return luaL_error(L, to_luastring("unable to generate a unique filename"));
+    lua_pushstring(L, to_luastring(name));
+    return 1;
+};
+
+syslib.execute = function(L) {
+    let cmd = luaL_optstring(L, 1, null);
+    if (cmd !== null) {
         try {
-            fs.unlinkSync(filename);
+            lfs.execute(to_jsstring(cmd));
         } catch (e) {
-            if (e.code === 'EISDIR') {
-                try {
-                    fs.rmdirSync(filename);
-                } catch (e) {
-                    return luaL_fileresult(L, false, filename, e);
-                }
-            } else {
-                return luaL_fileresult(L, false, filename, e);
-            }
+            return luaL_execresult(L, e);
         }
-        return luaL_fileresult(L, true);
-    };
-
-    syslib.rename = function(L) {
-        let fromname = luaL_checkstring(L, 1);
-        let toname = luaL_checkstring(L, 2);
-        try {
-            fs.renameSync(fromname, toname);
-        } catch (e) {
-            return luaL_fileresult(L, false, false, e);
-        }
-        return luaL_fileresult(L, true);
-    };
-
-    syslib.tmpname = function(L) {
-        let name = lua_tmpname();
-        if (!name)
-            return luaL_error(L, to_luastring("unable to generate a unique filename"));
-        lua_pushstring(L, to_luastring(name));
+        return luaL_execresult(L, null);
+    } else {
+        /* Is a shell available? Only when the platform can spawn processes. */
+        lua_pushboolean(L, lfs.supports_processes());
         return 1;
-    };
-
-    syslib.execute = function(L) {
-        let cmd = luaL_optstring(L, 1, null);
-        if (cmd !== null) {
-            cmd = to_jsstring(cmd);
-            try {
-                child_process.execSync(
-                    cmd,
-                    {
-                        stdio: [process.stdin, process.stdout, process.stderr]
-                    }
-                );
-            } catch (e) {
-                return luaL_execresult(L, e);
-            }
-
-            return luaL_execresult(L, null);
-        } else {
-            /* Assume a shell is available.
-               If it's good enough for musl it's good enough for us.
-               http://git.musl-libc.org/cgit/musl/tree/src/process/system.c?id=ac45692a53a1b8d2ede329d91652d43c1fb5dc8d#n22
-            */
-            lua_pushboolean(L, 1);
-            return 1;
-        }
-    };
-}
+    }
+};
 
 const luaopen_os = function(L) {
     luaL_newlib(L, syslib);

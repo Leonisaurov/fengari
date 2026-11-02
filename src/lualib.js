@@ -20,11 +20,9 @@ const LUA_TABLIBNAME = "table";
 module.exports.LUA_TABLIBNAME = LUA_TABLIBNAME;
 module.exports.luaopen_table = require("./ltablib.js").luaopen_table;
 
-if (typeof process !== "undefined") {
-    const LUA_IOLIBNAME = "io";
-    module.exports.LUA_IOLIBNAME = LUA_IOLIBNAME;
-    module.exports.luaopen_io = require("./liolib.js").luaopen_io;
-}
+const LUA_IOLIBNAME = "io";
+module.exports.LUA_IOLIBNAME = LUA_IOLIBNAME;
+module.exports.luaopen_io = require("./liolib.js").luaopen_io;
 
 const LUA_OSLIBNAME = "os";
 module.exports.LUA_OSLIBNAME = LUA_OSLIBNAME;

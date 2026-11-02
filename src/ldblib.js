@@ -78,6 +78,7 @@ const {
     luastring_indexOf,
     to_luastring
 } = require("./fengaricore.js");
+const lfs = require("./lfs.js");
 
 /*
 ** If L1 != L, L1 can be in any state, and therefore there are no
@@ -486,7 +487,7 @@ const lua_getdebugreader = function() {
 };
 
 const default_getinput = function() {
-    if (typeof process !== "undefined" && process.stdin) {
+    if (lfs.is_node && process.stdin) {
         let readlineSync;
         try {
             readlineSync = require('readline-sync');

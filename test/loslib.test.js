@@ -1,5 +1,9 @@
 "use strict";
 
+const fs      = require('fs');
+const os      = require('os');
+const path    = require('path');
+
 const lua     = require('../src/lua.js');
 const lauxlib = require('../src/lauxlib.js');
 const lualib  = require('../src/lualib.js');
@@ -190,4 +194,61 @@ test('os.getenv', () => {
     }
 
     expect(lua.lua_isstring(L, -1)).toBe(true);
+});
+
+
+test('os.remove, os.rename and os.tmpname', () => {
+    let dir = fs.mkdtempSync(path.join(os.tmpdir(), "fengari-os-"));
+    let from = path.join(dir, "from.txt");
+    let to = path.join(dir, "to.txt");
+    fs.writeFileSync(from, "content");
+
+    let L = lauxlib.luaL_newstate();
+    if (!L) throw Error("failed to create lua state");
+
+    let luaCode = `
+        assert(os.rename(${JSON.stringify(from)}, ${JSON.stringify(to)}))
+        assert(io.open(${JSON.stringify(from)}) == nil)
+        local f = assert(io.open(${JSON.stringify(to)}, "r"))
+        assert(f:read("a") == "content")
+        f:close()
+        assert(os.remove(${JSON.stringify(to)}))
+
+        local name = os.tmpname()
+        assert(type(name) == "string" and #name > 0)
+        local tmp = assert(io.open(name, "w"))
+        tmp:write("temporary")
+        tmp:close()
+        assert(os.remove(name))
+
+        local missing, message, errno = os.remove(${JSON.stringify(path.join(dir, "missing.txt"))})
+        assert(missing == nil and type(message) == "string" and errno ~= 0)
+    `;
+
+    try {
+        lualib.luaL_openlibs(L);
+        expect(lauxlib.luaL_loadstring(L, to_luastring(luaCode))).toBe(lua.LUA_OK);
+        lua.lua_call(L, 0, 0);
+        expect(fs.existsSync(to)).toBe(false);
+    } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+
+(process.platform === "win32" ? test.skip : test)('os.execute runs a shell command', () => {
+    let L = lauxlib.luaL_newstate();
+    if (!L) throw Error("failed to create lua state");
+
+    let luaCode = `
+        assert(os.execute())
+        local ok, what, code = os.execute("true")
+        assert(ok == true and what == "exit" and code == 0)
+        local nok, nwhat, ncode = os.execute("exit 3")
+        assert(nok == nil and nwhat == "exit" and ncode == 3)
+    `;
+
+    lualib.luaL_openlibs(L);
+    expect(lauxlib.luaL_loadstring(L, to_luastring(luaCode))).toBe(lua.LUA_OK);
+    lua.lua_call(L, 0, 0);
 });

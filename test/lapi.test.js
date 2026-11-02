@@ -424,3 +424,26 @@ describe('lua_len', () => {
         expect(len).toBe(2);
     });
 });
+
+
+test('lua_toproxy and lua_isproxy are scoped to the global state', () => {
+    let L1 = lauxlib.luaL_newstate();
+    let L2 = lauxlib.luaL_newstate();
+    if (!L1 || !L2) throw Error("failed to create lua state");
+
+    lua.lua_pushliteral(L1, "proxied");
+    let proxy = lua.lua_toproxy(L1, -1);
+
+    expect(typeof proxy).toBe("function");
+    expect(lua.lua_isproxy(proxy, L1)).toBe(true);
+    expect(lua.lua_isproxy(proxy, null)).toBe(true);
+    expect(lua.lua_isproxy(proxy, L2)).toBe(false);
+    expect(lua.lua_isproxy({}, L1)).toBe(false);
+
+    proxy(L1);
+    expect(lua.lua_tojsstring(L1, -1)).toBe("proxied");
+    expect(() => proxy(L2)).toThrow(/same global state/);
+
+    lua.lua_close(L1);
+    lua.lua_close(L2);
+});

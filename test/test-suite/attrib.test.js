@@ -61,13 +61,6 @@ test("[test-suite] attrib: testing require", () => {
 });
 
 
-// TODO: when io.write etc.
-test.skip("[test-suite] attrib: system specific tests for 'require'", () => {
-    let L = lauxlib.luaL_newstate();
-    if (!L) throw Error("failed to create lua state");
-});
-
-
 test("[test-suite] attrib: testing assignments, logical operators, and constructors", () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
