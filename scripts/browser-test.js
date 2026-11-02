@@ -22,6 +22,7 @@ const { spawn, spawnSync, execFileSync } = require("child_process");
 
 const ROOT = path.resolve(__dirname, "..");
 const BUNDLE = path.join(ROOT, "dist", "fengari.js");
+const MIN_BUNDLE = path.join(ROOT, "dist", "fengari.min.js");
 
 const keep = process.argv.includes("--keep");
 
@@ -40,19 +41,61 @@ const page = `<!doctype html>
 <script src="/bundle.js"></script>
 `;
 
+const min_page = `<!doctype html>
+<meta charset="utf-8">
+<title>fengari minified bundle</title>
+<script src="/bundle.min.js"></script>
+`;
+
+const MODULES = {
+    "/modules/greet.lua": 'return { hello = function() return "hi" end }'
+};
+
+const HEADERS = {
+    "cache-control": "no-store",
+    "cross-origin-opener-policy": "same-origin",
+    "cross-origin-embedder-policy": "require-corp"
+};
+
 const server = http.createServer(function(req, res) {
+    if (Object.prototype.hasOwnProperty.call(MODULES, req.url)) {
+        res.writeHead(200, Object.assign({
+            "content-type": "text/plain; charset=utf-8"
+        }, HEADERS));
+        res.end(MODULES[req.url]);
+        return;
+    }
+    if (req.url === "/min.html") {
+        res.writeHead(200, Object.assign({
+            "content-type": "text/html; charset=utf-8"
+        }, HEADERS));
+        res.end(min_page);
+        return;
+    }
+    if (req.url === "/bundle.min.js") {
+        res.writeHead(200, Object.assign({
+            "content-type": "text/javascript; charset=utf-8"
+        }, HEADERS));
+        res.end(fs.readFileSync(MIN_BUNDLE));
+        return;
+    }
+    if (req.url === "/bundle.js.map") {
+        res.writeHead(200, Object.assign({
+            "content-type": "application/json; charset=utf-8"
+        }, HEADERS));
+        res.end(fs.readFileSync(BUNDLE + ".map"));
+        return;
+    }
     if (req.url === "/bundle.js") {
-        res.writeHead(200, {
-            "content-type": "text/javascript; charset=utf-8",
-            "cache-control": "no-store"
-        });
+        res.writeHead(200, Object.assign({
+            "content-type": "text/javascript; charset=utf-8"
+        }, HEADERS));
         res.end(fs.readFileSync(BUNDLE));
         return;
     }
-    res.writeHead(200, {
-        "content-type": "text/html; charset=utf-8",
-        "cache-control": "no-store"
-    });
+    res.writeHead(200, Object.assign({
+        "content-type": "text/html; charset=utf-8"
+    }, HEADERS));
     res.end(page);
 });
 
@@ -182,6 +225,10 @@ class CDP {
             let text = details.exception && details.exception.description
                 ? details.exception.description
                 : details.text;
+            if (details.lineNumber !== undefined) {
+                let line = expression.split("\n")[details.lineNumber] || "";
+                text += ` (line ${details.lineNumber + 1}, column ${(details.columnNumber || 0) + 1})\n${line}`;
+            }
             throw new Error(text);
         }
         return result.result.value;
@@ -198,25 +245,67 @@ class CDP {
 /* ---------------------------------------------------------------------- */
 
 const WORKER_LUA = [
+    'local f = assert(io.open("/memory.txt", "r"))',
+    'local s = f:read("a")',
+    'f:close()',
+    'assert(os.remove("/memory.txt"))',
+    'return s'
+].join(" ");
+
+const WORKER_OPFS_LUA = [
     'local f = assert(io.open("/worker.txt", "r"))',
     'local s = f:read("a")',
     'f:close()',
-    'assert(os.remove("/worker.txt"))',
+    'local a = assert(io.open("/worker.txt", "a"))',
+    'a:write("more")',
+    'a:close()',
     'return s'
 ].join(" ");
 
 const WORKER_SOURCE = `
 importScripts(location.origin + "/bundle.js");
-try {
-    const F = fengari;
-    F.vfs.mount("/worker.txt", "worker data");
-    const state = F.api.createState();
-    const value = state.run(${JSON.stringify(WORKER_LUA)});
-    state.close();
-    postMessage({ ok: value === "worker data" });
-} catch (e) {
-    postMessage({ ok: false, error: String(e && e.stack || e) });
-}
+(async function() {
+    try {
+        const F = fengari;
+        const sab = new SharedArrayBuffer(16);
+        const view = new Int32Array(sab);
+        Atomics.store(view, 0, 7);
+
+        F.vfs.mount("/memory.txt", "worker data");
+        let state = F.api.createState();
+        const memory_value = state.run(${JSON.stringify(WORKER_LUA)});
+        state.close();
+
+        const root = await navigator.storage.getDirectory();
+        const dirname = "fengari-opfs-" + Math.random().toString(36).slice(2);
+        const dir = await root.getDirectoryHandle(dirname, { create: true });
+        const handle = await dir.getFileHandle("worker.txt", { create: true });
+        let writable = await handle.createWritable();
+        await writable.write("seed");
+        await writable.close();
+
+        const mounted = await F.vfs.mountOPFS(dir);
+        state = F.api.createState();
+        const opfs_value = state.run(${JSON.stringify(WORKER_OPFS_LUA)});
+        state.close();
+        F.vfs.unmountOPFS();
+
+        const text = await (await handle.getFile()).text();
+        await root.removeEntry(dirname, { recursive: true });
+
+        postMessage({
+            ok: memory_value === "worker data" && opfs_value === "seed" &&
+                text === "seedmore" && mounted === 1 &&
+                Atomics.load(view, 0) === 7 && self.crossOriginIsolated,
+            memory_value: memory_value,
+            opfs_value: opfs_value,
+            text: text,
+            mounted: mounted
+        });
+    } catch (e) {
+        postMessage({ ok: false, error: String(e && e.stack || e) });
+    }
+})();
 `;
 
 const PAGE_TESTS = `(async function() {
@@ -350,6 +439,26 @@ const PAGE_TESTS = `(async function() {
         assert(await F.vfs.loadFromOPFS(dir, "snap") === 0, "opfs cleared");
     });
 
+    await test("direct OPFS mount is rejected on the main thread", async () => {
+        const root = await navigator.storage.getDirectory();
+        let message = "";
+        try {
+            await F.vfs.mountOPFS(root, { files: ["fengari-probe.txt"] });
+        } catch (e) {
+            message = e.message;
+        }
+        assert(/worker/i.test(message), "expected a worker-only error, got: " + message);
+    });
+
+    await test("SharedArrayBuffer and cross-origin isolation", () => {
+        assert(self.crossOriginIsolated === true, "not cross-origin isolated");
+        assert(typeof SharedArrayBuffer === "function", "SharedArrayBuffer is unavailable");
+        const sab = new SharedArrayBuffer(16);
+        const view = new Int32Array(sab);
+        Atomics.store(view, 0, 42);
+        assert(Atomics.load(view, 0) === 42, "Atomics round trip");
+    });
+
     await test("a real Web Worker uses the bundle", async () => {
         const source = ${JSON.stringify(WORKER_SOURCE)};
         const blob = new Blob([source], { type: "text/javascript" });
@@ -361,7 +470,51 @@ const PAGE_TESTS = `(async function() {
         });
         worker.terminate();
         URL.revokeObjectURL(url);
-        assert(result.ok, result.error);
+        assert(result.ok, result.error || JSON.stringify(result));
+    });
+
+    await test("worker RPC through the async bridge", async () => {
+        const source = [
+            'importScripts(location.origin + "/bundle.js");',
+            'const pending = new Map();',
+            'let next = 0;',
+            'self.onmessage = (event) => {',
+            '    if (event.data.id !== undefined && pending.has(event.data.id)) {',
+            '        pending.get(event.data.id)(event.data.value);',
+            '        pending.delete(event.data.id);',
+            '    }',
+            '};',
+            'function hostAdd(a, b) {',
+            '    return new Promise((resolve) => {',
+            '        const id = ++next;',
+            '        pending.set(id, resolve);',
+            '        postMessage({ id: id, op: "add", a: a, b: b });',
+            '    });',
+            '}',
+            'const F = fengari;',
+            'const state = F.api.createState();',
+            'state.pushAsyncJS(hostAdd);',
+            'F.lua.lua_setglobal(state.L, "hostAdd");',
+            'state.runAsync("return hostAdd(2, 3)").then(',
+            '    (value) => postMessage({ kind: "done", value: value }),',
+            '    (error) => postMessage({ kind: "done", error: String(error) })',
+            ');'
+        ].join("\\n");
+        const url = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
+        const worker = new Worker(url);
+        const result = await new Promise((resolve, reject) => {
+            worker.onmessage = (event) => {
+                if (event.data.op === "add")
+                    worker.postMessage({ id: event.data.id, value: event.data.a + event.data.b });
+                else if (event.data.kind === "done")
+                    resolve(event.data);
+            };
+            worker.onerror = (event) => reject(new Error(event.message));
+        });
+        worker.terminate();
+        URL.revokeObjectURL(url);
+        assert(result.error === undefined, result.error);
+        assert(result.value === 5, "worker RPC value: " + result.value);
     });
 
     await test("stdout handlers, dates and process failures", () => {
@@ -392,6 +545,60 @@ const PAGE_TESTS = `(async function() {
             F.vfs.setStdout(previous);
         }
         assert(lines[0] === "captured", "stdout: " + JSON.stringify(lines));
+    });
+
+    await test("minified bundle and source map work", async () => {
+        const map = await (await fetch("/bundle.js.map")).json();
+        assert(map.version === 3, "source map version");
+        assert(map.sources.length > 0 && map.mappings.length > 0, "source map contents");
+
+        const frame = document.createElement("iframe");
+        frame.src = "/min.html";
+        const loaded = new Promise((resolve, reject) => {
+            frame.onload = resolve;
+            frame.onerror = reject;
+        });
+        document.body.appendChild(frame);
+        await loaded;
+        try {
+            const win = frame.contentWindow;
+            assert(win.fengari, "minified bundle did not load");
+            const state = win.fengari.api.createState();
+            try {
+                assert(state.run("return 6 * 7") === 42, "minified run");
+            } finally {
+                state.close();
+            }
+        } finally {
+            frame.remove();
+        }
+    });
+
+    await test("async require fetches modules through an import map", async () => {
+        const state = F.api.createState();
+        try {
+            state.installAsyncModules({ base: "/modules/" });
+            assert(await state.runAsync('return require("greet").hello()') === "hi", "base fetch");
+
+            state.installAsyncModules({
+                map: { alias: "/modules/greet.lua" },
+                fetch: async (name, url) => {
+                    const response = await fetch(url);
+                    return response.ok ? response.text() : null;
+                }
+            });
+            assert(await state.runAsync('return require("alias").hello()') === "hi", "import map");
+
+            let message = "";
+            try {
+                await state.runAsync('return require("missing")');
+            } catch (e) {
+                message = e.message;
+            }
+            assert(/not found/.test(message), "missing module: " + message);
+        } finally {
+            state.close();
+        }
     });
 
     await test("loadFromURL fetches a module into the VFS", async () => {
@@ -430,6 +637,20 @@ const PAGE_TESTS = `(async function() {
             }
             assert(/browser boom/.test(message), "rejection: " + message);
         } finally {
+            state.close();
+        }
+    });
+
+    await test("debug.debug uses window.prompt in the browser", () => {
+        const state = F.api.createState();
+        const previous = window.prompt;
+        const inputs = ["x = 1 + 1", "cont"];
+        window.prompt = () => inputs.length > 0 ? inputs.shift() : null;
+        try {
+            state.run("debug.debug()");
+            assert(state.run("return x") === 2, "debug.debug assignment");
+        } finally {
+            window.prompt = previous;
             state.close();
         }
     });

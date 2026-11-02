@@ -61,6 +61,8 @@ jobs:
         grep -qx 'package/src/fengari.mjs' "$RUNNER_TEMP/tarball.txt"
         grep -qx 'package/types/fengari.d.ts' "$RUNNER_TEMP/tarball.txt"
         grep -qx 'package/dist/fengari.js' "$RUNNER_TEMP/tarball.txt"
+        grep -qx 'package/dist/fengari.min.js' "$RUNNER_TEMP/tarball.txt"
+        grep -qx 'package/dist/fengari.js.map' "$RUNNER_TEMP/tarball.txt"
         grep -qx 'package/package.json' "$RUNNER_TEMP/tarball.txt"
         if grep -q '^package/test/' "$RUNNER_TEMP/tarball.txt"; then
           echo "::error::test/ must not be published"

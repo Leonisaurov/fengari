@@ -89,7 +89,9 @@ Relative paths resolve against the virtual root (`/`). `io.tmpfile` and `os.tmpn
 
 In Node the real file system is used by default; `vfs.useMemory()` switches a Node host (or a test) to the same in-memory file system, and `vfs.useNode()` switches back. `vfs.current()` returns `"node"` or `"memory"`.
 
-If the host has a synchronous `localStorage`, `vfs.saveToStorage(key)` serializes the current files (base64) and `vfs.loadFromStorage(key)` restores them; `vfs.clearStorage(key)` removes the entry. For larger data, `vfs.saveToIndexedDB(key)` / `loadFromIndexedDB(key)` / `clearFromIndexedDB(key)` use an IndexedDB database named `fengari-vfs`. With an OPFS `FileSystemDirectoryHandle`, `vfs.saveToOPFS(dir, key)` / `loadFromOPFS(dir, key)` / `clearFromOPFS(dir, key)` persist through `createWritable()`; direct OPFS file access is not implemented.
+If the host has a synchronous `localStorage`, `vfs.saveToStorage(key)` serializes the current files (base64) and `vfs.loadFromStorage(key)` restores them; `vfs.clearStorage(key)` removes the entry. For larger data, `vfs.saveToIndexedDB(key)` / `loadFromIndexedDB(key)` / `clearFromIndexedDB(key)` use an IndexedDB database named `fengari-vfs`. With an OPFS `FileSystemDirectoryHandle`, `vfs.saveToOPFS(dir, key)` / `loadFromOPFS(dir, key)` / `clearFromOPFS(dir, key)` persist snapshots through `createWritable()`.
+
+In a **worker**, `await vfs.mountOPFS(dir)` mounts the directory as the live file system using synchronous access handles, so `io.open/read/write/seek` work as usual; `vfs.unmountOPFS()` flushes and closes them. Only flat file names that exist at mount time are OPFS-backed (or pre-create them with `{ files: [...] }`); other paths use the in-memory file system. `createSyncAccessHandle` is worker-only, so the main thread must use the snapshot helpers.
 
 `require` also checks the VFS for both Lua and JS modules, so mounted `.lua` and `.js` files load without XHR. Call `vfs.allowNetwork(false)` to forbid the synchronous XHR fallback entirely; `readable`/`loadfile`/`require` then only see the VFS. For asynchronous module loading, fetch the source first and mount it:
 
@@ -101,9 +103,9 @@ await vfs.loadFromURL("/modules/plugin.lua", "/plugins/plugin.lua");
 
 ### Browser bundle and tests
 
-`pnpm build` generates `dist/fengari.js`, a self-contained IIFE that exposes the package as `window.fengari` (it includes `sprintf-js` and stubs Node-only modules). It is built on `pnpm pack` as well, so the tarball ships it.
+`pnpm build` generates `dist/fengari.js` (with `dist/fengari.js.map`) and `dist/fengari.min.js`, a self-contained IIFE that exposes the package as `window.fengari` (it includes `sprintf-js` and stubs Node-only modules). The `.min` file strips comments and indentation (no identifier mangling) and is built on `pnpm pack` as well, so the tarball ships both.
 
-`pnpm test:browser` runs the browser suite without Playwright: it serves the bundle from a local HTTP server, launches **Brave in headless mode** through the Chrome DevTools Protocol (falling back to Chromium/Chrome if Brave is not installed) and checks the VFS, mounted `require`/`dofile`, localStorage, IndexedDB, OPFS, a real Web Worker, stdout handlers and the sandbox. Set `BRAVE_BIN` to point at a specific Brave build.
+`pnpm test:browser` runs the browser suite without Playwright: it serves the bundle from a local HTTP server, launches **Brave in headless mode** through the Chrome DevTools Protocol (falling back to Chromium/Chrome if Brave is not installed) and checks the VFS, mounted `require`/`dofile`, async `require`/import maps, localStorage, IndexedDB, OPFS snapshots, direct OPFS in a worker, SharedArrayBuffer, a real Web Worker (including RPC through the async bridge), `debug.debug`, the minified bundle/source map, stdout handlers and the sandbox. Set `BRAVE_BIN` to point at a specific Brave build.
 
 CI runs the same suite. The XHR path can be disabled with `vfs.allowNetwork(false)` for a VFS-only environment.
 
@@ -132,7 +134,17 @@ lua.lua_setglobal(state.L, "fetchStatus");
 await state.runAsync('return fetchStatus("/data.json")');  // 200
 ```
 
-`pushAsyncJS` must be called from code driven by `runAsync`/`callAsync`; the driver awaits each Promise and resumes the coroutine. The sandbox removes `io`, `os`, `package`, `debug`, `dofile`, `loadfile` and `require` by default (configurable with `hide`) and enforces instruction, wall-clock and approximate memory limits (`instructions`, `milliseconds`, `memory` in KB) with a count hook.
+`pushAsyncJS` must be called from code driven by `runAsync`/`callAsync`; the driver awaits each Promise and resumes the coroutine. `installAsyncModules` adds a searcher that fetches missing Lua modules through an async function while under `runAsync`, with an import-map-like option:
+
+```js
+state.installAsyncModules({
+    base: "/modules/",                       // name -> /modules/name.lua
+    map: { alias: "/custom/alias.lua" }       // explicit overrides
+});
+await state.runAsync('return require("alias")');
+```
+
+The sandbox removes `io`, `os`, `package`, `debug`, `dofile`, `loadfile` and `require` by default (configurable with `hide`) and enforces instruction, wall-clock and approximate memory limits (`instructions`, `milliseconds`, `memory` in KB) with a count hook.
 
 The package also ships ES module bindings (`import { lua, lauxlib, api } from "fengari"`) and TypeScript definitions (`types/fengari.d.ts`).
 
@@ -255,11 +267,11 @@ This library is automatically loaded by `luaL_openlibs` into the global `"fengar
 - `io.popen()`: commands run to completion synchronously; output (read mode)
   and input (write mode) are buffered instead of streamed.
 - In the browser, `require` uses the VFS for mounted modules and falls back to
-  synchronous XHR for URLs unless `vfs.allowNetwork(false)` is set. There is no
-  ESM/import-map loader; async module loading is host driven through
-  `vfs.loadFromURL()` (or fetch + mount) before running Lua.
+  synchronous XHR for URLs unless `vfs.allowNetwork(false)` is set. Async Lua
+  modules load through `installAsyncModules`/`runAsync` (import-map style) or
+  `vfs.loadFromURL()`; there is no ESM/javascript module loader.
 - `f:seek()` on pipes and terminals fails with `ESPIPE`, as in PUC Lua.
-- The sandbox memory limit is approximate (`collectgarbage("count")`), not an OS-level cap. OPFS persistence serializes snapshots through `createWritable()`; the VFS itself is still in memory.
+- The sandbox memory limit is approximate (`collectgarbage("count")`), not an OS-level cap. Direct OPFS is worker-only and limited to flat files present at mount time; elsewhere OPFS is used for snapshots.
 
 
 ## Benchmarks and validation

@@ -574,6 +574,104 @@ const create_memory_backend = function() {
 };
 
 /* ====================================================================== */
+/* direct OPFS backend (workers only)                                     */
+/* ====================================================================== */
+
+const create_opfs_backend = function(memory, handles) {
+    const opfs_handle = function(access, mode) {
+        let plus = mode.indexOf("+") !== -1;
+        let readable = mode[0] === "r" || plus;
+        let writable = mode[0] !== "r" || plus;
+        let append = mode[0] === 'a';
+        if (mode[0] === 'w')
+            access.truncate(0);
+        return {
+            read: function(buffer, offset, length, position) {
+                if (!readable)
+                    throw file_error("EBADF", -9, "bad file descriptor");
+                let start = position === null ? 0 : position;
+                return access.read(buffer.subarray(offset, offset + length), { at: start });
+            },
+            write: function(buffer, offset, length, position) {
+                if (!writable)
+                    throw file_error("EBADF", -9, "bad file descriptor");
+                let start = position === null
+                    ? (append ? access.getSize() : 0)
+                    : position;
+                access.write(buffer.subarray(offset, offset + length), { at: start });
+                return length;
+            },
+            size: function() {
+                return access.getSize();
+            },
+            close: function() {
+                access.flush();
+            },
+            sync: function() {
+                access.flush();
+            }
+        };
+    };
+
+    return {
+        name: "opfs",
+        stdin: memory.stdin,
+        stdout: memory.stdout,
+        stderr: memory.stderr,
+
+        open: function(path, mode) {
+            let access = handles.get(resolve_key(path));
+            if (access)
+                return opfs_handle(access, mode);
+            return memory.open(path, mode);
+        },
+
+        openTemp: function() {
+            return memory.openTemp();
+        },
+
+        popen: null,
+
+        unlink: function(path) {
+            if (handles.has(resolve_key(path)))
+                throw file_error("ENOSYS", -38, "cannot remove an OPFS file synchronously", path);
+            return memory.unlink(path);
+        },
+
+        rename: function(from, to) {
+            if (handles.has(resolve_key(from)) || handles.has(resolve_key(to)))
+                throw file_error("ENOSYS", -38, "cannot rename OPFS files synchronously", from);
+            return memory.rename(from, to);
+        },
+
+        tmpname: function() {
+            return memory.tmpname();
+        },
+
+        getenv: function(key) {
+            return memory.getenv(key);
+        },
+
+        execute: function() {
+            return memory.execute();
+        },
+
+        clock: function() {
+            return memory.clock();
+        },
+
+        loadfile: function(path) {
+            let access = handles.get(resolve_key(path));
+            if (!access)
+                return memory.loadfile(path);
+            let data = new Uint8Array(access.getSize());
+            access.read(data, { at: 0 });
+            return data;
+        }
+    };
+};
+
+/* ====================================================================== */
 /* Node backend                                                           */
 /* ====================================================================== */
 
@@ -761,6 +859,78 @@ const active_backend = function() {
     return backend;
 };
 
+let previous_backend = null;
+let opfs_handles = null;
+
+/**
+ * Mount a FileSystemDirectoryHandle as the live file system. Only available
+ * in workers: createSyncAccessHandle is synchronous, so io/open/read/write
+ * work as usual after the async mount. Flat file names only; files created
+ * later fall back to the in-memory file system.
+ */
+const mount_opfs = async function(directory, options) {
+    options = options || {};
+    if (!directory || typeof directory.getFileHandle !== "function" ||
+        typeof directory.entries !== "function")
+        throw new Error("a FileSystemDirectoryHandle is required");
+    if (typeof FileSystemSyncAccessHandle === "undefined")
+        throw new Error("OPFS sync access handles are only available in a worker");
+
+    if (active_backend().name === "opfs")
+        unmount_opfs();
+
+    const handles = new Map();
+
+    const open_file = async function(name, create) {
+        if (name.indexOf("/") !== -1)
+            throw new Error("direct OPFS mount only supports flat file names");
+        let handle = await directory.getFileHandle(name, { create: !!create });
+        if (typeof handle.createSyncAccessHandle !== "function")
+            throw new Error("createSyncAccessHandle is only available in a worker");
+        let access = await handle.createSyncAccessHandle();
+        handles.set(normalize_key("/" + name), access);
+    };
+
+    try {
+        if (options.files) {
+            for (let name of options.files)
+                await open_file(name, true);
+        } else {
+            for await (const [name, handle] of directory.entries()) {
+                if (handle.kind === "file")
+                    await open_file(name, false);
+            }
+        }
+    } catch (e) {
+        for (let access of handles.values()) {
+            try { access.close(); } catch (e2) { /* ignore */ }
+        }
+        throw e;
+    }
+
+    previous_backend = active_backend();
+    opfs_handles = handles;
+    backend = create_opfs_backend(memory_backend, handles);
+    return handles.size;
+};
+
+const unmount_opfs = function() {
+    if (active_backend().name !== "opfs")
+        return false;
+    if (opfs_handles) {
+        for (let access of opfs_handles.values()) {
+            try {
+                access.flush();
+                access.close();
+            } catch (e) { /* ignore */ }
+        }
+    }
+    opfs_handles = null;
+    backend = previous_backend || memory_backend;
+    previous_backend = null;
+    return true;
+};
+
 module.exports.is_node = is_node;
 module.exports.backend_name = function() {
     return active_backend().name;
@@ -808,6 +978,8 @@ module.exports.execute = function(command) {
 module.exports.clock = function() {
     return active_backend().clock();
 };
+module.exports.mountOPFS = mount_opfs;
+module.exports.unmountOPFS = unmount_opfs;
 module.exports.loadfile = function(path) {
     return active_backend().loadfile(path);
 };
@@ -829,6 +1001,12 @@ module.exports.vfs = Object.assign({}, memory_backend.vfs, {
     },
     networkEnabled: function() {
         return network_enabled;
+    },
+    mountOPFS: function(directory, options) {
+        return mount_opfs(directory, options);
+    },
+    unmountOPFS: function() {
+        return unmount_opfs();
     },
     useMemory: function() {
         backend = memory_backend;

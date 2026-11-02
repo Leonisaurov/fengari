@@ -171,3 +171,37 @@ test('api async functions resolve Promises through runAsync/callAsync', async ()
         state.close();
     }
 });
+
+test('api.installAsyncModules fetches missing Lua modules under runAsync', async () => {
+    const state = api.createState();
+    try {
+        let fetched = [];
+        state.installAsyncModules({
+            fetch: async (name, url) => {
+                fetched.push(name + "|" + url);
+                if (name === "greet")
+                    return "return { hello = function() return 'hi' end }";
+                return null;
+            }
+        });
+
+        expect(await state.runAsync('local m = require("greet") return m.hello()')).toBe("hi");
+        expect(fetched[0]).toBe("greet|/modules/greet.lua");
+
+        state.installAsyncModules({
+            map: { alias: "/custom/alias.lua" },
+            fetch: async (name, url) => url === "/custom/alias.lua" ? "return 42" : null
+        });
+        expect(await state.runAsync('return require("alias")')).toBe(42);
+
+        await expect(state.runAsync('return require("missing")')).rejects.toThrow(/not found/);
+
+        state.run('package.preload["local"] = function() return 5 end');
+        let calls = 0;
+        state.installAsyncModules({ fetch: async () => { calls++; return "return 1"; } });
+        expect(await state.runAsync('return require("local")')).toBe(5);
+        expect(calls).toBe(0);
+    } finally {
+        state.close();
+    }
+});

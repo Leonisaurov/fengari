@@ -280,13 +280,17 @@ live under `/tmp`. Nothing is persisted automatically: use
 `vfs.saveToStorage()`/`loadFromStorage()` (localStorage),
 `vfs.saveToIndexedDB()`/`loadFromIndexedDB()` (IndexedDB) or
 `vfs.saveToOPFS()`/`loadFromOPFS()` (an OPFS directory handle), or take a
-`vfs.snapshot()` and `vfs.restore()` it later. `vfs.allowNetwork(false)`
+`vfs.snapshot()` and `vfs.restore()` it later. In a worker,
+`await vfs.mountOPFS(dir)` makes OPFS files the live file system through
+synchronous access handles (flat names present at mount time); call
+`vfs.unmountOPFS()` to flush and close. `vfs.allowNetwork(false)`
 disables the XHR fallback so `require`/`loadfile` only read the VFS.
 `vfs.loadFromURL(url, path)` fetches and mounts a module asynchronously, after
 which the synchronous `require`/`dofile` can use it.
 
-`node scripts/build-browser.js` (or `pnpm build`) emits `dist/fengari.js`, an
-IIFE that exposes `window.fengari`. The browser tests (`pnpm test:browser`)
+`node scripts/build-browser.js` (or `pnpm build`) emits `dist/fengari.js`
+(plus a source map) and `dist/fengari.min.js`, IIFEs that expose
+`window.fengari`. The browser tests (`pnpm test:browser`)
 drive Brave headless through the Chrome DevTools Protocol, not Playwright.
 
 Two limits are worth knowing. `io.popen` cannot stream under Lua's synchronous
@@ -308,7 +312,9 @@ errors into `Error` objects with `luaMessage` and `luaTraceback`.
 `pushAsyncJS` wraps a function that returns a Promise; `runAsync`/`callAsync`
 run the chunk in a coroutine, await the Promise and resume it, so Lua sees the
 resolved value (a rejection becomes a Lua error). Async functions only work
-under those drivers; plain `run`/`call` stay synchronous. The sandbox
+under those drivers; plain `run`/`call` stay synchronous.
+`installAsyncModules({ base, map })` installs a searcher that fetches missing
+Lua modules through that bridge while under `runAsync`. The sandbox
 hides `io`, `os`, `package`, `debug`, `dofile`, `loadfile` and `require` by
 default and enforces instruction, wall-clock and approximate memory limits
 (`instructions`, `milliseconds`, `memory` in KB). The memory limit uses

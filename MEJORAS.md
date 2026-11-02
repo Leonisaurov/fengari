@@ -10,7 +10,7 @@ Estado actual tras versiones y locale: 43 suites, 640 tests que pasan y 20 skips
 Estado actual tras referencia de API y guía de migración: 44 suites, 644 tests que pasan y 20 skips.
 Estado actual tras completar la librería `io`: 45 suites, 672 tests que pasan y 20 skips.
 Estado actual tras el VFS de navegador: 47 suites, 692 tests que pasan y 20 skips.
-Estado actual tras benchmarks, diferencial, fuzzing y API de alto nivel: 52 suites, 714 tests que pasan y 15 skips.
+Estado actual tras benchmarks, diferencial, fuzzing y API de alto nivel: 52 suites, 715 tests que pasan y 15 skips.
 
 **Prioridad:** P0 desbloquea uso real · P1 calidad/rendimiento · P2 deseable · P3 largo plazo.
 **Esfuerzo:** S < 1 día · M 1–5 días · L > 1 semana.
@@ -65,10 +65,10 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - [x] **`io.input`/`io.output`** — P1, S. Cambian el archivo por defecto, aceptan nombres o handles y `io.close()` cierra la salida por defecto.
 - [x] **`io.tmpfile`/`os.tmpname`** — P1, S. Archivo temporal en Node que se elimina al cerrar; `os.tmpname` ya existía.
 - [x] **`io.popen`** — P2, M. `spawnSync` con shell: en modo lectura se ejecuta al abrir y se bufferiza stdout; en modo escritura los datos se acumulan y se envían al cerrar. `close` devuelve `"exit"`/`"signal"` con el código.
-- [x] **Sistema de archivos virtual para navegador** — P2, L. `src/lfs.js` selecciona `fs` en Node y un FS en memoria cuando no hay `process`; `io` y `os.remove/rename/tmpname/getenv` funcionan sobre él. La API `fengari.vfs` permite montar/leer archivos, inyectar stdin/stdout/stderr, hacer `snapshot()`/`restore()` y persistir con `localStorage` o IndexedDB (`saveToStorage`/`saveToIndexedDB`); OPFS sigue en manos del host.
+- [x] **Sistema de archivos virtual para navegador** — P2, L. `src/lfs.js` selecciona `fs` en Node y un FS en memoria cuando no hay `process`; `io` y `os.remove/rename/tmpname/getenv` funcionan sobre él. La API `fengari.vfs` permite montar/leer archivos, inyectar stdin/stdout/stderr, hacer `snapshot()`/`restore()` y persistir con `localStorage`, IndexedDB u OPFS (snapshots y, en workers, montaje directo con `mountOPFS`).
 - [x] **`os.remove`/`os.rename` en navegador** — P2, S. Implementados sobre el VFS con `errno` y mensajes claros.
 - [x] **`io` en navegador** — P2, L. Registrada siempre en `luaL_openlibs`; `open/read/write/lines/seek/tmpfile` y `loadfile`/`dofile`/`require` consultan el VFS antes de caer al XHR síncrono. `popen`/`os.execute`/`os.exit` fallan con un error explícito.
-- [x] **`require` y `package.loadlib` sin XHR en navegador** — P1, M. El VFS resuelve módulos Lua y JS montados (`.lua`/`.js`) sin red, además de `package.jspath` y `T.newuserdata`. El XHR síncrono queda solo como fallback para URLs no montadas (`vfs.allowNetwork(false)` lo desactiva) y `vfs.loadFromURL` permite cargar módulos de forma asíncrona antes de ejecutar Lua; falta un loader ESM/import maps.
+- [x] **`require` y `package.loadlib` sin XHR en navegador** — P1, M. El VFS resuelve módulos Lua y JS montados (`.lua`/`.js`) sin red, además de `package.jspath` y `T.newuserdata`. El XHR síncrono queda solo como fallback para URLs no montadas (`vfs.allowNetwork(false)` lo desactiva). `vfs.loadFromURL` y `api.installAsyncModules` (con mapa de importación) cargan módulos de forma asíncrona bajo `runAsync`; falta ejecutar módulos ES/JS arbitrarios.
 
 ---
 
@@ -146,7 +146,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - **Versiones**: el parser/VM es 5.3; los perfiles 5.1/5.2 ajustan la superficie de librerías, no la sintaxis ni el modelo numérico. `setfenv`/`module` no están disponibles.
 - **GC**: `count` usa tamaños estimados por tipo; `collect` es atómico y solo `step` es incremental. Los valores retenidos únicamente por JS no cuentan como raíces.
 - **Fidelidad**: locale solo cubre el separador decimal (`ctype`/collation siguen en "C"); `%q` para `inf`/`nan` mantiene el estilo 5.3; los tracebacks no garantizan paridad exacta de marcos C/JS.
-- **Navegador**: `require`/`package.loadlib` caen a XHR síncrono si el módulo no está montado en el VFS; no hay tests reales de navegador ni carga asíncrona de módulos. El VFS es en memoria y se persiste con `vfs.saveToStorage()`/`loadFromStorage()` (localStorage), `saveToIndexedDB()`/`loadFromIndexedDB()` o `saveToOPFS()`/`loadFromOPFS()`. `vfs.allowNetwork(false)` elimina el fallback XHR.
+- **Navegador**: `require`/`package.loadlib` caen a XHR síncrono si el módulo no está montado y la red está permitida; `installAsyncModules` cubre la carga asíncrona de Lua (sin ESM). El VFS es en memoria salvo `mountOPFS` en workers (archivos planos presentes al montar); la persistencia usa `saveToStorage`/`saveToIndexedDB`/`saveToOPFS`. `vfs.allowNetwork(false)` elimina el XHR.
 - **`io`**: `popen`, `os.execute` y `os.exit` necesitan una API de procesos; en el VFS fallan con un error claro. `popen` ejecuta el comando de forma síncrona y bufferiza (no hay streaming); `setvbuf` controla un buffer de escritura en JS; `seek` usa una posición en JS y falla con `ESPIPE` en pipes y terminales.
 
 ---

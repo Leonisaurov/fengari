@@ -374,6 +374,69 @@ const callAsync = async function(L, fn, args) {
     return drive_to_results(L, thread, args.length);
 };
 
+/**
+ * Install a package.searchers entry that fetches missing Lua modules through
+ * an async function (fetch by default), so require() works under runAsync.
+ *
+ * Options: base URL, extension (".lua"), map {name: url} and a custom
+ * fetch(name, url) that returns the source text or null/undefined.
+ */
+const installAsyncModules = function(L, options) {
+    options = options || {};
+    let base = options.base || "/modules/";
+    let extension = options.extension || ".lua";
+    let map = options.map || {};
+    let custom_fetch = options.fetch || null;
+
+    const fetch_module = async function(name) {
+        let url = map[name];
+        if (url === undefined)
+            url = base.replace(/\/+$/, "") + "/" + String(name).replace(/\./g, "/") + extension;
+        try {
+            if (custom_fetch)
+                return await custom_fetch(name, url);
+            if (typeof fetch !== "function")
+                return null;
+            let response = await fetch(url);
+            if (!response.ok)
+                return null;
+            return await response.text();
+        } catch (e) {
+            return null;
+        }
+    };
+
+    pushAsyncJS(L, fetch_module);
+    lua_setglobal(L, to_luastring("__fengari_async_modules_fetch"));
+
+    run(L, `
+        local searchers = package.searchers or package.loaders
+        if not package.__fengari_async_modules then
+            local function async_searcher(name)
+                if package.searchpath then
+                    local found = package.searchpath(name, package.path)
+                    if not found and package.jspath then
+                        found = package.searchpath(name, package.jspath)
+                    end
+                    if found then return nil end
+                end
+                local source = __fengari_async_modules_fetch(name)
+                if not source then
+                    return "\\n\\tno async module '" .. name .. "'"
+                end
+                local chunk, err = load(source, "@" .. name)
+                if not chunk then
+                    return "\\n\\t" .. tostring(err)
+                end
+                return chunk, name
+            end
+            table.insert(searchers, 2, async_searcher)
+            package.__fengari_async_modules = true
+        end
+    `);
+    return fetch_module;
+};
+
 const collect_results = function(L, base) {
     let n = lua_gettop(L) - base;
     let results = [];
@@ -461,6 +524,7 @@ const createState = function(options) {
         toJS: (idx) => toJS(L, idx),
         pushJS: (value) => pushJS(L, value),
         pushAsyncJS: (fn) => pushAsyncJS(L, fn),
+        installAsyncModules: (options) => installAsyncModules(L, options),
         close: () => lua_close(L)
     };
 };
@@ -544,4 +608,5 @@ module.exports.pushJS = pushJS;
 module.exports.runAsync = runAsync;
 module.exports.callAsync = callAsync;
 module.exports.pushAsyncJS = pushAsyncJS;
+module.exports.installAsyncModules = installAsyncModules;
 module.exports.sandbox = sandbox;

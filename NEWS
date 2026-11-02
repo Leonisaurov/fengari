@@ -32,6 +32,12 @@ unreleased
   - Add api.pushAsyncJS/runAsync/callAsync to bridge JS Promises through
     Lua coroutines
   - Add vfs.loadFromURL to fetch and mount modules asynchronously
+  - Add api.installAsyncModules: fetch missing Lua modules through an
+    import-map style configuration under runAsync
+  - Add a worker-only direct OPFS backend (mountOPFS/unmountOPFS)
+  - Build dist/fengari.min.js and dist/fengari.js.map
+  - Extend the browser suite with SAB, worker RPC, debug.debug and the
+    minified bundle
 
 
 0.1.5 - 2025-12-26

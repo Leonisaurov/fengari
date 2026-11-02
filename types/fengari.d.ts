@@ -176,11 +176,13 @@ export interface Vfs {
     saveToOPFS(directory: any, key: string): Promise<number>;
     loadFromOPFS(directory: any, key: string): Promise<number>;
     clearFromOPFS(directory: any, key: string): Promise<void>;
+    mountOPFS(directory: any, options?: { files?: string[] }): Promise<number>;
+    unmountOPFS(): boolean;
     allowNetwork(enabled: boolean): boolean;
     networkEnabled(): boolean;
     useMemory(): any;
     useNode(): any;
-    current(): "node" | "memory";
+    current(): string;
 }
 
 export interface ApiState {
@@ -194,7 +196,15 @@ export interface ApiState {
     toJS(idx: number): any;
     pushJS(value: any): void;
     pushAsyncJS(fn: (...args: any[]) => any): void;
+    installAsyncModules(options?: AsyncModuleOptions): void;
     close(): void;
+}
+
+export interface AsyncModuleOptions {
+    base?: string;
+    extension?: string;
+    map?: Record<string, string>;
+    fetch?: (name: string, url: string) => Promise<string | null | undefined> | string | null | undefined;
 }
 
 export interface SandboxOptions {
@@ -226,6 +236,7 @@ export interface ApiHelpers {
     toJS(L: LuaState, idx: number): any;
     pushJS(L: LuaState, value: any): void;
     pushAsyncJS(L: LuaState, fn: (...args: any[]) => any): void;
+    installAsyncModules(L: LuaState, options?: AsyncModuleOptions): void;
     sandbox(options?: SandboxOptions): Sandbox;
 }
 
