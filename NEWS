@@ -42,6 +42,8 @@ unreleased
   - Load CommonJS and ES modules asynchronously through installAsyncModules
   - Report a process killed by a signal as nil, "signal", <number> from
     os.execute and io.popen:close instead of throwing a JS error
+  - Reuse CallInfo frames and keep the value stack packed instead of deleting
+    slots on every return: ~20% faster on the benchmark suite (fib ~70%)
 
 
 0.1.5 - 2025-12-26

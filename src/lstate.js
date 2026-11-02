@@ -115,10 +115,13 @@ class global_State {
 }
 
 const luaE_extendCI = function(L) {
-    let ci = new CallInfo();
-    L.ci.next = ci;
+    let ci = L.ci.next;
+    if (ci === null) {
+        ci = new CallInfo();
+        ci.next = null;
+        L.ci.next = ci;
+    }
     ci.previous = L.ci;
-    ci.next = null;
     L.ci = ci;
     return ci;
 };

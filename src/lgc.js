@@ -82,7 +82,7 @@ const object_size = function(o) {
         return CLOSURE_OVERHEAD + o.nupvalues * TVALUE_SIZE;
     if (o instanceof lstate.lua_State) {
         let cis = 0;
-        for (let ci = o.base_ci; ci; ci = ci.next) cis++;
+        for (let ci = o.ci || o.base_ci; ci; ci = ci.previous) cis++;
         return THREAD_OVERHEAD + (o.stack ? o.stack.length * TVALUE_SIZE : 0) +
             cis * CALLINFO_SIZE;
     }

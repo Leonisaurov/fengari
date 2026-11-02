@@ -49,11 +49,34 @@ const { MBuffer } = require('./lzio.js');
 
 const adjust_top = function(L, newtop) {
     if (L.top < newtop) {
-        while (L.top < newtop)
-            L.stack[L.top++] = new lobject.TValue(LUA_TNIL, null);
+        while (L.top < newtop) {
+            let slot = L.stack[L.top];
+            if (slot === void 0)
+                L.stack[L.top] = new lobject.TValue(LUA_TNIL, null);
+            else
+                slot.setnilvalue();
+            L.top++;
+        }
     } else {
-        while (L.top > newtop)
-            delete L.stack[--L.top];
+        while (L.top > newtop) {
+            let slot = L.stack[--L.top];
+            if (slot !== void 0)
+                slot.setnilvalue();
+        }
+    }
+};
+
+/* Extend/shrink a call frame: slots above 'top' are dead, so new slots only
+   need a TValue to write into (their stale contents are not GC roots). */
+const adjust_top_call = function(L, newtop) {
+    if (L.top < newtop) {
+        while (L.top < newtop) {
+            if (L.stack[L.top] === void 0)
+                L.stack[L.top] = new lobject.TValue(LUA_TNIL, null);
+            L.top++;
+        }
+    } else {
+        L.top = newtop;
     }
 };
 
@@ -195,7 +218,7 @@ const luaD_precall = function(L, off, nresults) {
             ci.func = func;
             ci.l_base = base;
             ci.top = base + fsize;
-            adjust_top(L, ci.top);
+            adjust_top_call(L, ci.top);
             ci.l_code = p.code;
             ci.l_savedpc = 0;
             ci.callstatus = lstate.CIST_LUA;
@@ -221,7 +244,6 @@ const luaD_poscall = function(L, ci, firstResult, nres) {
 
     let res = ci.funcOff;
     L.ci = ci.previous;
-    L.ci.next = null;
     return moveresults(L, firstResult, res, nres, wanted);
 };
 
@@ -240,8 +262,6 @@ const moveresults = function(L, firstResult, res, nres, wanted) {
         case LUA_MULTRET: {
             for (let i = 0; i < nres; i++)
                 lobject.setobjs2s(L, res + i, firstResult + i);
-            for (let i=L.top; i>=(res + nres); i--)
-                delete L.stack[i];
             L.top = res + nres;
             return false;
         }
@@ -264,8 +284,6 @@ const moveresults = function(L, firstResult, res, nres, wanted) {
         }
     }
     let newtop = res + wanted; /* top points after the last result */
-    for (let i=L.top; i>=newtop; i--)
-        delete L.stack[i];
     L.top = newtop;
     return true;
 };
@@ -731,6 +749,7 @@ const luaD_protectedparser = function(L, z, name, mode) {
 };
 
 module.exports.adjust_top           = adjust_top;
+module.exports.adjust_top_call      = adjust_top_call;
 module.exports.luaD_call            = luaD_call;
 module.exports.luaD_callnoyield     = luaD_callnoyield;
 module.exports.luaD_checkstack      = luaD_checkstack;

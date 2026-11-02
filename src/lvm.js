@@ -656,7 +656,7 @@ const luaV_execute = function(L) {
                 for (; n > 0; n--) {
                     ltable.luaH_setint(h, last--, L.stack[ra + n]);
                 }
-                ldo.adjust_top(L, ci.top);  /* correct top (in case of previous open call) */
+                ldo.adjust_top_call(L, ci.top);  /* correct top (in case of previous open call) */
                 break;
             }
             case OP_CLOSURE: {

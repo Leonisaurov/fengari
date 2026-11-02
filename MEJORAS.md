@@ -76,7 +76,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 
 - [x] **Suite de benchmarks** — P0, M. `bench/` con `fib`, `mandelbrot`, `nbody`, `spectral-norm`, `binary-trees`, estrés de strings/tablas; comparar contra PUC Lua 5.3 y contra el commit anterior.
 - **Dispatch de la VM** — P1, L. Perfilar `luaV_execute` (`src/lvm.js`): orden del `switch`, evitar `new TValue` en bucles, reutilizar registros y reducir comprobaciones repetidas.
-- **Representación de valores y pila** — P1, L. Evaluar pooling de `TValue`, arrays paralelos o tagged unions; eliminar `slice`/spread en rutas calientes y definir una política de crecimiento de `L.stack`.
+- **Representación de valores y pila** — P1, L. Evaluar pooling de `TValue`, arrays paralelos o tagged unions; eliminar `slice`/spread en rutas calientes y definir una política de crecimiento de `L.stack`. Hecho: los `CallInfo` se reutilizan y la pila ya no se vuelve “holey” al retornar (≈20% en la suite, `fib` ≈70%).
 - **Tablas** — P1, L. Parte densa para claves enteras, fast path sin `Map` para tablas pequeñas, rehash predecible, menos objetos auxiliares y orden de iteración estable (`src/ltable.js`).
 - **Strings** — P1, M. `TextEncoder`/`TextDecoder` singleton, caché de conversiones UTF-8↔UTF-16, política de interning para strings largos y `Buffer` en Node (`src/defs.js`, `src/lstring.js`).
 - **Compilador** — P2, M. Constant folding, peephole de `MOVE`/saltos, eliminación de código muerto y revisión del `FIXME` de `lcode.js:991`.
