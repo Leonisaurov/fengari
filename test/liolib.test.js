@@ -525,6 +525,21 @@ test('io.read with no arguments reads a line from the default input', () => {
     `);
 });
 
+(process.platform === "win32" ? test.skip : test)('io.popen reports the terminating signal', () => {
+    run(`
+        local p = assert(io.popen("kill -9 $$"))
+        local ok, what, code = p:close()
+        assert(ok == nil and what == "signal" and code == 9)
+    `);
+
+    run(`
+        local p = assert(io.popen("kill -9 $$", "w"))
+        assert(p:write("x"))
+        local ok, what, code = p:close()
+        assert(ok == nil and what == "signal" and code == 9)
+    `);
+});
+
 (process.platform === "win32" ? test.skip : test)('io.popen write mode feeds the command', () => {
     let out = file("popen.txt");
 

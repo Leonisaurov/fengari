@@ -677,8 +677,19 @@ const create_opfs_backend = function(memory, handles) {
 
 const create_node_backend = function() {
     const fs = require('fs');
+    const os = require('os');
     const tmp = require('tmp');
     const child_process = require('child_process');
+
+    /* Node reports the terminating signal by name; Lua expects its number. */
+    const signal_number = function(signal) {
+        if (typeof signal === "number")
+            return signal;
+        const signals = os.constants && os.constants.signals;
+        if (signals && Object.prototype.hasOwnProperty.call(signals, signal))
+            return signals[signal];
+        return 0;
+    };
 
     const node_path = function(path) {
         if (typeof path === "string")
@@ -765,7 +776,7 @@ const create_node_backend = function() {
                     try { info.handle.close(); } catch (e) { /* ignore */ }
                     info.cleanup();
                     if (result.signal)
-                        return { signal: result.signal };
+                        return { signal: signal_number(result.signal) };
                     return { status: result.status };
                 };
             } else {
@@ -788,7 +799,7 @@ const create_node_backend = function() {
                     if (result.error)
                         return { error: result.error };
                     if (result.signal)
-                        return { signal: result.signal };
+                        return { signal: signal_number(result.signal) };
                     return { status: result.status };
                 };
             }
@@ -826,9 +837,16 @@ const create_node_backend = function() {
         },
 
         execute: function(command) {
-            child_process.execSync(command, {
-                stdio: [process.stdin, process.stdout, process.stderr]
+            let result = child_process.spawnSync(command, {
+                shell: true,
+                stdio: "inherit"
             });
+            if (result.error)
+                throw result.error;
+            if (result.signal)
+                throw { signal: signal_number(result.signal) };
+            if (result.status !== 0)
+                throw { status: result.status };
         },
 
         clock: function() {

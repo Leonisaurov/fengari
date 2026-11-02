@@ -40,6 +40,8 @@ unreleased
   - Extend the browser suite with SAB, async worker RPC, a blocking
     SharedArrayBuffer bridge, debug.debug and the minified bundle
   - Load CommonJS and ES modules asynchronously through installAsyncModules
+  - Report a process killed by a signal as nil, "signal", <number> from
+    os.execute and io.popen:close instead of throwing a JS error
 
 
 0.1.5 - 2025-12-26

@@ -10,7 +10,7 @@ Estado actual tras versiones y locale: 43 suites, 640 tests que pasan y 20 skips
 Estado actual tras referencia de API y guía de migración: 44 suites, 644 tests que pasan y 20 skips.
 Estado actual tras completar la librería `io`: 45 suites, 672 tests que pasan y 20 skips.
 Estado actual tras el VFS de navegador: 47 suites, 692 tests que pasan y 20 skips.
-Estado actual tras benchmarks, diferencial, fuzzing y API de alto nivel: 52 suites, 724 tests que pasan y 15 skips.
+Estado actual tras benchmarks, diferencial, fuzzing y API de alto nivel: 52 suites, 725 tests que pasan y 15 skips.
 
 **Prioridad:** P0 desbloquea uso real · P1 calidad/rendimiento · P2 deseable · P3 largo plazo.
 **Esfuerzo:** S < 1 día · M 1–5 días · L > 1 semana.
@@ -46,7 +46,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - [x] **`table.sort`** — P3, S. Detecta comparadores inválidos y lanza `"invalid order function for sorting"` como PUC; cubierto por tests.
 - [x] **`next`/`pairs` con mutaciones** — P3, M. Cubierto por tests: limpiar y actualizar campos existentes durante el recorrido es seguro; preserva el orden de iteración actual.
 - [x] **`os.date`/`os.time`** — P2, S. Formato `!` (UTC), tabla `*t`, zonas horarias, años > 2038 y `os.difftime` (`src/loslib.js`).
-- **`os.execute`/`os.exit`** — P2, S. Devolver el triplete de Lua, no bloquear el hilo principal y dar errores claros en navegador/sandbox (`src/loslib.js`).
+- [x] **`os.execute`/`os.exit`** — P2, S. Devuelven el triplete de Lua (`nil, "signal", <número>` si el proceso muere por señal), no bloquean más de lo necesario y dan errores claros en navegador/sandbox (`src/loslib.js`).
 - [x] **`load`/`loadfile`/`dofile`** — P2, S. Modos `"b"`/`"t"`, `env`, lectores por función, validación de chunks binarios y errores con nombre de archivo (`src/lbaselib.js`, `src/lundump.js`).
 - [x] **`string.pack`/`unpack`** — P2, M. Endianness, alineación, tamaños variables, strings con longitud y mensajes de error; ampliar tests de `test/test-suite/strings.test.js`.
 - **`utf8`** — P3, S. Casos límite de secuencias inválidas, `utf8.offset` y `utf8.codepoint` (`src/lutf8lib.js`).

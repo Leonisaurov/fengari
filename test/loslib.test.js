@@ -246,6 +246,8 @@ test('os.remove, os.rename and os.tmpname', () => {
         assert(ok == true and what == "exit" and code == 0)
         local nok, nwhat, ncode = os.execute("exit 3")
         assert(nok == nil and nwhat == "exit" and ncode == 3)
+        local sok, swhat, scode = os.execute("kill -9 $$")
+        assert(sok == nil and swhat == "signal" and scode == 9)
     `;
 
     lualib.luaL_openlibs(L);
