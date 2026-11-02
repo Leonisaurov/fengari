@@ -532,7 +532,10 @@ const recover = function(L, status) {
     if (ci === null) return 0;  /* no recovery point */
     /* "finish" luaD_pcall */
     let oldtop = ci.extra;
-    lfunc.luaF_close(L, oldtop);
+    /* errors while closing are discarded, like PUC's closeprotected */
+    luaD_rawrunprotected(L, function(L1) {
+        lfunc.luaF_close(L1, oldtop, status);
+    }, null);
     seterrorobj(L, status, oldtop);
     L.ci = ci;
     L.allowhook = ci.callstatus & lstate.CIST_OAH;  /* restore original 'allowhook' */
@@ -687,7 +690,11 @@ const luaD_pcall = function(L, func, u, old_top, ef) {
     let status = luaD_rawrunprotected(L, func, u);
 
     if (status !== LUA_OK) {
-        lfunc.luaF_close(L, old_top, status);
+        let close_status = luaD_rawrunprotected(L, function(L1) {
+            lfunc.luaF_close(L1, old_top, status);
+        }, null);
+        if (close_status !== LUA_OK)
+            status = close_status;
         seterrorobj(L, status, old_top);
         L.ci = old_ci;
         L.allowhook = old_allowhooks;
