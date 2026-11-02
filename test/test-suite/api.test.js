@@ -1391,9 +1391,7 @@ test("[test-suite] api: testing multiple states", () => {
 });
 
 
-// Skipped: T.totalmem and the testamem harness are not implemented; the
-// JavaScript GC does not expose a settable memory limit.
-test.skip("[test-suite] api: testing memory limits", () => {
+test("[test-suite] api: testing memory limits", () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
 
@@ -1439,8 +1437,7 @@ const memprefix = `
 `;
 
 
-// Skipped: depends on testamem/T.totalmem (see above).
-test.skip("[test-suite] api: testing memory errors when creating a new state", () => {
+test("[test-suite] api: testing memory errors when creating a new state", () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
 
@@ -1470,8 +1467,7 @@ test("[test-suite] api: get main thread from registry (at index LUA_RIDX_MAINTHR
     lua.lua_call(L, 0, 0);
 });
 
-// Skipped: depends on testamem/T.totalmem (see above).
-test.skip("[test-suite] api: test thread creation after stressing GC", () => {
+test("[test-suite] api: test thread creation after stressing GC", () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
 
@@ -1499,8 +1495,7 @@ test.skip("[test-suite] api: test thread creation after stressing GC", () => {
 });
 
 
-// Skipped: depends on testamem/T.totalmem (see above).
-test.skip("[test-suite] api: testing memory x compiler", () => {
+test("[test-suite] api: testing memory x compiler", () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
 
@@ -1517,8 +1512,7 @@ test.skip("[test-suite] api: testing memory x compiler", () => {
 });
 
 
-// Skipped: depends on testamem/T.totalmem (see above).
-test.skip("[test-suite] api: testing memory x dofile", () => {
+test("[test-suite] api: testing memory x dofile", () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
 
@@ -1552,12 +1546,19 @@ test.skip("[test-suite] api: testing memory x dofile", () => {
 });
 
 
-// Skipped: depends on testamem/T.totalmem (see above).
-test.skip("[test-suite] api: other generic tests", () => {
+test("[test-suite] api: other generic tests", () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
 
     let luaCode = `
+        local testprog = [[
+        local function foo () return end
+        local t = {"x"}
+        a = "aaa"
+        for i = 1, #t do a=a..t[i] end
+        return true
+        ]]
+
         testamem("string creation", function ()
           local a, b = string.gsub("alo alo", "(a)", function (x) return x..'b' end)
           return (a == 'ablo ablo')

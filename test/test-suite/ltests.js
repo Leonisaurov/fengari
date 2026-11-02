@@ -712,6 +712,16 @@ const doremote = function(L) {
     }
 };
 
+const doonnewstack = function(L) {
+    let s = lauxlib.luaL_checkstring(L, 1);
+    let L1 = lua.lua_newthread(L);
+    let status = lauxlib.luaL_loadbuffer(L1, s, s.length, s);
+    if (status === lua.LUA_OK)
+        status = lua.lua_pcall(L1, 0, 0, 0);
+    lua.lua_pushinteger(L, status);
+    return 1;
+};
+
 const tpanic = function(L) {
     console.error(`PANIC: unprotected error in call to Lua API (${lua.lua_tojsstring(L, -1)})\n`);
     return process.exit(1);  /* do not return to Lua */
@@ -940,10 +950,24 @@ const gccolor = function(L) {
     return 1;
 };
 
+const totalmem = function(L) {
+    if (lua.lua_isnoneornil(L, 1)) {
+        lua.lua_pushinteger(L, L.l_G.totalmem_limit);
+    } else {
+        let n = lauxlib.luaL_checkinteger(L, 1);
+        if (typeof n === "bigint") n = Number(n);
+        L.l_G.totalmem_limit = n;
+        L.l_G.alloc_bytes = 0;
+        lua.lua_pushinteger(L, n);
+    }
+    return 1;
+};
+
 const tests_funcs = {
     "checkpanic":   checkpanic,
     "closestate":   closestate,
     "d2s":          d2s,
+    "doonnewstack": doonnewstack,
     "doremote":     doremote,
     "gccolor":      gccolor,
     "gcstate":      gcstate,
@@ -960,6 +984,7 @@ const tests_funcs = {
     "sethook":      sethook,
     "testC":        testJS,
     "testJS":       testJS,
+    "totalmem":     totalmem,
     "udataval":     udataval,
     "unref":        unref,
     "getref":       getref,

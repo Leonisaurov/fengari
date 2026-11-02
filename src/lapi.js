@@ -360,12 +360,13 @@ const lua_pushliteral = function (L, s) {
 const lua_pushcclosure = function(L, fn, n) {
     fengari_argcheck(typeof fn === "function");
     fengari_argcheckinteger(n);
+    let cl = null;
     if (n === 0)
         L.stack[L.top] = new TValue(LUA_TLCF, fn);
     else {
         api_checknelems(L, n);
         api_check(L, n <= lfunc.MAXUPVAL, "upvalue index too large");
-        let cl = new CClosure(L, fn, n);
+        cl = new CClosure(L, fn, n);
         for (let i=0; i<n; i++)
             cl.upvalue[i].setfrom(L.stack[L.top - n + i]);
         for (let i=1; i<n; i++)
@@ -376,7 +377,7 @@ const lua_pushcclosure = function(L, fn, n) {
     }
     api_incr_top(L);
     if (n > 0)
-        lgc.luaC_allocated(L);
+        lgc.luaC_allocated(L, cl);
 };
 
 const lua_pushjsclosure = lua_pushcclosure;
@@ -565,11 +566,14 @@ const luaS_newudata = function(L, size) {
 };
 
 const lua_newuserdata = function(L, size) {
+    if (typeof size === "bigint") size = Number(size);
+    if (size > 0x7fffffff - 64)
+        ldebug.luaG_runerror(L, to_luastring("block too big"));
     let u = luaS_newudata(L, size);
     L.l_G.userdata.add(u);
     L.stack[L.top] = new lobject.TValue(LUA_TUSERDATA, u);
     api_incr_top(L);
-    lgc.luaC_allocated(L);
+    lgc.luaC_allocated(L, u);
     return u.data;
 };
 

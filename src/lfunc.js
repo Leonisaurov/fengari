@@ -19,6 +19,8 @@ class Proto {
         this.linedefined = 0;     // debug information
         this.lastlinedefined = 0; // debug information
         this.source = null;       // used for debug information
+        if (!lgc) lgc = require('./lgc.js');
+        lgc.luaC_allocated(L, this);
     }
 }
 
@@ -27,7 +29,7 @@ let lgc; /* required lazily to avoid a cycle with lgc.js */
 const luaF_newLclosure = function(L, n) {
     const f = new lobject.LClosure(L, n);
     if (!lgc) lgc = require('./lgc.js');
-    lgc.luaC_allocated(L);
+    lgc.luaC_allocated(L, f);
     return f;
 };
 

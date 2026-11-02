@@ -113,6 +113,8 @@ class global_State {
         this.gc_ctx = null;            /* unfinished incremental cycle */
         this.gc_count = null;          /* cached memory count, in bytes */
         this.gc_needs_auto = false;    /* any weak table or pending finalizer? */
+        this.totalmem_limit = 0;       /* test-only allocation budget (0 = off) */
+        this.alloc_bytes = 0;          /* approximate bytes allocated this budget */
         this.locale = "C";             /* approximate locale for os.setlocale */
         this.locale_decimal = ".";     /* decimal separator of that locale */
         this.profile_opened = false;   /* version profile already applied? */
@@ -217,7 +219,7 @@ const lua_newthread = function(L) {
     L1.hook = L.hook;
     L1.hookcount = L1.basehookcount;
     stack_init(L1, L);
-    get_lgc().luaC_allocated(L);
+    get_lgc().luaC_allocated(L, L1);
     return L1;
 };
 

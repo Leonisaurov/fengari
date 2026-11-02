@@ -1226,6 +1226,8 @@ const settable = function(L, t, key, val) {
             let h = t.value; /* save 't' table */
             let slot = ltable.luaH_get(L, h, key);
             if (!slot.ttisnil() || (tm = ltm.fasttm(L, h.metatable, ltm.TMS.TM_NEWINDEX)) === null) {
+                if (slot.ttisnil() && L.l_G.totalmem_limit > 0)
+                    require('./lgc.js').luaC_allocated(L, 64);
                 ltable.luaH_setfrom(L, h, key, val);
                 ltable.invalidateTMcache(h);
                 return;

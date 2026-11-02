@@ -192,7 +192,7 @@ const luaH_removeentry = function(t, hash, e) {
 const luaH_new = function(L) {
     const t = new Table(L);
     if (!lgc) lgc = require('./lgc.js');
-    lgc.luaC_allocated(L);
+    lgc.luaC_allocated(L, t);
     return t;
 };
 

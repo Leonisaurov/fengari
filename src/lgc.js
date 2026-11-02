@@ -21,7 +21,7 @@
 const {
     constant_types: { LUA_TTABLE, LUA_TUSERDATA },
     luastring_indexOf,
-    thread_status: { LUA_OK },
+    thread_status: { LUA_OK, LUA_ERRMEM },
     to_luastring
 } = require('./defs.js');
 const lfunc   = require('./lfunc.js');
@@ -526,10 +526,17 @@ const luaC_barrier_object = function(g, o) {
 };
 
 /* Called by allocations: trigger a full cycle after a budget of new objects. */
-const luaC_allocated = function(L) {
+const luaC_allocated = function(L, obj) {
     const g = L && L.l_G;
     if (!g)
         return;
+    if (g.totalmem_limit > 0 && !g.in_gc) {
+        g.alloc_bytes += typeof obj === "number" ? obj :
+            (obj ? object_size(obj) + 32 : 1);
+        if (g.alloc_bytes > g.totalmem_limit) {
+            require('./ldo.js').luaD_throw(L, LUA_ERRMEM);
+        }
+    }
     g.gc_count = null;
     if (!g.gc_auto || g.in_gc || g.gc_ctx || !g.gc_running || !g.gc_needs_auto)
         return;
