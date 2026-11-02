@@ -273,11 +273,13 @@ const snapshot = vfs.snapshot();  // [{ path, data }, ...]
 ```
 
 `loadfile`, `dofile` and `require` check the virtual file system before
-falling back to synchronous XHR. `os.remove`, `os.rename`, `os.tmpname` and
-`os.getenv` use the same file system and a host-provided environment.
-`io.tmpfile`/`os.tmpname` live under `/tmp`. Nothing is persisted
-automatically: call `vfs.snapshot()` after a run and `vfs.restore()` (or
-`vfs.mount()`) in the next one.
+falling back to synchronous XHR; mounted `.lua` and `.js` modules load without
+network access. `os.remove`, `os.rename`, `os.tmpname` and `os.getenv` use the
+same file system and a host-provided environment. `io.tmpfile`/`os.tmpname`
+live under `/tmp`. Nothing is persisted automatically: use
+`vfs.saveToStorage()`/`loadFromStorage()` (localStorage) or
+`vfs.saveToIndexedDB()`/`loadFromIndexedDB()` (Promises), or take a
+`vfs.snapshot()` and `vfs.restore()` it later.
 
 Two limits are worth knowing. `io.popen` cannot stream under Lua's synchronous
 semantics: read mode runs the command with `spawnSync` and buffers its stdout,
@@ -295,8 +297,10 @@ unbuffered.
 and arrays to JS values, wraps JS functions as Lua functions, and turns Lua
 errors into `Error` objects with `luaMessage` and `luaTraceback`. The sandbox
 hides `io`, `os`, `package`, `debug`, `dofile`, `loadfile` and `require` by
-default and enforces instruction and/or wall-clock limits; it is not a memory
-sandbox. ES module bindings and TypeScript definitions ship with the package.
+default and enforces instruction, wall-clock and approximate memory limits
+(`instructions`, `milliseconds`, `memory` in KB). The memory limit uses
+`collectgarbage("count")`, so it is an estimate, not an OS cap. ES module
+bindings and TypeScript definitions ship with the package.
 
 ## Version profiles
 

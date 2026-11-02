@@ -89,7 +89,9 @@ Relative paths resolve against the virtual root (`/`). `io.tmpfile` and `os.tmpn
 
 In Node the real file system is used by default; `vfs.useMemory()` switches a Node host (or a test) to the same in-memory file system, and `vfs.useNode()` switches back. `vfs.current()` returns `"node"` or `"memory"`.
 
-If the host has a synchronous `localStorage`, `vfs.saveToStorage(key)` serializes the current files (base64) and `vfs.loadFromStorage(key)` restores them; `vfs.clearStorage(key)` removes the entry. This is the easiest way to persist between page loads in the main thread; IndexedDB and OPFS are asynchronous and remain host managed.
+If the host has a synchronous `localStorage`, `vfs.saveToStorage(key)` serializes the current files (base64) and `vfs.loadFromStorage(key)` restores them; `vfs.clearStorage(key)` removes the entry. For larger data, `vfs.saveToIndexedDB(key)` / `loadFromIndexedDB(key)` / `clearFromIndexedDB(key)` return Promises and use an IndexedDB database named `fengari-vfs`. OPFS is not built in: its synchronous handles are only available in workers, so a host that wants it must mount the files itself.
+
+`require` also checks the VFS for both Lua and JS modules, so mounted `.lua` and `.js` files load without XHR; the synchronous XHR fallback is only used for URLs that are not mounted.
 
 
 ### High-level API and sandbox
@@ -109,7 +111,7 @@ const box = api.sandbox({ instructions: 1e6, milliseconds: 100 });
 box.run("while true do end");              // throws "instruction limit exceeded"
 ```
 
-`run`/`dostring` return one value, an array of values, or `undefined`; errors are `Error` objects with `luaMessage` and `luaTraceback`. `toJS`/`pushJS` convert tables, arrays, objects and functions. The sandbox removes `io`, `os`, `package`, `debug`, `dofile`, `loadfile` and `require` by default (configurable with `hide`) and enforces instruction and/or wall-clock limits with a count hook. It does not impose a memory cap.
+`run`/`dostring` return one value, an array of values, or `undefined`; errors are `Error` objects with `luaMessage` and `luaTraceback`. `toJS`/`pushJS` convert tables, arrays, objects and functions. The sandbox removes `io`, `os`, `package`, `debug`, `dofile`, `loadfile` and `require` by default (configurable with `hide`) and enforces instruction, wall-clock and approximate memory limits (`instructions`, `milliseconds`, `memory` in KB) with a count hook.
 
 The package also ships ES module bindings (`import { lua, lauxlib, api } from "fengari"`) and TypeScript definitions (`types/fengari.d.ts`).
 
@@ -234,7 +236,7 @@ This library is automatically loaded by `luaL_openlibs` into the global `"fengar
 - In the browser, `require` uses the VFS for mounted modules and falls back to
   synchronous XHR for URLs; asynchronous/ES module loading is not implemented.
 - `f:seek()` on pipes and terminals fails with `ESPIPE`, as in PUC Lua.
-- The sandbox limits instructions and wall-clock time, not memory.
+- The sandbox memory limit is approximate (`collectgarbage("count")`), not an OS-level cap; OPFS persistence is host managed.
 
 
 ## Benchmarks and validation
@@ -243,7 +245,9 @@ This library is automatically loaded by `luaL_openlibs` into the global `"fengar
   `node bench/compare.js` also runs them under PUC Lua and prints the ratio.
 - `node scripts/diff-puc.js` (`pnpm test:diff`) runs `test/differential/*.lua`
   under both engines and compares stdout and success/failure. It needs a
-  `lua5.3`, `lua5.4` or `lua` binary (or `LUA_BIN`).
+  `lua5.3`, `lua5.4` or `lua` binary (or `LUA_BIN`); CI installs `lua5.3`.
+- CI runs the benchmark suite and the PUC comparison in a dedicated job, plus
+  a bounded fuzz run.
 - `node scripts/fuzz.js` feeds random and mutated chunks to the parser and
   undumper; it never executes them.
 - `pnpm test:coverage` enforces the coverage thresholds in `jest.config.js`.

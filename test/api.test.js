@@ -125,3 +125,19 @@ test('api.sandbox allows customizing the hidden globals', () => {
         box.close();
     }
 });
+
+test('api.sandbox enforces an approximate memory limit', () => {
+    const box = api.sandbox({ memory: 500 });  /* KB */
+    try {
+        expect(() => box.run(`
+            local t = {}
+            for i = 1, 20000 do
+                t[i] = string.rep("x", 100)
+            end
+        `)).toThrow(/memory limit/);
+        /* reset collects garbage before the next run */
+        expect(box.run("return 7")).toBe(7);
+    } finally {
+        box.close();
+    }
+});

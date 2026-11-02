@@ -10,7 +10,7 @@ Estado actual tras versiones y locale: 43 suites, 640 tests que pasan y 20 skips
 Estado actual tras referencia de API y guía de migración: 44 suites, 644 tests que pasan y 20 skips.
 Estado actual tras completar la librería `io`: 45 suites, 672 tests que pasan y 20 skips.
 Estado actual tras el VFS de navegador: 47 suites, 692 tests que pasan y 20 skips.
-Estado actual tras benchmarks, diferencial, fuzzing y API de alto nivel: 51 suites, 710 tests que pasan y 15 skips.
+Estado actual tras benchmarks, diferencial, fuzzing y API de alto nivel: 52 suites, 713 tests que pasan y 15 skips.
 
 **Prioridad:** P0 desbloquea uso real · P1 calidad/rendimiento · P2 deseable · P3 largo plazo.
 **Esfuerzo:** S < 1 día · M 1–5 días · L > 1 semana.
@@ -65,10 +65,10 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - [x] **`io.input`/`io.output`** — P1, S. Cambian el archivo por defecto, aceptan nombres o handles y `io.close()` cierra la salida por defecto.
 - [x] **`io.tmpfile`/`os.tmpname`** — P1, S. Archivo temporal en Node que se elimina al cerrar; `os.tmpname` ya existía.
 - [x] **`io.popen`** — P2, M. `spawnSync` con shell: en modo lectura se ejecuta al abrir y se bufferiza stdout; en modo escritura los datos se acumulan y se envían al cerrar. `close` devuelve `"exit"`/`"signal"` con el código.
-- [x] **Sistema de archivos virtual para navegador** — P2, L. `src/lfs.js` selecciona `fs` en Node y un FS en memoria cuando no hay `process`; `io` y `os.remove/rename/tmpname/getenv` funcionan sobre él. La API `fengari.vfs` permite montar/leer archivos, inyectar stdin/stdout/stderr y hacer `snapshot()`/`restore()`; la persistencia queda en manos del host porque OPFS/IndexedDB son asíncronos.
+- [x] **Sistema de archivos virtual para navegador** — P2, L. `src/lfs.js` selecciona `fs` en Node y un FS en memoria cuando no hay `process`; `io` y `os.remove/rename/tmpname/getenv` funcionan sobre él. La API `fengari.vfs` permite montar/leer archivos, inyectar stdin/stdout/stderr, hacer `snapshot()`/`restore()` y persistir con `localStorage` o IndexedDB (`saveToStorage`/`saveToIndexedDB`); OPFS sigue en manos del host.
 - [x] **`os.remove`/`os.rename` en navegador** — P2, S. Implementados sobre el VFS con `errno` y mensajes claros.
 - [x] **`io` en navegador** — P2, L. Registrada siempre en `luaL_openlibs`; `open/read/write/lines/seek/tmpfile` y `loadfile`/`dofile`/`require` consultan el VFS antes de caer al XHR síncrono. `popen`/`os.execute`/`os.exit` fallan con un error explícito.
-- **`require` y `package.loadlib` sin XHR en navegador** — P1, M. El VFS ya resuelve módulos montados y `package.jspath`; falta el registro de módulos precargados, `require` asíncrono basado en corrutinas, soporte de ES modules e import maps (`src/loadlib.js`).
+- [x] **`require` y `package.loadlib` sin XHR en navegador** — P1, M. El VFS resuelve módulos Lua y JS montados (`.lua`/`.js`) sin red, además de `package.jspath` y `T.newuserdata`. El XHR síncrono queda solo como fallback para URLs no montadas; falta la carga asíncrona/ES modules e import maps.
 
 ---
 
@@ -97,9 +97,9 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - **API asíncrona** — P1, M. Promesas para cargar módulos y para funciones JS que devuelven `Promise`, resolviendo con corrutinas para no romper la semántica síncrona de Lua.
 - [x] **Ciclo de vida de proxies** — P2, S. Revisado: el registro es un `WeakMap` de proxy→estado y no retiene proxies; `lua_isproxy` distingue estados y hay test de ámbito y error entre estados (`src/lapi.js`, `test/lapi.test.js`).
 - **`fengari-interop`** — P2, M. Tests de integración con objetos, arrays, funciones, promesas e iteradores JS; documentar límites y conversiones.
-- **Web Workers** — P2, M. `debug.debug` sin `readline-sync`, puente de mensajes y soporte opcional de `SharedArrayBuffer`.
+- [x] **Web Workers** — P2, M. El backend en memoria y la E/S funcionan sin `window`/`process`; `test/worker.test.js` ejecuta io/os en `worker_threads`. Queda el puente de mensajes específico y `SharedArrayBuffer`.
 - [x] **Detección de entorno** — P2, S. Evitar falsos positivos de `typeof process` cuando un bundler inyecta un shim; centralizar la detección en un módulo.
-- [x] **Sandbox** — P1, M. `api.sandbox` oculta `io`/`os`/`package`/`debug`/`dofile`/`loadfile`/`require` y limita instrucciones y tiempo con hooks; queda pendiente el tope de memoria.
+- [x] **Sandbox** — P1, M. `api.sandbox` oculta `io`/`os`/`package`/`debug`/`dofile`/`loadfile`/`require` y limita instrucciones, tiempo y memoria aproximada (`collectgarbage("count")`).
 - **FFI WebAssembly** — P3, L. Llamar funciones WASM desde Lua y viceversa, con manejo de memoria y tipos.
 
 ---
@@ -111,7 +111,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - **Tests de navegador** — P1, M. Playwright contra el bundle: XHR/`require`, workers, `debug.debug` y APIs ausentes en Node.
 - [x] **Tests diferenciales contra PUC Lua** — P1, M. `scripts/diff-puc.js` ejecuta `test/differential/` bajo Fengari y PUC y compara stdout y éxito/fallo; el test de Jest se salta si no hay intérprete.
 - [x] **Fuzzing del parser y `lundump`** — P1, M. `scripts/fuzz.js` con PRNG sembrado, bytes aleatorios, fuente aleatoria y bytecode mutado; `test/fuzz.test.js` ejecuta una tanda acotada.
-- [x] **CI más completa** — Node 20–26, caché de yarn, `--frozen-lockfile`, cobertura y validación del tarball. Queda un workflow de publicación.
+- [x] **CI más completa** — Node 20–26, caché de yarn, `--frozen-lockfile`, cobertura, tarball, diferencial contra PUC, benchmarks y fuzzing. Queda un workflow de publicación.
 - [x] **Scripts de desarrollo** — `test:watch`, `test:coverage`, `lint:fix` y `check`.
 - **Typecheck** — P2, M. `tsc --checkJs` sobre `src/` con `// @ts-check` gradual; los errores encontrados suelen revelar bugs reales.
 - [x] **Referencia de API generada y guía C→JS** — `scripts/generate-api-docs.js` genera `docs/api.md` desde las declaraciones y exports (con `docs:check` en CI), y `docs/migrating-from-c.md` cubre strings, enteros, pila, tablas, errores, userdata, registry, corrutinas, GC, versiones y diferencias con la API C.
@@ -146,7 +146,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - **Versiones**: el parser/VM es 5.3; los perfiles 5.1/5.2 ajustan la superficie de librerías, no la sintaxis ni el modelo numérico. `setfenv`/`module` no están disponibles.
 - **GC**: `count` usa tamaños estimados por tipo; `collect` es atómico y solo `step` es incremental. Los valores retenidos únicamente por JS no cuentan como raíces.
 - **Fidelidad**: locale solo cubre el separador decimal (`ctype`/collation siguen en "C"); `%q` para `inf`/`nan` mantiene el estilo 5.3; los tracebacks no garantizan paridad exacta de marcos C/JS.
-- **Navegador**: `require`/`package.loadlib` caen a XHR síncrono si el módulo no está montado en el VFS; no hay tests reales de navegador/workers ni carga asíncrona de módulos. El VFS es en memoria y se persiste con `vfs.saveToStorage()`/`vfs.loadFromStorage()` o `snapshot()`/`restore()`.
+- **Navegador**: `require`/`package.loadlib` caen a XHR síncrono si el módulo no está montado en el VFS; no hay tests reales de navegador ni carga asíncrona de módulos. El VFS es en memoria y se persiste con `vfs.saveToStorage()`/`loadFromStorage()` (localStorage) o `saveToIndexedDB()`/`loadFromIndexedDB()`.
 - **`io`**: `popen`, `os.execute` y `os.exit` necesitan una API de procesos; en el VFS fallan con un error claro. `popen` ejecuta el comando de forma síncrona y bufferiza (no hay streaming); `setvbuf` controla un buffer de escritura en JS; `seek` usa una posición en JS y falla con `ESPIPE` en pipes y terminales.
 
 ---

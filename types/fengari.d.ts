@@ -169,6 +169,9 @@ export interface Vfs {
     saveToStorage(key: string): number;
     loadFromStorage(key: string): number;
     clearStorage(key: string): void;
+    saveToIndexedDB(key: string): Promise<number>;
+    loadFromIndexedDB(key: string): Promise<number>;
+    clearFromIndexedDB(key: string): Promise<void>;
     useMemory(): any;
     useNode(): any;
     current(): "node" | "memory";
@@ -188,6 +191,8 @@ export interface ApiState {
 export interface SandboxOptions {
     instructions?: number;
     milliseconds?: number;
+    /** Approximate memory limit in KB. */
+    memory?: number;
     hide?: string[];
     version?: string;
 }

@@ -124,6 +124,54 @@ const decode_bytes = function(value) {
     return out;
 };
 
+/* run a transaction against the 'fengari-vfs' IndexedDB database */
+const with_indexeddb = function(mode, action) {
+    return new Promise(function(resolve, reject) {
+        if (typeof indexedDB === "undefined") {
+            reject(new Error("indexedDB is not available"));
+            return;
+        }
+        let request = indexedDB.open("fengari-vfs", 1);
+        request.onupgradeneeded = function() {
+            request.result.createObjectStore("files");
+        };
+        request.onerror = function() {
+            reject(request.error || new Error("indexedDB open failed"));
+        };
+        request.onsuccess = function() {
+            let db = request.result;
+            let tx;
+            try {
+                tx = db.transaction("files", mode);
+            } catch (e) {
+                db.close();
+                reject(e);
+                return;
+            }
+            let result;
+            try {
+                result = action(tx.objectStore("files"));
+            } catch (e) {
+                db.close();
+                reject(e);
+                return;
+            }
+            tx.oncomplete = function() {
+                db.close();
+                resolve(result ? result.result : undefined);
+            };
+            tx.onerror = function() {
+                db.close();
+                reject(tx.error || new Error("indexedDB transaction failed"));
+            };
+            tx.onabort = function() {
+                db.close();
+                reject(tx.error || new Error("indexedDB transaction aborted"));
+            };
+        };
+    });
+};
+
 /* ====================================================================== */
 /* in memory backend                                                      */
 /* ====================================================================== */
@@ -433,6 +481,34 @@ const create_memory_backend = function() {
             if (!storage)
                 throw new Error("localStorage is not available");
             storage.removeItem(key);
+        },
+        saveToIndexedDB: function(key) {
+            let entries = backend.vfs.snapshot().map(function(item) {
+                return { path: item.path, data: encode_bytes(item.data) };
+            });
+            return with_indexeddb("readwrite", function(store) {
+                store.put({ version: 1, files: entries }, key);
+            }).then(function() {
+                return entries.length;
+            });
+        },
+        loadFromIndexedDB: function(key) {
+            return with_indexeddb("readonly", function(store) {
+                return store.get(key);
+            }).then(function(parsed) {
+                if (!parsed)
+                    return 0;
+                let entries = (parsed.files || []).map(function(item) {
+                    return { path: item.path, data: decode_bytes(item.data) };
+                });
+                backend.vfs.restore(entries);
+                return entries.length;
+            });
+        },
+        clearFromIndexedDB: function(key) {
+            return with_indexeddb("readwrite", function(store) {
+                store.delete(key);
+            });
         }
     };
 

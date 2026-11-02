@@ -22,6 +22,10 @@ unreleased
   - setvbuf now controls a real write buffer (no/full/line)
   - vfs.saveToStorage/loadFromStorage persist the in-memory file system
   - Enable the huge-loop official test and drop dead skipped tests
+  - Load mounted .js modules through the VFS (no XHR for mounted modules)
+  - Add IndexedDB persistence helpers (saveToIndexedDB/loadFromIndexedDB)
+  - Add an approximate memory limit to api.sandbox
+  - Run differential tests, benchmarks and fuzzing in CI; add a worker test
 
 
 0.1.5 - 2025-12-26

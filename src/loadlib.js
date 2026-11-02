@@ -122,18 +122,7 @@ const AUXMARK = to_luastring("\x01");
 */
 let lsys_load;
 if (!lfs.is_node) {
-    lsys_load = function(L, path, seeglb) {
-        path = to_uristring(path);
-        let xhr = new XMLHttpRequest();
-        xhr.open("GET", path, false);
-        xhr.send();
-
-        if (xhr.status < 200 || xhr.status >= 300) {
-            lua_pushstring(L, to_luastring(`${xhr.status}: ${xhr.statusText}`));
-            return null;
-        }
-
-        let code = xhr.response;
+    const eval_js_module = function(L, path, code) {
         /* Add sourceURL comment to get path in debugger+tracebacks */
         if (!/\/\/[#@] sourceURL=/.test(code))
             code += " //# sourceURL=" + path;
@@ -153,6 +142,28 @@ if (!lfs.is_node) {
             lua_pushstring(L, to_luastring(`library returned unexpected type (${typeof res})`));
             return null;
         }
+    };
+
+    lsys_load = function(L, path, seeglb) {
+        /* a module mounted in the virtual file system does not need XHR */
+        let virtual = lfs.loadfile(path);
+        if (virtual !== null)
+            return eval_js_module(L, to_jsstring(path), to_jsstring(virtual));
+
+        if (typeof XMLHttpRequest === "undefined") {
+            lua_pushstring(L, to_luastring("module loading needs XMLHttpRequest or a VFS file"));
+            return null;
+        }
+        let uri = to_uristring(path);
+        let xhr = new XMLHttpRequest();
+        xhr.open("GET", uri, false);
+        xhr.send();
+
+        if (xhr.status < 200 || xhr.status >= 300) {
+            lua_pushstring(L, to_luastring(`${xhr.status}: ${xhr.statusText}`));
+            return null;
+        }
+        return eval_js_module(L, uri, xhr.response);
     };
 } else {
     const pathlib = require('path');
@@ -212,6 +223,8 @@ if (lfs.is_node) { // Only with Node
     readable = function(path) {
         if (lfs.loadfile(path) !== null)  /* mounted in the virtual file system? */
             return true;
+        if (typeof XMLHttpRequest === "undefined")  /* no way to fetch it */
+            return false;
         path = to_uristring(path);
         let xhr = new XMLHttpRequest();
         /* Following GET request done by searcher_Web will be cached */

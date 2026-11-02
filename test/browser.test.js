@@ -25,6 +25,7 @@ test('io and os work on the in-memory file system without process', () => {
         vfs.mount("/mounted.txt", "host content\\n");
         vfs.mount("/module.lua", "return { answer = 42 }");
         vfs.mount("/chunk.lua", "return 'loaded from vfs'");
+        vfs.mount("/jsmodule.js", "return { luaopen_jsmodule: function(L) { fengari.lua.lua_pushinteger(L, 99); return 1; } };");
         vfs.setStdout((line) => lines.push("out:" + line));
         vfs.setStderr((line) => lines.push("err:" + line));
         vfs.setStdin("stdin line\\n");
@@ -56,6 +57,9 @@ test('io and os work on the in-memory file system without process', () => {
             assert(require("module").answer == 42)
             assert(dofile("/chunk.lua") == "loaded from vfs")
 
+            package.jspath = "/?.js"
+            assert(require("jsmodule") == 99)
+
             local ok, err = pcall(io.popen, "true")
             assert(not ok and err:match("not supported"))
             ok, err = pcall(os.exit, 0)
@@ -81,7 +85,7 @@ test('io and os work on the in-memory file system without process', () => {
     let out = run_without_process(code);
     expect(out).toContain("out:written by io");
     expect(out).toContain("err:written by stderr");
-    expect(out).toContain("files:/chunk.lua,/module.lua,/mounted.txt");
+    expect(out).toContain("files:/chunk.lua,/jsmodule.js,/module.lua,/mounted.txt");
 });
 
 test('a bundler-style process shim does not select the Node backends', () => {

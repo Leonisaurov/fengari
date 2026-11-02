@@ -9,11 +9,15 @@
  */
 
 const {
+    LUA_GCCOLLECT,
+    LUA_GCCOUNT,
+    LUA_GCCOUNTB,
     LUA_MASKCOUNT,
     LUA_MULTRET,
     LUA_OK,
     lua_close,
     lua_createtable,
+    lua_gc,
     lua_getglobal,
     lua_gettop,
     lua_isinteger,
@@ -324,22 +328,31 @@ const sandbox = function(options) {
 
     let instruction_limit = options.instructions || 0;
     let time_limit = options.milliseconds || 0;
+    let memory_limit = options.memory || 0;
     let steps = 0;
     let started = 0;
+    let has_hook = instruction_limit > 0 || time_limit > 0 || memory_limit > 0;
 
-    if (instruction_limit > 0 || time_limit > 0) {
+    if (has_hook) {
         lua_sethook(L, function(L1) {
             steps += 1000;
             if (instruction_limit > 0 && steps > instruction_limit)
                 luaL_error(L1, to_luastring("instruction limit exceeded"));
             if (time_limit > 0 && Date.now() - started > time_limit)
                 luaL_error(L1, to_luastring("time limit exceeded"));
+            if (memory_limit > 0) {
+                let used = lua_gc(L1, LUA_GCCOUNT, 0) + lua_gc(L1, LUA_GCCOUNTB, 0) / 1024;
+                if (used > memory_limit)
+                    luaL_error(L1, to_luastring("memory limit exceeded"));
+            }
         }, LUA_MASKCOUNT, 1000);
     }
 
     let reset = function() {
         steps = 0;
         started = Date.now();
+        if (memory_limit > 0)
+            lua_gc(L, LUA_GCCOLLECT, 0);
     };
 
     let run_sandboxed = function(source, chunkname) {

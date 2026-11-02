@@ -24,6 +24,9 @@ jobs:
         cache: 'yarn'
     - name: Install dependencies
       run: yarn --frozen-lockfile
+    - name: Install Lua for differential tests
+      if: matrix.node-version == '24.x'
+      run: sudo apt-get update && sudo apt-get install -y lua5.3
     - name: Lint
       run: yarn lint
     - name: Check generated API docs
@@ -38,6 +41,9 @@ jobs:
       run: yarn test:coverage --maxWorkers=$(nproc)
       env:
         FENGARICONF: '{"LUAI_MAXSTACK":100000}'
+    - name: Differential tests against PUC Lua
+      if: matrix.node-version == '24.x'
+      run: yarn test:diff
     - name: Upload coverage
       if: matrix.node-version == '24.x'
       uses: actions/upload-artifact@v4
@@ -52,8 +58,32 @@ jobs:
         TARBALL=$(ls "$RUNNER_TEMP"/fengari-*.tgz)
         tar -tzf "$TARBALL" | sort > "$RUNNER_TEMP/tarball.txt"
         grep -qx 'package/src/fengari.js' "$RUNNER_TEMP/tarball.txt"
+        grep -qx 'package/src/fengari.mjs' "$RUNNER_TEMP/tarball.txt"
+        grep -qx 'package/types/fengari.d.ts' "$RUNNER_TEMP/tarball.txt"
         grep -qx 'package/package.json' "$RUNNER_TEMP/tarball.txt"
         if grep -q '^package/test/' "$RUNNER_TEMP/tarball.txt"; then
           echo "::error::test/ must not be published"
           exit 1
         fi
+
+  bench:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v6
+    - name: Use Node.js
+      uses: actions/setup-node@v6
+      with:
+        node-version: '24.x'
+        cache: 'yarn'
+    - name: Install dependencies
+      run: yarn --frozen-lockfile
+    - name: Install Lua
+      run: sudo apt-get update && sudo apt-get install -y lua5.3
+    - name: Benchmarks on Fengari
+      run: yarn bench --repeat=1 --warmup=0
+    - name: Compare against PUC Lua
+      run: yarn bench:compare --repeat=1
+    - name: Fuzz the parser and undumper
+      run: yarn fuzz --iterations=3000 --seed=2026

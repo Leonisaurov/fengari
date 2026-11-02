@@ -291,3 +291,21 @@ test('vfs persists snapshots through localStorage', () => {
             delete globalThis.localStorage;
     }
 });
+
+test('IndexedDB helpers report when the API is unavailable', async () => {
+    const previous = Object.getOwnPropertyDescriptor(globalThis, "indexedDB");
+    Object.defineProperty(globalThis, "indexedDB", {
+        configurable: true,
+        value: undefined
+    });
+    try {
+        await expect(vfs.saveToIndexedDB("fengari-test")).rejects.toThrow(/not available/);
+        await expect(vfs.loadFromIndexedDB("fengari-test")).rejects.toThrow(/not available/);
+        await expect(vfs.clearFromIndexedDB("fengari-test")).rejects.toThrow(/not available/);
+    } finally {
+        if (previous)
+            Object.defineProperty(globalThis, "indexedDB", previous);
+        else
+            delete globalThis.indexedDB;
+    }
+});
