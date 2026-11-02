@@ -173,9 +173,9 @@ const DumpFunction = function(f, psource, D) {
     DumpDebug(f, D);
 };
 
-const DumpHeader = function(D) {
+const DumpHeader = function(D, version) {
     DumpBlock(LUA_SIGNATURE, LUA_SIGNATURE.length, D);
-    DumpByte(LUAC_VERSION, D);
+    DumpByte(version, D);
     DumpByte(LUAC_FORMAT, D);
     DumpBlock(LUAC_DATA, LUAC_DATA.length, D);
     DumpByte(4, D); // intSize
@@ -197,7 +197,10 @@ const luaU_dump = function(L, f, w, data, strip) {
     D.data = data;
     D.strip = strip;
     D.status = 0;
-    DumpHeader(D);
+    let version = L && L.l_G && L.l_G.version
+        ? 0x50 + (L.l_G.version % 100)
+        : LUAC_VERSION;
+    DumpHeader(D, version);
     DumpByte(f.upvalues.length, D);
     DumpFunction(f, null, D);
     return D.status;

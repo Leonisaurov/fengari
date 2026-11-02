@@ -248,7 +248,8 @@ class BytecodeParser {
     checkHeader() {
         this.checkliteral(LUA_SIGNATURE.subarray(1), "not a"); /* 1st char already checked */
 
-        if (this.LoadByte() !== 0x53)
+        let expected = 0x50 + (this.L.l_G.version % 100);
+        if (this.LoadByte() !== expected)
             this.error("version mismatch in");
 
         let format = this.LoadByte();
