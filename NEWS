@@ -60,7 +60,8 @@ unreleased
     literals/arithmetic/comparisons, numeric for, table keys, math.*,
     string.pack/unpack i8/I8, formatting, table/os integer paths and marked
     dump/undump with controlled format 0/1 interop; the default 32-bit mode is
-    unchanged
+    unchanged. Library string positions, io/file positions, debug indices and
+    tonumber(s, base) also keep working with BigInt values
   - Add a Lua 5.4 library profile: coroutine.close, warn (with
     lua_setwarnf/lua_warning) and the 5.4 math.random/randomseed API with
     per-state xoshiro seeds
