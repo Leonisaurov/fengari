@@ -8,6 +8,9 @@ Estado actual tras GC automático/incremental y `count` real: 41 suites, 620 tes
 Estado actual tras marcado incremental y fidelidad de formato: 42 suites, 630 tests que pasan y 20 skips.
 Estado actual tras versiones y locale: 43 suites, 640 tests que pasan y 20 skips.
 Estado actual tras referencia de API y guía de migración: 44 suites, 644 tests que pasan y 20 skips.
+Estado actual tras completar la librería `io`: 45 suites, 672 tests que pasan y 20 skips.
+Estado actual tras el VFS de navegador: 47 suites, 692 tests que pasan y 20 skips.
+Estado actual tras benchmarks, diferencial, fuzzing y API de alto nivel: 51 suites, 710 tests que pasan y 15 skips.
 
 **Prioridad:** P0 desbloquea uso real · P1 calidad/rendimiento · P2 deseable · P3 largo plazo.
 **Esfuerzo:** S < 1 día · M 1–5 días · L > 1 semana.
@@ -34,20 +37,20 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - [x] **Tablas débiles (`__mode`)** — P1, L. Implementadas `"k"`, `"v"` y `"kv"` con un marcado/barrido propio sobre el grafo Lua, incluidos ephemerons; las entradas limpiadas desaparecen de `next`/`pairs`. La colección se dispara automáticamente tras un presupuesto de asignaciones y `step` limpia por lotes (`src/lgc.js`, `src/ltable.js`).
 - [x] **`__gc` y finalización** — P1, L. Los objetos con `__gc` se registran al fijar el metatabla, se finalizan una sola vez durante `collectgarbage` (explícito o automático) y al cerrar el estado, y los errores se propagan como en PUC (`src/lgc.js`, `src/lapi.js`).
 - [x] **Marcado incremental del GC** — P2, M. `step` reparte marcado, limpieza y finalización en lotes acotados. Las raíces, upvalues, hilos y userdata se re-escanean entre pasos y las escrituras en tablas/metatablas/uservalues usan barreras; solo el fixpoint de ephemerons queda atómico (`src/lgc.js`).
-- **Trazas de error (`luaL_traceback`, `debug.traceback`)** — P1, M. Paridad con PUC: niveles, tail calls, funciones C/JS, `error(msg, level)` y `__tostring` del objeto de error. Adjuntar la traza como `cause` cuando un error Lua cruza a JS (`src/lauxlib.js`, `src/ldblib.js`).
-- **Corrutinas** — P1, M. Cubrir yield a través de `pcall`/`xpcall` y metamétodos, propagación de errores, `resume` sobre hilo muerto e `isyieldable`; añadir `coroutine.close` (5.4) si se adopta esa versión (`src/lcorolib.js`, `src/ldo.js`).
-- **Desbordamiento de pila** — P1, S. Traducir `RangeError: Maximum call stack size exceeded` a `"stack overflow"` de Lua, respetar `LUAI_MAXCCALLS`/`LUAI_MAXSTACK` y probar recursión profunda (hay tests oficiales saltados por esto).
+- [x] **Trazas de error (`luaL_traceback`, `debug.traceback`)** — P1, M. Paridad con PUC: niveles, tail calls, funciones C/JS, `error(msg, level)` y `__tostring` del objeto de error. Adjuntar la traza como `cause` cuando un error Lua cruza a JS (`src/lauxlib.js`, `src/ldblib.js`).
+- [x] **Corrutinas** — P1, M. Cubrir yield a través de `pcall`/`xpcall` y metamétodos, propagación de errores, `resume` sobre hilo muerto e `isyieldable`; añadir `coroutine.close` (5.4) si se adopta esa versión (`src/lcorolib.js`, `src/ldo.js`).
+- [x] **Desbordamiento de pila** — P1, S. Traducir `RangeError: Maximum call stack size exceeded` a `"stack overflow"` de Lua, respetar `LUAI_MAXCCALLS`/`LUAI_MAXSTACK` y probar recursión profunda (hay tests oficiales saltados por esto).
 - [x] **Formato de floats (`%e`/`%f`/`%g`/`%G`)** — P2, M. Implementado con semántica de `printf` de C: exponencial, precisión por defecto, `-0`, `inf`/`nan`, flags (`+`, espacio, `#`, `0`, `-`) y ancho. Verificado contra `printf` en 238 casos (`src/lstrlib.js`).
 - [x] **Locale (separador decimal)** — `os.setlocale` acepta locales de `Intl`, `string.format`/`%a` usan el separador decimal y `%q` mantiene el punto. Collation y `ctype` siguen limitados a "C"; `tonumber` con base y casos límite de `%q` están cubiertos por tests.
 - [x] **Bordes de enteros de 32 bits** — P2, S. `MININT // -1`, `MININT % -1`, desplazamientos, `math.tointeger` y conversiones string→int cubiertos por tests (`test/fidelity.test.js`).
 - [x] **`table.sort`** — P3, S. Detecta comparadores inválidos y lanza `"invalid order function for sorting"` como PUC; cubierto por tests.
 - [x] **`next`/`pairs` con mutaciones** — P3, M. Cubierto por tests: limpiar y actualizar campos existentes durante el recorrido es seguro; preserva el orden de iteración actual.
-- **`os.date`/`os.time`** — P2, S. Formato `!` (UTC), tabla `*t`, zonas horarias, años > 2038 y `os.difftime` (`src/loslib.js`).
+- [x] **`os.date`/`os.time`** — P2, S. Formato `!` (UTC), tabla `*t`, zonas horarias, años > 2038 y `os.difftime` (`src/loslib.js`).
 - **`os.execute`/`os.exit`** — P2, S. Devolver el triplete de Lua, no bloquear el hilo principal y dar errores claros en navegador/sandbox (`src/loslib.js`).
-- **`load`/`loadfile`/`dofile`** — P2, S. Modos `"b"`/`"t"`, `env`, lectores por función, validación de chunks binarios y errores con nombre de archivo (`src/lbaselib.js`, `src/lundump.js`).
-- **`string.pack`/`unpack`** — P2, M. Endianness, alineación, tamaños variables, strings con longitud y mensajes de error; ampliar tests de `test/test-suite/strings.test.js`.
+- [x] **`load`/`loadfile`/`dofile`** — P2, S. Modos `"b"`/`"t"`, `env`, lectores por función, validación de chunks binarios y errores con nombre de archivo (`src/lbaselib.js`, `src/lundump.js`).
+- [x] **`string.pack`/`unpack`** — P2, M. Endianness, alineación, tamaños variables, strings con longitud y mensajes de error; ampliar tests de `test/test-suite/strings.test.js`.
 - **`utf8`** — P3, S. Casos límite de secuencias inválidas, `utf8.offset` y `utf8.codepoint` (`src/lutf8lib.js`).
-- **Librería `debug`** — P2, M. Hooks `call`/`return`/`line`/`count`, `getinfo` completo (qué, fuente, líneas, upvalues), `upvalueid`/`upvaluejoin` (`src/ldblib.js`, `src/ldebug.js`).
+- [x] **Librería `debug`** — P2, M. Hooks `call`/`return`/`line`/`count`, `getinfo` completo (qué, fuente, líneas, upvalues), `upvalueid`/`upvaluejoin` (`src/ldblib.js`, `src/ldebug.js`).
 - **Cobertura de metamétodos** — P2, S. Verificar `__eq`, `__lt`, `__le`, `__concat`, `__len`, `__call`, `__index`/`__newindex` encadenados y errores cuando el metamétodo no es función.
 - **Escapes y literales** — P3, S. `\u{}`, `\z`, corchetes largos, escapes decimales/hexadecimales y mensajes de error del lexer (`src/llex.js`).
 - **Conversión de strings** — P3, S. Revisar `luaO_tostring`, strings largos vs cortos, interning y comparación por bytes.
@@ -56,22 +59,22 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 
 ## 2. Librería `io` y sistema de archivos
 
-- **`io.read`** — P0, M. Formatos `"*n"`, `"*a"`, `"*l"`, `"*L"` y lectura de N bytes; stdin y archivos (`src/liolib.js`).
-- **`io.lines` / `file:lines`** — P0, S/M. Formatos, cierre al llegar a EOF, iteradores reutilizables y errores de archivo cerrado.
-- **`io.open` y `file:read/seek/setvbuf`** — P0, M/L. Modos `r/w/a/+`, binario, `errno` correcto, `io.type` y cierre determinista; backend Node con `fs` (`src/liolib.js`, `src/lauxlib.js`).
-- **`io.input`/`io.output`** — P1, S. Cambiar el archivo por defecto, cerrar el anterior si corresponde y aceptar nombres o handles.
-- **`io.tmpfile`/`os.tmpname`** — P1, S. Usar `tmp` en Node, limpiar al cerrar y dar un error explícito en navegador (`src/liolib.js`, `src/loslib.js`).
-- **`io.popen`** — P2, M. `child_process` en Node; prohibido o simulado en navegador; devolver handle con `close` y código de salida.
-- **Sistema de archivos virtual para navegador** — P2, L. OPFS/IndexedDB/MEMFS detrás de una fachada síncrona; documentar que OPFS síncrono solo existe en workers. Habilitaría `io` y `os.remove/rename` en el navegador.
-- **`require` y `package.loadlib` en navegador** — P1, M. Eliminar el XHR síncrono: registro de módulos precargados, `require` asíncrono basado en corrutinas, soporte de ES modules e import maps; mantener `package.jspath` (`src/loadlib.js`).
-- **`os.remove`/`os.rename` en navegador** — P2, S. Implementar sobre el VFS o fallar con un mensaje claro en vez de un error genérico.
-- **`io` en navegador** — P2, L. Solo tiene sentido con el VFS; si no, documentar que la librería no se registra (`src/linit.js`).
+- [x] **`io.read`** — P0, M. Formatos `"*n"`, `"*a"`, `"*l"`, `"*L"`, `"*0"` y lectura de N bytes; stdin y archivos (`src/liolib.js`).
+- [x] **`io.lines` / `file:lines`** — P0, S/M. Formatos, cierre al llegar a EOF (solo cuando `io.lines` abrió el archivo), iteradores reutilizables y errores de archivo cerrado.
+- [x] **`io.open` y `file:read/seek/setvbuf`** — P0, M/L. Modos `r/w/a/+` y `b`, `errno` correcto, `io.type` y cierre determinista; backend Node con `fs`. `seek` funciona en archivos regulares porque la posición se sigue en JS (Node no tiene `lseek`); `setvbuf` implementa un buffer de escritura `no`/`full`/`line` que se vuelca en `flush`, al llenarse, en un salto de línea, en `seek` y al cerrar.
+- [x] **`io.input`/`io.output`** — P1, S. Cambian el archivo por defecto, aceptan nombres o handles y `io.close()` cierra la salida por defecto.
+- [x] **`io.tmpfile`/`os.tmpname`** — P1, S. Archivo temporal en Node que se elimina al cerrar; `os.tmpname` ya existía.
+- [x] **`io.popen`** — P2, M. `spawnSync` con shell: en modo lectura se ejecuta al abrir y se bufferiza stdout; en modo escritura los datos se acumulan y se envían al cerrar. `close` devuelve `"exit"`/`"signal"` con el código.
+- [x] **Sistema de archivos virtual para navegador** — P2, L. `src/lfs.js` selecciona `fs` en Node y un FS en memoria cuando no hay `process`; `io` y `os.remove/rename/tmpname/getenv` funcionan sobre él. La API `fengari.vfs` permite montar/leer archivos, inyectar stdin/stdout/stderr y hacer `snapshot()`/`restore()`; la persistencia queda en manos del host porque OPFS/IndexedDB son asíncronos.
+- [x] **`os.remove`/`os.rename` en navegador** — P2, S. Implementados sobre el VFS con `errno` y mensajes claros.
+- [x] **`io` en navegador** — P2, L. Registrada siempre en `luaL_openlibs`; `open/read/write/lines/seek/tmpfile` y `loadfile`/`dofile`/`require` consultan el VFS antes de caer al XHR síncrono. `popen`/`os.execute`/`os.exit` fallan con un error explícito.
+- **`require` y `package.loadlib` sin XHR en navegador** — P1, M. El VFS ya resuelve módulos montados y `package.jspath`; falta el registro de módulos precargados, `require` asíncrono basado en corrutinas, soporte de ES modules e import maps (`src/loadlib.js`).
 
 ---
 
 ## 3. Rendimiento
 
-- **Suite de benchmarks** — P0, M. `bench/` con `fib`, `mandelbrot`, `nbody`, `spectral-norm`, `binary-trees`, estrés de strings/tablas; comparar contra PUC Lua 5.3 y contra el commit anterior.
+- [x] **Suite de benchmarks** — P0, M. `bench/` con `fib`, `mandelbrot`, `nbody`, `spectral-norm`, `binary-trees`, estrés de strings/tablas; comparar contra PUC Lua 5.3 y contra el commit anterior.
 - **Dispatch de la VM** — P1, L. Perfilar `luaV_execute` (`src/lvm.js`): orden del `switch`, evitar `new TValue` en bucles, reutilizar registros y reducir comprobaciones repetidas.
 - **Representación de valores y pila** — P1, L. Evaluar pooling de `TValue`, arrays paralelos o tagged unions; eliminar `slice`/spread en rutas calientes y definir una política de crecimiento de `L.stack`.
 - **Tablas** — P1, L. Parte densa para claves enteras, fast path sin `Map` para tablas pequeñas, rehash predecible, menos objetos auxiliares y orden de iteración estable (`src/ltable.js`).
@@ -86,17 +89,17 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 
 ## 4. Empaquetado, API y ecosistema JS
 
-- **`exports`/`files`/`engines`** — P0, S. Sin esto, los bundlers no pueden resolver subrutas ni tree-shakear; `main` apunta a `src/fengari.js` y no hay mapa de exports (`package.json`).
-- **Dual ESM/CJS** — P1, M. Los fuentes son CommonJS; añadir una capa ESM o migrar internamente y publicar ambos formatos. Mantener `require()` compatible.
+- [x] **`exports`/`files`/`engines`** — P0, S. Sin esto, los bundlers no pueden resolver subrutas ni tree-shakear; `main` apunta a `src/fengari.js` y no hay mapa de exports (`package.json`).
+- [x] **Dual ESM/CJS** — P1, M. Los fuentes son CommonJS; añadir una capa ESM o migrar internamente y publicar ambos formatos. Mantener `require()` compatible.
 - **Bundle de navegador** — P1, M. `dist/fengari.min.js` con esbuild/rollup, source maps y un test que lo cargue en un navegador real. Hoy los usuarios dependen de `fengari-web`.
-- **Tipos TypeScript** — P1, L. Publicar `.d.ts` para `lua`, `lauxlib` y `lualib`, o habilitar `tsc --checkJs` con JSDoc incremental. La API C es enorme; priorizar los símbolos usados por `fengari-web`.
-- **API de alto nivel** — P1, M. `run()`, `dostring()`, `call()`, registro de funciones JS, conversión de tablas/arrays y manejo de errores, para no obligar a usar la API C.
+- [x] **Tipos TypeScript** — P1, L. Publicar `.d.ts` para `lua`, `lauxlib` y `lualib`, o habilitar `tsc --checkJs` con JSDoc incremental. La API C es enorme; priorizar los símbolos usados por `fengari-web`.
+- [x] **API de alto nivel** — P1, M. `run()`, `dostring()`, `call()`, registro de funciones JS, conversión de tablas/arrays y manejo de errores, para no obligar a usar la API C.
 - **API asíncrona** — P1, M. Promesas para cargar módulos y para funciones JS que devuelven `Promise`, resolviendo con corrutinas para no romper la semántica síncrona de Lua.
-- **Ciclo de vida de proxies** — P2, S. Revisar fugas de `lua_toproxy`, `lua_isproxy` entre estados y referencias que impiden el GC (`src/lapi.js`).
+- [x] **Ciclo de vida de proxies** — P2, S. Revisado: el registro es un `WeakMap` de proxy→estado y no retiene proxies; `lua_isproxy` distingue estados y hay test de ámbito y error entre estados (`src/lapi.js`, `test/lapi.test.js`).
 - **`fengari-interop`** — P2, M. Tests de integración con objetos, arrays, funciones, promesas e iteradores JS; documentar límites y conversiones.
 - **Web Workers** — P2, M. `debug.debug` sin `readline-sync`, puente de mensajes y soporte opcional de `SharedArrayBuffer`.
-- **Detección de entorno** — P2, S. Evitar falsos positivos de `typeof process` cuando un bundler inyecta un shim; centralizar la detección en un módulo.
-- **Sandbox** — P1, M. Límites de instrucciones/tiempo con hooks, tope de memoria y librerías restringidas; exponer una API clara para ejecutar código no confiable.
+- [x] **Detección de entorno** — P2, S. Evitar falsos positivos de `typeof process` cuando un bundler inyecta un shim; centralizar la detección en un módulo.
+- [x] **Sandbox** — P1, M. `api.sandbox` oculta `io`/`os`/`package`/`debug`/`dofile`/`loadfile`/`require` y limita instrucciones y tiempo con hooks; queda pendiente el tope de memoria.
 - **FFI WebAssembly** — P3, L. Llamar funciones WASM desde Lua y viceversa, con manejo de memoria y tipos.
 
 ---
@@ -104,10 +107,10 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 ## 5. Calidad, tests y tooling
 
 - [x] **Cobertura con umbral** — `jest --coverage`, reporte en CI y umbral global (90% statements/funciones/líneas, 85% ramas).
-- **Activar tests saltados** — P1, M. Quedan 20: 12 de API (harness `T`, límites de memoria, userdata internos), 3 de fixtures externos, 2 de internals de tabla, 1 locale, 1 `require` del sistema y 1 bucle enorme. Los de API requieren adaptarlos al harness JS, no al GC.
+- **Activar tests saltados** — P1, M. Quedan 15: 12 de API (harness `T`, límites de memoria, userdata internos), 2 de internals de tabla y 1 de locale. Se eliminaron los 3 fixtures inexistentes, el test vacío de `require` y se activó el bucle enorme con `_soft`.
 - **Tests de navegador** — P1, M. Playwright contra el bundle: XHR/`require`, workers, `debug.debug` y APIs ausentes en Node.
-- **Tests diferenciales contra PUC Lua 5.3** — P1, M. Ejecutar el mismo corpus y comparar stdout, errores y códigos de salida; detectar divergencias de semántica.
-- **Fuzzing del parser y `lundump`** — P1, M. Bytes aleatorios y chunks malformados no deben tumbar el proceso; usar un corpus semilla y límites de tiempo.
+- [x] **Tests diferenciales contra PUC Lua** — P1, M. `scripts/diff-puc.js` ejecuta `test/differential/` bajo Fengari y PUC y compara stdout y éxito/fallo; el test de Jest se salta si no hay intérprete.
+- [x] **Fuzzing del parser y `lundump`** — P1, M. `scripts/fuzz.js` con PRNG sembrado, bytes aleatorios, fuente aleatoria y bytecode mutado; `test/fuzz.test.js` ejecuta una tanda acotada.
 - [x] **CI más completa** — Node 20–26, caché de yarn, `--frozen-lockfile`, cobertura y validación del tarball. Queda un workflow de publicación.
 - [x] **Scripts de desarrollo** — `test:watch`, `test:coverage`, `lint:fix` y `check`.
 - **Typecheck** — P2, M. `tsc --checkJs` sobre `src/` con `// @ts-check` gradual; los errores encontrados suelen revelar bugs reales.
@@ -143,7 +146,8 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - **Versiones**: el parser/VM es 5.3; los perfiles 5.1/5.2 ajustan la superficie de librerías, no la sintaxis ni el modelo numérico. `setfenv`/`module` no están disponibles.
 - **GC**: `count` usa tamaños estimados por tipo; `collect` es atómico y solo `step` es incremental. Los valores retenidos únicamente por JS no cuentan como raíces.
 - **Fidelidad**: locale solo cubre el separador decimal (`ctype`/collation siguen en "C"); `%q` para `inf`/`nan` mantiene el estilo 5.3; los tracebacks no garantizan paridad exacta de marcos C/JS.
-- **Navegador**: `require`/`package.loadlib` usan XHR síncrono; no hay tests reales de navegador/workers.
+- **Navegador**: `require`/`package.loadlib` caen a XHR síncrono si el módulo no está montado en el VFS; no hay tests reales de navegador/workers ni carga asíncrona de módulos. El VFS es en memoria y se persiste con `vfs.saveToStorage()`/`vfs.loadFromStorage()` o `snapshot()`/`restore()`.
+- **`io`**: `popen`, `os.execute` y `os.exit` necesitan una API de procesos; en el VFS fallan con un error claro. `popen` ejecuta el comando de forma síncrona y bufferiza (no hay streaming); `setvbuf` controla un buffer de escritura en JS; `seek` usa una posición en JS y falla con `ESPIPE` en pipes y terminales.
 
 ---
 
@@ -151,8 +155,8 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 
 1. **Fase 1 — Completada.** P0, tablas débiles/`__gc`, GC automático/incremental, `count` real, fidelidad de floats/locale/tracebacks, perfiles de versión y tooling.
 2. **Fase 2 — Versiones reales (4–8 semanas).** Lexer/parser y modelo numérico por versión, entornos por función (`setfenv`/`module`), `undump` por versión y APIs menores de 5.1/5.2.
-3. **Fase 3 — Navegador (2–4 semanas).** `require` asíncrono/sin XHR, bundle con source maps, tests Playwright y workers.
-4. **Fase 4 — Medición (continuo).** `bench/`, diferencial automático contra PUC, fuzzing y después optimización de VM/tablas/strings.
+3. **Fase 3 — Navegador (2–4 semanas).** VFS en memoria completado; quedan `require` asíncrono/sin XHR, persistencia (OPFS/IndexedDB), bundle con source maps, tests Playwright y workers.
+4. **Fase 4 — Medición (en curso).** `bench/`, diferencial contra PUC y fuzzing completados; quedan la optimización de VM/tablas/strings y los tests de navegador.
 5. **Fase 5 — Largo plazo.** Lua 5.4, enteros de 64 bits con `BigInt`, WASM/FFI.
 
 ## Cómo medir el éxito

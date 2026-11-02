@@ -250,10 +250,53 @@ or set `package.jspath` explicitly.
 
 ## `io` and `os`
 
-The `io` library is partial and only registered when `process` exists. The
-stream functions that exist are Node-specific; file opening/reading is
-incomplete. `os.remove`, `os.rename`, `os.tmpname` and `os.execute` are
-Node-only. In browsers these APIs are absent or fail explicitly.
+The `io` library covers the Lua 5.3 surface: `io.open`, `io.read`, `io.write`,
+`io.lines`, `io.input`, `io.output`, `io.tmpfile`, `io.popen` and the
+corresponding file methods (`read`, `write`, `lines`, `seek`, `setvbuf`,
+`flush`, `close`). Under Node, file handles are backed by file descriptors;
+because Node has no `lseek`, the position is tracked in JS, so `seek` works on
+regular files but not on pipes or terminals.
+
+Without a Node `process` (browsers, workers, embedded engines) `io` and the
+file related parts of `os` run on an in-memory file system, exposed as
+`fengari.vfs`. The host mounts files before running Lua:
+
+```js
+const { vfs } = require("fengari");
+vfs.mount("/main.lua", "return 42");
+vfs.setStdin("input\n");
+vfs.setStdout((line) => console.log(line));
+
+// ... run Lua ...
+
+const snapshot = vfs.snapshot();  // [{ path, data }, ...]
+```
+
+`loadfile`, `dofile` and `require` check the virtual file system before
+falling back to synchronous XHR. `os.remove`, `os.rename`, `os.tmpname` and
+`os.getenv` use the same file system and a host-provided environment.
+`io.tmpfile`/`os.tmpname` live under `/tmp`. Nothing is persisted
+automatically: call `vfs.snapshot()` after a run and `vfs.restore()` (or
+`vfs.mount()`) in the next one.
+
+Two limits are worth knowing. `io.popen` cannot stream under Lua's synchronous
+semantics: read mode runs the command with `spawnSync` and buffers its stdout,
+and write mode buffers the writes and feeds them when the handle is closed;
+without a process API, `io.popen`, `os.execute` and `os.exit` fail with a clear
+error. `setvbuf` controls a JS write buffer (`no`/`full`/`line`), so buffered
+writes only reach the underlying file on `flush`, when the buffer fills, on a
+newline (line mode), on `seek`, or on `close`; fd based I/O itself remains
+unbuffered.
+
+## High-level API
+
+`require("fengari").api` provides `createState`, `run`, `dostring`, `dofile`,
+`call`, `toJS`, `pushJS` and `sandbox` on top of the C API. It converts tables
+and arrays to JS values, wraps JS functions as Lua functions, and turns Lua
+errors into `Error` objects with `luaMessage` and `luaTraceback`. The sandbox
+hides `io`, `os`, `package`, `debug`, `dofile`, `loadfile` and `require` by
+default and enforces instruction and/or wall-clock limits; it is not a memory
+sandbox. ES module bindings and TypeScript definitions ship with the package.
 
 ## Version profiles
 

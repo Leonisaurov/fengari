@@ -59,9 +59,59 @@ The JS number type is always a double, and hence cannot accurately represent int
 
 ### `require` and `package.loadlib`
 
-In the browser `require` and `package.loadlib` try to find a file by making synchronous XHR requests.
+In the browser `require` and `package.loadlib` first look for files mounted in the virtual file system (see below) and otherwise try to find a file by making synchronous XHR requests.
 
 `require` has been extended to allow searchers to yield.
+
+
+### Browser file system (`vfs`)
+
+Browsers have no synchronous file system, so when there is no Node `process` the `io` library and the file functions of `os` (`remove`, `rename`, `tmpname`, `getenv`) run on an in-memory file system instead of being absent. Hosts seed it before running Lua and can read or persist the results afterwards:
+
+```js
+const { vfs } = require("fengari");
+
+vfs.mount("/main.lua", "print('hello from a mounted chunk')");
+vfs.mount("/assets/data.bin", new Uint8Array([1, 2, 3]));
+vfs.setStdout((line) => console.log("lua:", line));
+vfs.setStderr((line) => console.error("lua:", line));
+vfs.setStdin("line one\nline two\n");
+vfs.setEnv("HOME", "/home/lua");
+
+// ... run Lua: io.open/read/write/lines/seek, dofile/require, os.remove ...
+
+const files = vfs.listFiles();     // ["/assets/data.bin", "/main.lua"]
+const data = vfs.readFile("/main.lua");
+const snapshot = vfs.snapshot();   // [{ path, data }, ...] -> persist it yourself
+```
+
+Relative paths resolve against the virtual root (`/`). `io.tmpfile` and `os.tmpname` use `/tmp`. Because the file system is memory only, persistence must be done by the host: read `snapshot()` after a run and `restore()` it (or `mount()` the individual files) in the next one. `vfs.flush()` emits any buffered `io.stdout`/`io.stderr` output. While the memory backend is active, `os.exit`, `os.execute` and `io.popen` are disabled, even under Node.
+
+In Node the real file system is used by default; `vfs.useMemory()` switches a Node host (or a test) to the same in-memory file system, and `vfs.useNode()` switches back. `vfs.current()` returns `"node"` or `"memory"`.
+
+If the host has a synchronous `localStorage`, `vfs.saveToStorage(key)` serializes the current files (base64) and `vfs.loadFromStorage(key)` restores them; `vfs.clearStorage(key)` removes the entry. This is the easiest way to persist between page loads in the main thread; IndexedDB and OPFS are asynchronous and remain host managed.
+
+
+### High-level API and sandbox
+
+`api` wraps the common flows so hosts do not need to manage the stack:
+
+```js
+const { api } = require("fengari");
+
+const state = api.createState();
+state.run("return 1 + 2");                 // 3
+state.run("function add(a, b) return a + b end");
+state.call("add", [2, 3]);                 // 5
+state.close();
+
+const box = api.sandbox({ instructions: 1e6, milliseconds: 100 });
+box.run("while true do end");              // throws "instruction limit exceeded"
+```
+
+`run`/`dostring` return one value, an array of values, or `undefined`; errors are `Error` objects with `luaMessage` and `luaTraceback`. `toJS`/`pushJS` convert tables, arrays, objects and functions. The sandbox removes `io`, `os`, `package`, `debug`, `dofile`, `loadfile` and `require` by default (configurable with `hide`) and enforces instruction and/or wall-clock limits with a count hook. It does not impose a memory cap.
+
+The package also ships ES module bindings (`import { lua, lauxlib, api } from "fengari"`) and TypeScript definitions (`types/fengari.d.ts`).
 
 
 ### Weak tables and finalizers
@@ -72,12 +122,10 @@ Weak tables (`__mode` = `"k"`, `"v"` or `"kv"`, including ephemerons) and `__gc`
 ### _Missing_ features
 
 - `lua_gc`/`collectgarbage`: the API is implemented on top of a Lua-side mark/sweep. `collect` runs a full cycle, `step` spreads marking, weak clearing and finalization over several calls, and `count` reports the approximate size of live Lua objects (not the JS heap). Weak tables and pending finalizers trigger automatic cycles after an allocation budget, controlled by `setpause`; `setstepmul` controls the work done per step. A full `collect` also asks the host JS collector to run when it exposes `gc` (e.g. Node with `--expose-gc`).
-- The following functions are only available in Node:
-    - The entire `io` lib
-    - `os.remove`
-    - `os.rename`
-    - `os.tmpname`
+- The following functions need a process API and fail with a clear error (or return `nil`, a message and `errno`) elsewhere:
     - `os.execute`
+    - `os.exit`
+    - `io.popen`
 - `debug.debug()` reads from a Node TTY through `readline-sync` or from `window.prompt` in browsers. Web workers and embedders can install a reader with `lualib.lua_setdebugreader(fn)`; without one it raises a Lua error.
 
 
@@ -177,17 +225,28 @@ This library is automatically loaded by `luaL_openlibs` into the global `"fengar
 
 ## NYI
 
-- `io.input()`: partially implemented
-- `io.lines()`
-- `io.open()`
-- `io.output()`: partially implemented
-- `io.popen()`
-- `io.read()`
-- `io.tmpfile()`
-- `file:lines()`
-- `file:read()`
-- `file:setvbuf()`
-- `file:__gc()`
+- `io.popen`, `os.execute` and `os.exit` need a process API and are not
+  available in the browser.
+- The browser file system is in memory; persistence is explicit through
+  `vfs.saveToStorage()`/`vfs.loadFromStorage()` or a host adaptor.
+- `io.popen()`: commands run to completion synchronously; output (read mode)
+  and input (write mode) are buffered instead of streamed.
+- In the browser, `require` uses the VFS for mounted modules and falls back to
+  synchronous XHR for URLs; asynchronous/ES module loading is not implemented.
+- `f:seek()` on pipes and terminals fails with `ESPIPE`, as in PUC Lua.
+- The sandbox limits instructions and wall-clock time, not memory.
+
+
+## Benchmarks and validation
+
+- `node bench/run.js` runs the Lua benchmarks (`bench/*.lua`) on Fengari;
+  `node bench/compare.js` also runs them under PUC Lua and prints the ratio.
+- `node scripts/diff-puc.js` (`pnpm test:diff`) runs `test/differential/*.lua`
+  under both engines and compares stdout and success/failure. It needs a
+  `lua5.3`, `lua5.4` or `lua` binary (or `LUA_BIN`).
+- `node scripts/fuzz.js` feeds random and mutated chunks to the parser and
+  undumper; it never executes them.
+- `pnpm test:coverage` enforces the coverage thresholds in `jest.config.js`.
 
 
 ## Development

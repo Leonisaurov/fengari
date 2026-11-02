@@ -577,6 +577,7 @@ Source: [`src/fengari.js`](../src/fengari.js)
 
 | Name | Source / value |
 | --- | --- |
+| `api` | `require('./fengari-api.js')` |
 | `FENGARI_AUTHORS` | `"B. Giannangeli, Daurnimator"` |
 | `FENGARI_COPYRIGHT` | `FENGARI_RELEASE + "  Copyright (C) 2017-2019 " + FENGARI_AUTHORS + "\nBased on: " + def...` |
 | `FENGARI_RELEASE` | `FENGARI_VERSION + "." + FENGARI_VERSION_RELEASE` |
@@ -592,6 +593,7 @@ Source: [`src/fengari.js`](../src/fengari.js)
 | `luastring_indexOf` | `core.luastring_indexOf` |
 | `luastring_of` | `core.luastring_of` |
 | `versions` | `require('./versions.js')` |
+| `vfs` | `require('./lfs.js').vfs` |
 
 ## Version registry (`versions`)
 

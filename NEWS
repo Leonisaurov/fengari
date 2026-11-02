@@ -1,3 +1,29 @@
+unreleased
+
+  - Implement the io library on Node: io.open, io.read, io.lines, io.input,
+    io.output, io.tmpfile, io.popen and the file methods read, lines, seek,
+    setvbuf, flush and the __gc finalizer
+  - Support reading numbers, lines, whole files and fixed byte counts, with
+    PUC-compatible lookahead and ESPIPE errors on non seekable streams
+  - Add io tests covering formats, seeking, append modes, pipes and errors
+  - Add src/lfs.js, a synchronous platform layer with a Node backend and an
+    in-memory file system for browsers and other hosts without process
+  - io and the file functions of os (remove, rename, tmpname, getenv) now work
+    without Node; fengari.vfs mounts, reads, snapshots and restores files
+  - loadfile, dofile and require check the virtual file system first
+  - io.popen, os.execute and os.exit fail with a clear error without a process
+  - Do not require process when loading luaconf
+  - Add bench/ (fib, mandelbrot, nbody, spectral-norm, binary-trees, strings,
+    tables), a PUC differential harness and a parser/undump fuzzer
+  - Add the api helpers (createState/run/call/toJS/pushJS) and a sandbox with
+    instruction and wall-clock limits
+  - Add an ES module entry, TypeScript definitions and conditional exports
+  - Select Node/browser branches through lfs.is_node so bundler shims work
+  - setvbuf now controls a real write buffer (no/full/line)
+  - vfs.saveToStorage/loadFromStorage persist the in-memory file system
+  - Enable the huge-loop official test and drop dead skipped tests
+
+
 0.1.5 - 2025-12-26
 
   - Add os.setlocale that only understands the C locale

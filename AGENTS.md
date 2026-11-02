@@ -14,11 +14,13 @@ Fengari is a port of the Lua 5.3 VM, parser and standard libraries to ES6 JavaSc
 ## Layout and flow
 
 - `src/` mirrors the Lua 5.3 C sources file by file: `llex` → `lparser` → `lcode` (compile), `ldo` (calls/stack/errors), `lvm` (bytecode loop), `lobject`/`lstring`/`ltable`/`ltm` (values/strings/tables/metamethods), and `lapi`/`lauxlib`/`lualib` (C API layers).
-- `src/fengari.js` is the package entry (`main`); it re-exports `luaconf`, `lua`, `lauxlib`, `lualib`, `versions` and the string helpers. Internal code requires the narrow module (`require("../src/lua.js")`), never the root bundle.
+- `src/fengari.js` is the package entry (`main`); it re-exports `luaconf`, `lua`, `lauxlib`, `lualib`, `versions`, `vfs`, `api` and the string helpers. `src/fengari.mjs` is the ES module wrapper, `types/fengari.d.ts` the type definitions and `src/fengari-api.js` the high-level `createState`/`run`/`call`/`sandbox` helpers. Internal code requires the narrow module (`require("../src/lua.js")`), never the root bundle.
+- `src/lfs.js` is the synchronous platform layer behind `io`/`os`: Node's `fs`/`tmp`/`child_process`, or an in-memory file system when `process` is absent. Its `vfs` export is the host API to mount, read, snapshot and restore files (and to stub stdin/stdout/env).
 - `lua_*`/`luaL_*` names and constants are intentional 1:1 ports of `lua.h`/`lauxlib.h`; follow that naming. New constants go in `defs.js` and are re-exported by `lua.js`.
-- `src/linit.js` is the only place that registers standard libraries (`luaL_openlibs`); it then applies the selected version profile's `openlibs` hook. `io` is loaded only when `process` exists; `os`, `package` and `debug` have browser branches selected with `typeof process === "undefined"`.
+- `src/linit.js` is the only place that registers standard libraries (`luaL_openlibs`); it then applies the selected version profile's `openlibs` hook. `io` is always registered; `src/lfs.js` selects the real file system under Node and an in-memory one elsewhere, and `os`, `package`, `debug` and the base library select their browser branches with `lfs.is_node` (not `typeof process`, which a bundler can fake).
 - `src/lgc.js` implements weak tables, finalizers and a mark/sweep with incremental marking; `src/versions.js` plus `src/versions/` select Lua 5.1/5.2/5.3 library profiles (`src/lbitlib.js` provides `bit32` for 5.2).
 - `test/test-suite/` is the official Lua test suite adapted to Jest; `test/test-suite/ltests.js` implements the C `T` test library. Remaining skips are mostly API harness/memory-limit tests, external fixtures and locale-specific tests.
+- `bench/` holds the Lua benchmarks, `scripts/diff-puc.js` the differential corpus under `test/differential/`, and `scripts/fuzz.js` the parser/undump fuzzer; none of them run as part of `pnpm test` except the bounded fuzz and differential smoke tests.
 - `docs/api.md` is generated from the public `module.exports` declarations by `scripts/generate-api-docs.js`; run `pnpm docs:api` after changing signatures, and `pnpm docs:check` (also part of `pnpm check`) verifies it. `docs/migrating-from-c.md` is hand-written.
 - Core semantics are Lua 5.3 with **32-bit integers** (`LUA_MAXINTEGER = 2147483647` in `luaconf.js`). The bundled 5.1/5.2 profiles adjust the library surface, not the parser or number model.
 
@@ -29,9 +31,15 @@ Fengari is a port of the Lua 5.3 VM, parser and standard libraries to ES6 JavaSc
 - Integer arithmetic is 32-bit and wraps; JS `Number` is only the float type. Do not introduce `BigInt` implicitly.
 - `luaconf.js` reads `process.env.FENGARICONF` as JSON **at require time**; set it before importing fengari (CI sets `LUAI_MAXSTACK`).
 - Lua errors unwind by throwing `L.errorJmp` (see `luaD_throw` in `ldo.js`). Use `lua_pcall`/`lua_pcallk` at JS boundaries; a bare `try/catch` around `lua_call` does not follow the Lua error protocol.
-- `collectgarbage`/`lua_gc` throws "lua_gc not implemented"; weak tables (`__mode`) and `__gc` are not implemented.
+- `collectgarbage`/`lua_gc` is implemented (`collect`, `stop`, `restart`, `count`, `step`, `setpause`, `setstepmul`, `isrunning`); weak tables (`__mode`) and `__gc` are supported, but memory is accounted with per-type estimates.
 - `debug.debug()` depends on `readline-sync` and a Node TTY.
-- `io.*` is partial (`io.read`, `io.lines`, `io.open`, …) and Node-only. In browsers `require`/`package.loadlib` use synchronous XHR.
+- `io.*` is complete for Lua 5.3 on Node. Without `process` it runs on the in-memory VFS in `src/lfs.js` (mounted and read through the exported `vfs` helpers), as do `os.remove/rename/tmpname/getenv` and `loadfile`/`require` before falling back to synchronous XHR. `io.popen` buffers instead of streaming, `setvbuf` drives a JS write buffer that is flushed on `flush`/`close`/`seek` or when full, and `os.execute`/`os.exit` need a process API.
 - `string.format` does not implement precision modifiers for `%a`/`%A`.
 - Tests reach into VM internals, e.g. `L.stack.slice(L.top - n, L.top).map(e => e.value)`; preserve `TValue.value` and the stack layout when refactoring.
 - `eslint.config.mjs` imports `globals`, so it must stay a direct devDependency (it was missing upstream). Lint enforces 4 spaces, semicolons and LF line endings.
+
+## Commits
+
+- Commit every completed change; do not leave the working tree dirty when a task is done.
+- Include the `AGENTS.md` update in the same commit when the workflow, layout or commands change.
+- Keep unrelated work in separate commits and use the existing `feat:` / `fix:` / `docs:` / `test:` prefixes.
