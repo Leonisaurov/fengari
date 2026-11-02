@@ -36,7 +36,7 @@ const {
         LUA_TTHREAD,
         LUA_TUSERDATA
     },
-    thread_status: { LUA_OK, LUA_YIELD },
+    thread_status: { LUA_OK },
     from_userstring,
     to_luastring,
 } = require('./defs.js');
@@ -110,19 +110,10 @@ const lua_warning = function(L, msg, tocont) {
         warnf(L.l_G.warn_ud, from_userstring(msg), !!tocont);
 };
 
-/* Close a dead or suspended thread. __close metamethods are not implemented
-   (Lua 5.4 to-be-closed variables are not supported yet). */
+/* Close a dead or suspended thread. Pending __close metamethods run
+   through the protected close loop in luaE_resetthread. */
 const lua_closethread = function(L, from) {
-    let status = L.status;
-    if (status === LUA_OK || status === LUA_YIELD)
-        status = LUA_OK;
-    let close_status = ldo.luaD_rawrunprotected(L, function(L1) {
-        require('./lfunc.js').luaF_close(L1, 0, status);
-    }, null);
-    if (close_status !== LUA_OK)
-        status = close_status;
-    lstate.luaE_resetthread(L, status);
-    return status;
+    return lstate.luaE_resetthread(L, L.status);
 };
 
 // Return value for idx on stack

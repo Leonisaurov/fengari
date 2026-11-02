@@ -305,6 +305,164 @@ test('5.4 yielding __close resumes the pending closes', () => {
     lua.lua_close(L);
 });
 
+test('5.4 error-time __close matches PUC semantics', () => {
+    let L = open("5.4");
+
+    run(L, `
+        local function clean(s)
+            return (tostring(s):gsub("^.-:%d+: ", ""))
+        end
+        local function mk(mt, n) return setmetatable({n=n}, mt) end
+
+        -- pcall-caught error: the close method gets the error object
+        do
+            local log = {}
+            local mt = { __close = function(o, err)
+                log[#log + 1] = "c" .. o.n .. ":" .. clean(err)
+            end }
+            local ok, err = pcall(function()
+                local a <close> = mk(mt, 1)
+                error("orig")
+            end)
+            assert(ok == false and clean(err) == "orig", tostring(err))
+            assert(table.concat(log, ",") == "c1:orig", table.concat(log, ","))
+        end
+
+        -- errors in a close method replace the original error; outer wins
+        do
+            local log = {}
+            local mt = { __close = function(o, err)
+                log[#log + 1] = "c" .. o.n
+                error("closeerr" .. o.n)
+            end }
+            local ok, err = pcall(function()
+                local a <close> = mk(mt, 4)
+                local b <close> = mk(mt, 5)
+                error("orig")
+            end)
+            assert(ok == false and clean(err) == "closeerr4", tostring(err))
+            assert(table.concat(log, ",") == "c5,c4", table.concat(log, ","))
+        end
+
+        -- an escaping coroutine error defers closing to coroutine.close
+        do
+            local log = {}
+            local mt = { __close = function(o, err)
+                log[#log + 1] = "c" .. o.n .. ":" .. clean(err)
+            end }
+            local co = coroutine.create(function()
+                local a <close> = mk(mt, 1)
+                local b <close> = mk(mt, 2)
+                error("boom")
+            end)
+            local ok, err = coroutine.resume(co)
+            assert(ok == false and clean(err) == "boom", tostring(err))
+            assert(table.concat(log, ",") == "", table.concat(log, ","))
+            local cok, cerr = coroutine.close(co)
+            assert(cok == false and clean(cerr) == "boom", tostring(cerr))
+            assert(table.concat(log, ",") == "c2:boom,c1:boom",
+                table.concat(log, ","))
+        end
+
+        -- coroutine.close on a suspended thread reports close errors
+        do
+            local log = {}
+            local mt = { __close = function(o, err)
+                log[#log + 1] = "c" .. o.n
+                error("closeerr" .. o.n)
+            end }
+            local co = coroutine.create(function()
+                local a <close> = mk(mt, 3)
+                coroutine.yield("wait")
+            end)
+            assert(coroutine.resume(co) == true)
+            local cok, cerr = coroutine.close(co)
+            assert(cok == false and clean(cerr) == "closeerr3", tostring(cerr))
+            assert(table.concat(log, ",") == "c3", table.concat(log, ","))
+        end
+
+        -- a close error also replaces a successful return
+        do
+            local mt = { __close = function(o, err) error("closeerr" .. o.n) end }
+            local ok, err = pcall(function()
+                local a <close> = mk(mt, 6)
+                return "ok"
+            end)
+            assert(ok == false and clean(err) == "closeerr6", tostring(err))
+        end
+
+        -- a yielding close resumes pending pcall-error closes
+        do
+            local log = {}
+            local mt = { __close = function(o, err)
+                log[#log + 1] = "b" .. o.n .. ":" .. clean(err)
+                coroutine.yield("y" .. o.n)
+                log[#log + 1] = "a" .. o.n
+            end }
+            local co = coroutine.create(function()
+                return pcall(function()
+                    local a <close> = mk(mt, 7)
+                    local b <close> = mk(mt, 8)
+                    error("bang")
+                end)
+            end)
+            local seq = {}
+            for _ = 1, 8 do
+                local ok, value = coroutine.resume(co)
+                seq[#seq + 1] = tostring(ok) .. ":" .. clean(value)
+                if coroutine.status(co) == "dead" then break end
+            end
+            assert(table.concat(seq, ";") == "true:y8;true:y7;true:false",
+                table.concat(seq, ";"))
+            assert(table.concat(log, ",") ==
+                "b8:bang,a8,b7:bang,a7", table.concat(log, ","))
+        end
+
+        -- coroutine.close does not allow a close method to yield
+        do
+            local log = {}
+            local mt = { __close = function(o, err)
+                log[#log + 1] = "b" .. o.n
+                coroutine.yield("y")
+                log[#log + 1] = "a" .. o.n
+            end }
+            local co = coroutine.create(function()
+                local a <close> = mk(mt, 9)
+                coroutine.yield("wait")
+            end)
+            assert(coroutine.resume(co) == true)
+            local cok, cerr = coroutine.close(co)
+            assert(cok == false and tostring(cerr):match("attempt to yield"),
+                tostring(cerr))
+            assert(table.concat(log, ",") == "b9", table.concat(log, ","))
+        end
+
+        -- a failed thread keeps its yielding close for coroutine.close
+        do
+            local log = {}
+            local mt = { __close = function(o, err)
+                log[#log + 1] = "b" .. o.n
+                coroutine.yield("y")
+                log[#log + 1] = "a" .. o.n
+            end }
+            local co = coroutine.create(function()
+                local a <close> = mk(mt, 10)
+                error("orig")
+            end)
+            local ok, err = coroutine.resume(co)
+            assert(ok == false and clean(err) == "orig", tostring(err))
+            local cok, cerr = coroutine.close(co)
+            assert(cok == false and tostring(cerr):match("attempt to yield"),
+                tostring(cerr))
+            assert(table.concat(log, ",") == "b10", table.concat(log, ","))
+        end
+
+        return true
+    `);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+    lua.lua_close(L);
+});
+
 test('math.random uses the 5.4 API and a per-state seed', () => {
     let L = open("5.4");
 

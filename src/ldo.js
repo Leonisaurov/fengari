@@ -80,7 +80,7 @@ const adjust_top_call = function(L, newtop) {
     }
 };
 
-const seterrorobj = function(L, errcode, oldtop) {
+const seterrorobj = function(L, errcode, oldtop, keep, keepTop) {
     let current_top = L.top;
 
     /* extend stack so that L.stack[oldtop] is sure to exist */
@@ -101,8 +101,13 @@ const seterrorobj = function(L, errcode, oldtop) {
         }
     }
 
-    while (L.top > oldtop + 1)
-        delete L.stack[--L.top];
+    if (keep) {
+        if (!keepTop)
+            L.top = oldtop + 1;  /* keep values above (pending __close slots) */
+    } else {
+        while (L.top > oldtop + 1)
+            delete L.stack[--L.top];
+    }
 };
 
 const ERRORSTACKSIZE = LUAI_MAXSTACK + 200;
@@ -462,6 +467,52 @@ const luaD_rawrunprotected = function(L, f, ud) {
 };
 
 /*
+** Calls 'luaF_close' in protected mode. Return the original status
+** or, in case of errors, the new status. Close methods are called
+** without allowing yields, as in PUC's 'luaD_closeprotected'.
+*/
+const luaD_closeprotected = function(L, level, status) {
+    let old_ci = L.ci;
+    let old_allowhooks = L.allowhook;
+    for (;;) {  /* keep closing upvalues until no more errors */
+        let pcl = {level: level, status: status};
+        if (status !== LUA_OK)  /* keep a stable error object below pending tbc's */
+            seterrorobj(L, status, level, true, true);
+        let close_status = luaD_rawrunprotected(L, function(L1) {
+            lfunc.luaF_close(L1, pcl.level, pcl.status, false, pcl.level);
+        }, null);
+        if (close_status === LUA_OK)
+            return pcl.status;
+        L.ci = old_ci;
+        L.allowhook = old_allowhooks;
+        status = close_status;
+    }
+};
+
+/*
+** Finish a 'lua_pcallk' interrupted by an error. Closes pending
+** to-be-closed variables (yieldably, as in PUC) and leaves the error
+** object at the pcall function slot.
+*/
+const finishpcallk = function(L, ci) {
+    let status = ci.c_recovery;  /* get original status */
+    if (status === LUA_OK)  /* no error? */
+        status = LUA_YIELD;  /* was interrupted by an yield */
+    else {  /* error */
+        let func = ci.extra;
+        L.allowhook = ci.callstatus & lstate.CIST_OAH;  /* restore 'allowhook' */
+        /* 'recover' left the error object at 'func' */
+        lfunc.luaF_close(L, func, status, true, func);
+        seterrorobj(L, status, func);
+        luaD_shrinkstack(L);  /* restore stack size in case of overflow */
+        ci.c_recovery = LUA_OK;  /* clear original status */
+    }
+    ci.callstatus &= ~lstate.CIST_YPCALL;
+    L.errfunc = ci.c_old_errfunc;
+    return status;
+};
+
+/*
 ** Completes the execution of an interrupted C function, calling its
 ** continuation function.
 */
@@ -474,8 +525,8 @@ const finishCcall = function(L, status) {
     lua_assert(ci.callstatus & lstate.CIST_YPCALL || status === LUA_YIELD);
 
     if (ci.callstatus & lstate.CIST_YPCALL) {  /* was inside a pcall? */
-        ci.callstatus &= ~lstate.CIST_YPCALL;  /* continuation is also inside it */
-        L.errfunc = ci.c_old_errfunc;  /* with the same error function */
+        /* close pending to-be-closed variables (may yield or raise) */
+        status = finishpcallk(L, ci);
     }
 
     /* finish 'lua_callk'/'lua_pcall'; CIST_YPCALL and 'errfunc' already
@@ -530,18 +581,12 @@ const findpcall = function(L) {
 const recover = function(L, status) {
     let ci = findpcall(L);
     if (ci === null) return 0;  /* no recovery point */
-    /* "finish" luaD_pcall */
-    let oldtop = ci.extra;
-    /* errors while closing are discarded, like PUC's closeprotected */
-    luaD_rawrunprotected(L, function(L1) {
-        lfunc.luaF_close(L1, oldtop, status);
-    }, null);
-    seterrorobj(L, status, oldtop);
+    /* "finish" luaD_pcall later, in finishpcallk */
+    ci.c_recovery = status;  /* save the error status across yields */
+    seterrorobj(L, status, ci.extra, true, true);  /* keep pending __close slots */
     L.ci = ci;
     L.allowhook = ci.callstatus & lstate.CIST_OAH;  /* restore original 'allowhook' */
     L.nny = 0;  /* should be zero to be yieldable */
-    luaD_shrinkstack(L);
-    L.errfunc = ci.c_old_errfunc;
     return 1;  /* continue running the coroutine */
 };
 
@@ -626,11 +671,7 @@ const lua_resume = function(L, from, nargs) {
         }
 
         if (status > LUA_YIELD) {  /* unrecoverable error? */
-            try {
-                lfunc.luaF_close(L, 0, status);
-            } catch (e) {
-                status = LUA_ERRRUN;
-            }
+            /* PUC leaves pending to-be-closed variables for 'coroutine.close' */
             L.status = status;  /* mark thread as 'dead' */
             seterrorobj(L, status, L.top);  /* push error message */
             L.ci.top = L.top;
@@ -690,14 +731,10 @@ const luaD_pcall = function(L, func, u, old_top, ef) {
     let status = luaD_rawrunprotected(L, func, u);
 
     if (status !== LUA_OK) {
-        let close_status = luaD_rawrunprotected(L, function(L1) {
-            lfunc.luaF_close(L1, old_top, status);
-        }, null);
-        if (close_status !== LUA_OK)
-            status = close_status;
-        seterrorobj(L, status, old_top);
         L.ci = old_ci;
         L.allowhook = old_allowhooks;
+        status = luaD_closeprotected(L, old_top, status);
+        seterrorobj(L, status, old_top);
         L.nny = old_nny;
         luaD_shrinkstack(L);
     }
@@ -773,6 +810,7 @@ module.exports.adjust_top_call      = adjust_top_call;
 module.exports.luaD_call            = luaD_call;
 module.exports.luaD_callnoyield     = luaD_callnoyield;
 module.exports.luaD_checkstack      = luaD_checkstack;
+module.exports.luaD_closeprotected  = luaD_closeprotected;
 module.exports.luaD_growstack       = luaD_growstack;
 module.exports.luaD_hook            = luaD_hook;
 module.exports.luaD_inctop          = luaD_inctop;
@@ -782,6 +820,7 @@ module.exports.luaD_precall         = luaD_precall;
 module.exports.luaD_protectedparser = luaD_protectedparser;
 module.exports.luaD_rawrunprotected = luaD_rawrunprotected;
 module.exports.luaD_reallocstack    = luaD_reallocstack;
+module.exports.seterrorobj          = seterrorobj;
 module.exports.luaD_throw           = luaD_throw;
 module.exports.lua_isyieldable      = lua_isyieldable;
 module.exports.lua_resume           = lua_resume;

@@ -42,7 +42,7 @@ Source: [`src/lua.js`](../src/lua.js)
 - **`lua_closethread(L, from)`**  
   `src/lapi.js`
 
-  Close a dead or suspended thread. __close metamethods are not implemented (Lua 5.4 to-be-closed variables are not supported yet).
+  Close a dead or suspended thread. Pending __close metamethods run through the protected close loop in luaE_resetthread.
 - **`lua_compare(L, index1, index2, op)`**  
   `src/lapi.js`
 - **`lua_concat(L, n)`**  
@@ -695,7 +695,7 @@ target surfaces (the parser and VM remain Lua 5.3):
 
 | Version | Highlights |
 | --- | --- |
-| 5.4 | `coroutine.close`, `warn`, the 5.4 `math.random`/`randomseed` API (xoshiro, per-state seeds) and `<const>`/`<close>` with `__close`, including the generic-for closing value and yielding `__close` on normal unwinding (not during error unwinding). No 64-bit integers by default. |
+| 5.4 | `coroutine.close`, `warn`, the 5.4 `math.random`/`randomseed` API (xoshiro, per-state seeds) and `<const>`/`<close>` with `__close`, including the generic-for closing value, yielding `__close` on normal unwinding and during `pcall`/`xpcall` error recovery, errors in close methods replacing the original error, and deferred closing through `coroutine.close`. No 64-bit integers by default. |
 | 5.3 | Current core: integers, bitwise operators, `utf8`, `string.pack`, `table.move`. |
 | 5.2 | `bit32`; no `utf8`, `string.pack` or 5.3 `math`/`coroutine` additions. |
 | 5.1 | `unpack`, `loadstring`, `getfenv`/`setfenv`, `module`, `package.seeall`, `table.maxn/getn`, `string.gfind`, `package.loaders`. |

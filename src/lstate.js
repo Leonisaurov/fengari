@@ -11,7 +11,8 @@ const {
         LUA_TTHREAD
     },
     thread_status: {
-        LUA_OK
+        LUA_OK,
+        LUA_YIELD
     }
 } = require('./defs.js');
 const lobject              = require('./lobject.js');
@@ -47,6 +48,7 @@ class CallInfo {
         this.c_k = null;  /* continuation in case of yields */
         this.c_old_errfunc = null;
         this.c_ctx = null;  /* context info. in case of yields */
+        this.c_recovery = 0;  /* saved error status during pcall recovery */
 
         this.nresults = NaN;
         this.u2_nres = 0;
@@ -137,31 +139,27 @@ const luaE_freeCI = function(L) {
 };
 
 /* Reset a dead/suspended coroutine, optionally keeping its error object.
-   Lua 5.4 runs pending __close metamethods first; Fengari does not implement
-   to-be-closed variables yet, so only the stack and call frames are reset. */
+   Pending __close metamethods run first, through a protected close loop. */
 const luaE_resetthread = function(L, status) {
     let ci = L.ci = L.base_ci;
-    L.status = LUA_OK;
-    L.errfunc = 0;
-    L.nCcalls = 0;
-    L.tbc_list = [];
+    L.stack[0] = new lobject.TValue(LUA_TNIL, null);
     ci.previous = null;
     ci.next = null;
     ci.callstatus = 0;
     ci.funcOff = 0;
     ci.func = L.stack[0];
 
-    if (status === LUA_OK) {
-        /* close upvalues before dropping the stack */
-        require('./lfunc.js').luaF_close(L, 0);
-        L.top = 0;
-        L.stack[0] = new lobject.TValue(LUA_TNIL, null);
+    if (status === LUA_YIELD)
+        status = LUA_OK;
+    L.status = LUA_OK;  /* so it can run __close metamethods */
+    L.errfunc = 0;  /* stack unwind can "throw away" the error function */
+    status = ldo.luaD_closeprotected(L, 1, status);
+    if (status !== LUA_OK)  /* errors? */
+        ldo.seterrorobj(L, status, 1);
+    else
         L.top = 1;
-        ci.top = L.top + LUA_MINSTACK;
-    } else {
-        /* keep the error object on the stack for the caller */
-        ci.top = L.top;
-    }
+    ci.top = L.top + LUA_MINSTACK;
+    return status;
 };
 
 const stack_init = function(L1, L) {

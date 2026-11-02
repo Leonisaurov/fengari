@@ -36,7 +36,7 @@ const luaF_findupval = function(L, level) {
     return L.stack[level];
 };
 
-const luaF_close = function(L, level, status) {
+const luaF_close = function(L, level, status, yy, errIndex) {
     /* Create new TValues on stack;
      * any closures will keep referencing old TValues */
     for (let i=level; i<L.top; i++) {
@@ -59,19 +59,29 @@ const luaF_close = function(L, level, status) {
         if (tm.ttisnil())
             continue;  /* checked when the variable was marked */
         let funcpos = L.top;
+        let callbase = funcpos;
+        if (status !== undefined && status !== 0) {
+            /* Error unwinding: push the call above the variable being
+               closed, so the slots of outer to-be-closed variables stay
+               intact (as PUC does). */
+            callbase = idx + 1;
+            L.top = callbase;
+        }
         ldo.luaD_checkstack(L, 3);
         let err = (status === undefined || status === 0)
             ? lobject.luaO_nilobject
-            : L.stack[L.top - 1];
+            : (errIndex === undefined ? L.stack[L.top - 1] : L.stack[errIndex]);
         lobject.pushobj2s(L, tm);
         lobject.pushobj2s(L, obj);
         lobject.pushobj2s(L, err);
-        if (status === undefined || status === 0)
-            ldo.luaD_call(L, funcpos, 0);
+        if (yy || status === undefined || status === 0)
+            ldo.luaD_call(L, callbase, 0);
         else
-            ldo.luaD_callnoyield(L, funcpos, 0);
+            ldo.luaD_callnoyield(L, callbase, 0);
         L.top = funcpos;
     }
+    if (status !== undefined && status !== 0 && errIndex !== undefined)
+        L.top = errIndex + 1;  /* leave the error object on top, as PUC does */
 };
 
 /* mark the variable at 'level' as to-be-closed */
