@@ -418,7 +418,7 @@ const UTF8BUFFSZ = 8;
 const luaO_utf8esc = function(buff, x) {
     if (typeof x === "bigint") x = Number(x);  /* code points fit in a Number */
     let n = 1;  /* number of bytes put in buffer (backwards) */
-    lua_assert(x <= 0x10FFFF);
+    lua_assert(x <= 0x7FFFFFFF);
     if (x < 0x80)  /* ascii? */
         buff[UTF8BUFFSZ - 1] = x;
     else {  /* need continuation bytes */
@@ -601,7 +601,7 @@ const l_str2int = function(s) {
     } else {  /* decimal */
         for (; i < s.length && lisdigit(s[i]); i++) {
             let d = s[i] - 48 /* ('0').charCodeAt(0) */;
-            if (a >= MAXBY10 && (a > MAXBY10 || d > MAXLASTD + neg))  /* overflow? */
+            if (a >= MAXBY10 && (a > MAXBY10 || d > MAXLASTD + (neg ? 1 : 0)))  /* overflow? */
                 return null;  /* do not accept it (as integer) */
             a = (a * 10 + d)|0;
             empty = false;
@@ -794,11 +794,18 @@ const luaO_fb2int = function(x) {
     return ((x & 7) + 8) << (e - 1);
 };
 
+/**
+ * @param {any} L
+ * @param {number} op
+ * @param {any} v1
+ * @param {any} v2
+ * @returns {any}
+ */
 const intarith = function(L, op, v1, v2) {
     if (LUA_INT64) {
         switch (op) {
             case LUA_OPADD:  return BigInt.asIntN(64, v1 + v2);
-            case LUA_OPSUB:  return BigInt.asIntN(64, v1 - v2);
+            case LUA_OPSUB:  return BigInt.asIntN(64, BigInt(v1) - BigInt(v2));
             case LUA_OPMUL:  return lvm.luaV_imul(v1, v2);
             case LUA_OPMOD:  return lvm.luaV_mod(L, v1, v2);
             case LUA_OPIDIV: return lvm.luaV_div(L, v1, v2);
@@ -807,7 +814,7 @@ const intarith = function(L, op, v1, v2) {
             case LUA_OPBXOR: return v1 ^ v2;
             case LUA_OPSHL:  return lvm.luaV_shiftl(v1, v2);
             case LUA_OPSHR:  return lvm.luaV_shiftl(v1, -v2);
-            case LUA_OPUNM:  return BigInt.asIntN(64, -v1);
+            case LUA_OPUNM:  return BigInt.asIntN(64, -BigInt(v1));
             case LUA_OPBNOT: return ~v1;
             default: lua_assert(0);
         }

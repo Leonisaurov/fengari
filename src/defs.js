@@ -185,7 +185,8 @@ const to_luastring = function(str, cache) {
     }
 
     let len = str.length;
-    let outU8Array = Array(len); /* array is at *least* going to be length of string */
+    /** @type {number[] | Uint8Array} */
+    let outU8Array = /** @type {any} */ (Array(len)); /* array is at *least* going to be length of string */
     let outIdx = 0;
     for (let i = 0; i < len; ++i) {
         let u = str.charCodeAt(i);
@@ -221,7 +222,7 @@ const to_luastring = function(str, cache) {
 
     if (cache) to_luastring_cache[str] = outU8Array;
 
-    return outU8Array;
+    return /** @type {Uint8Array} */ (outU8Array);
 };
 
 const from_userstring = function(str) {

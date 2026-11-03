@@ -840,11 +840,15 @@ let luaL_loadfilex;
 
 if (!lfs.is_node) {
     class LoadF {
+        /** @type {any} */
+        err;
+
         constructor() {
             this.n = NaN;  /* number of pre-read characters */
             this.f = null;  /* file being read */
             this.buff = new Uint8Array(1024);  /* area for reading file */
             this.pos = 0;  /* current position in file */
+            /** @type {any} */
             this.err = void 0;
         }
     }
@@ -927,11 +931,15 @@ if (!lfs.is_node) {
     const fs = require('fs');
 
     class LoadF {
+        /** @type {any} */
+        err;
+
         constructor() {
             this.n = NaN;  /* number of pre-read characters */
             this.f = null;  /* file being read */
             this.buff = Buffer.alloc(1024);  /* area for reading file */
             this.pos = 0;  /* current position in file */
+            /** @type {any} */
             this.err = void 0;
         }
     }

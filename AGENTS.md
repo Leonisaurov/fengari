@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Fengari is a port of the Lua 5.3 VM, parser and standard libraries to ES6 JavaScript (CommonJS). This repository is the core library plus a generated browser bundle (`dist/`); the CLI lives in `fengari-node-cli` and `fengari-web` provides additional browser integration. `src/` ships as-is: there is no transpile step, but `pnpm typecheck` validates the published declarations with a strict consumer, `pnpm typecheck:js` checks the `@ts-check` entry-point files, and `pnpm build` bundles `src/` for the browser.
+Fengari is a port of the Lua 5.3 VM, parser and standard libraries to ES6 JavaScript (CommonJS). This repository is the core library plus a generated browser bundle (`dist/`); the CLI lives in `fengari-node-cli` and `fengari-web` provides additional browser integration. `src/` ships as-is: there is no transpile step, but `pnpm typecheck` validates the published declarations with a strict consumer, `pnpm typecheck:js` runs `checkJs` over `src/`, and `pnpm build` bundles `src/` for the browser.
 
 ## Run
 

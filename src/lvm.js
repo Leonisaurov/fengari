@@ -688,15 +688,15 @@ const luaV_execute = function(L) {
                 let init = L.stack[ra];
                 let plimit = L.stack[ra + 1];
                 let pstep = L.stack[ra + 2];
-                let forlim;
+                let forlim = forlimit(plimit, pstep.value);
 
-                if (init.ttisinteger() && pstep.ttisinteger() && (forlim = forlimit(plimit, pstep.value))) {
+                if (init.ttisinteger() && pstep.ttisinteger() && forlim) {
                     /* all values are integer */
                     let initv = forlim.stopnow ?
                         (typeof pstep.value === "bigint" ? 0n : 0) : init.value;
                     plimit.value = forlim.ilimit;
                     init.value = typeof pstep.value === "bigint"
-                        ? BigInt.asIntN(64, initv - pstep.value)
+                        ? BigInt.asIntN(64, BigInt(initv) - BigInt(pstep.value))
                         : (initv - pstep.value)|0;
                 } else { /* try making all values floats */
                     let nlimit, nstep, ninit;

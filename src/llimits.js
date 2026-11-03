@@ -1,7 +1,7 @@
 "use strict";
 
-const lua_assert = function(c) {
-    if (!c) throw Error("assertion failed");
+const lua_assert = function(c, message) {
+    if (!c) throw Error(message || "assertion failed");
 };
 module.exports.lua_assert = lua_assert;
 

@@ -81,7 +81,7 @@ const file_error = function(code, errno, message, path) {
         let bytes = typeof path === "string" ? to_luastring(path) : path;
         display = `, '${to_jsstring(bytes)}'`;
     }
-    let e = new Error(`${code}: ${message}${display}`);
+    let e = /** @type {Error & { code: string, errno: number }} */ (new Error(`${code}: ${message}${display}`));
     e.code = code;
     e.errno = errno;
     return e;
@@ -181,6 +181,7 @@ const create_memory_backend = function() {
     let environment = Object.create(null);
     let counter = 0;
 
+    /** @type {{ data: Uint8Array, pos: number }} */
     let stdin = { data: EMPTY, pos: 0 };
     let stdout = { pending: EMPTY, handler: function(line) { console.log(line); } };
     let stderr = { pending: EMPTY, handler: function(line) { console.error(line); } };

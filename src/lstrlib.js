@@ -977,10 +977,10 @@ const getdetails = function(h, totalsize, fmt) {
         if (fmt.off >= fmt.s.length || fmt.s[fmt.off] === 0)
             luaL_argerror(h.L, 1, to_luastring("invalid next option for option 'X'"));
         else {
-            let o = getoption(h, fmt);
-            align = o.size;
-            o = o.opt;
-            if (o === Kchar || align === 0)
+            let opt = getoption(h, fmt);
+            align = opt.size;
+            let code = opt.opt;
+            if (code === Kchar || align === 0)
                 luaL_argerror(h.L, 1, to_luastring("invalid next option for option 'X'"));
         }
     }

@@ -526,7 +526,7 @@ Source: [`src/lualib.js`](../src/lualib.js)
 
 ### Functions and types
 
-- **`lua_assert(c)`**  
+- **`lua_assert(c, message)`**  
   `src/llimits.js`
 - **`lua_getdebugreader()`**  
   `src/ldblib.js`

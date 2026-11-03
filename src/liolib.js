@@ -770,7 +770,7 @@ const io_readline = function(L) {
     luaL_checkstack(L, n, to_luastring("too many arguments"));
     for (let i = 1; i <= n; i++)  /* push arguments to 'g_read' */
         lua_pushvalue(L, lua_upvalueindex(3 + i));
-    let count = g_read(L, p.f, 1);
+    let count = /** @type {number} */ (g_read(L, p.f, 1));
     if (lua_toboolean(L, -count))  /* read at least one value? */
         return count;
     /* first result is nil: EOF or error */
@@ -855,8 +855,8 @@ const f_seek = function(L) {
 
 const f_setvbuf = function(L) {
     let f = tofile(L);
-    let op = luaL_checkoption(L, 2, null,
-        [to_luastring("no"), to_luastring("full"), to_luastring("line")]);
+    let op = /** @type {number} */ (luaL_checkoption(L, 2, null,
+        [to_luastring("no"), to_luastring("full"), to_luastring("line")]));
     let size = luaL_optinteger(L, 3, READ_CHUNK);
     if (typeof size === "bigint") size = Number(size);
     if (!flush_write(f))

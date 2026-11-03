@@ -9,13 +9,13 @@
 */
 
 const {
-    LUA_ERRSYNTAX,
     constant_types: {
         LUA_TBOOLEAN,
         LUA_TLNGSTR,
         LUA_TNIL,
         LUA_TNUMFLT
     },
+    thread_status: { LUA_ERRSYNTAX },
     to_luastring
 } = require('./defs.js');
 const lfunc   = require('./lfunc.js');

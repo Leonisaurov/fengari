@@ -75,6 +75,7 @@
   },
   "homepage": "https://github.com/fengari-lua/fengari#readme",
   "devDependencies": {
+    "@types/node": "*",
     "eslint": "^9.39.2",
     "globals": "^17.13.0",
     "jest": "^30.2.0",

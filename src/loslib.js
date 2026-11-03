@@ -465,6 +465,12 @@ const strftime = function(L, b, s, date, utc) {
 };
 
 
+/**
+ * @param {any} L
+ * @param {Uint8Array} conv
+ * @param {number} i
+ * @returns {number}
+ */
 const checkoption = function(L, conv, i) {
     let option = LUA_STRFTIMEOPTIONS;
     let o = 0;
@@ -530,7 +536,7 @@ const os_time = function(L) {
         setallfields(L, t);
     }
 
-    let secs = Math.floor(t / 1000);
+    let secs = Math.floor(t.getTime() / 1000);
     if (typeof LUA_MAXINTEGER === "bigint")
         lua_pushinteger(L, secs);
     else if (secs >= LUA_MININTEGER && secs <= LUA_MAXINTEGER)

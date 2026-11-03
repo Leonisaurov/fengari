@@ -113,6 +113,13 @@ const table_hash = function(L, key) {
 };
 
 class Table {
+    /** @type {any} */
+    dead_weak;
+    /** @type {any} */
+    f;
+    /** @type {any} */
+    l;
+
     constructor(L) {
         this.id = L.l_G.id_counter++;
         this.strong = new Map();
@@ -437,7 +444,7 @@ const luaH_setexisting = function(t, key, value, slot) {
 const luaH_getn = function(t) {
     let i = 0;
     let j = t.strong.size + 1; /* use known size of Map to kick start search */
-    let maxindex = LUA_INT64 ? Number.MAX_SAFE_INTEGER : LUA_MAXINTEGER;
+    let maxindex = LUA_INT64 ? Number.MAX_SAFE_INTEGER : Number(LUA_MAXINTEGER);
     /* find 'i' and 'j' such that i is present and j is not */
     while (!(luaH_getint(t, j).ttisnil())) {
         i = j;
