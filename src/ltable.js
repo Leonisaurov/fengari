@@ -355,6 +355,10 @@ const luaH_get = function(L, t, key) {
         let v = t.strong.get(key.value);
         return v ? v.value : lobject.luaO_nilobject;
     }
+    if (type === LUA_TSHRSTR || type === LUA_TLNGSTR) {
+        let v = t.strong.get(luaS_hashlongstr(key.tsvalue()));
+        return v ? v.value : lobject.luaO_nilobject;
+    }
     if (type === LUA_TNIL)
         return lobject.luaO_nilobject;
     return getgeneric(t, table_hash(L, key));
