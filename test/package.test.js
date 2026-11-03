@@ -48,5 +48,7 @@ test("the typecheck config covers the declaration consumer", () => {
     expect(tsconfig.include).toContain("test/types/**/*.ts");
     expect(fs.existsSync(path.join(root, "test/types/consumer.ts"))).toBe(true);
     expect(pkg.scripts.typecheck).toBe("tsc -p tsconfig.types.json");
+    expect(pkg.scripts["typecheck:js"]).toBe("tsc -p tsconfig.checkjs.json");
     expect(pkg.scripts.check).toContain("tsc -p tsconfig.types.json");
+    expect(pkg.scripts.check).toContain("tsc -p tsconfig.checkjs.json");
 });

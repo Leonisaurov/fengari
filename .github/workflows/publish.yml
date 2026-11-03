@@ -1,0 +1,53 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+    - name: Use Node.js
+      uses: actions/setup-node@v6
+      with:
+        node-version: '24.x'
+        cache: 'yarn'
+        registry-url: 'https://registry.npmjs.org'
+    - name: Install dependencies
+      run: yarn --frozen-lockfile
+    - name: Check the tag matches package.json
+      if: startsWith(github.ref, 'refs/tags/v')
+      run: |
+        node -e '
+          const expected = "v" + require("./package.json").version;
+          if (process.env.GITHUB_REF_NAME !== expected) {
+            console.error(`tag ${process.env.GITHUB_REF_NAME} does not match ${expected}`);
+            process.exit(1);
+          }
+        '
+    - name: Lint
+      run: yarn lint
+    - name: Check generated API docs
+      run: yarn docs:check
+    - name: Typecheck published declarations
+      run: yarn typecheck
+    - name: Typecheck the checked JavaScript sources
+      run: yarn typecheck:js
+    - name: Test
+      run: yarn test --maxWorkers=$(nproc)
+      env:
+        FENGARICONF: '{"LUAI_MAXSTACK":100000}'
+    - name: Build the browser bundle
+      run: yarn build
+    - name: Publish to npm
+      run: npm publish --provenance --access public
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

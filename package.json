@@ -54,7 +54,8 @@
     "docs:api": "node scripts/generate-api-docs.js",
     "docs:check": "node scripts/generate-api-docs.js --check",
     "typecheck": "tsc -p tsconfig.types.json",
-    "check": "eslint src/ test/ scripts/ && node scripts/generate-api-docs.js --check && tsc -p tsconfig.types.json && jest"
+    "typecheck:js": "tsc -p tsconfig.checkjs.json",
+    "check": "eslint src/ test/ scripts/ && node scripts/generate-api-docs.js --check && tsc -p tsconfig.types.json && tsc -p tsconfig.checkjs.json && jest"
   },
   "repository": {
     "type": "git",

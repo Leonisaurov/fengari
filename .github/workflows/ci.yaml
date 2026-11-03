@@ -33,6 +33,8 @@ jobs:
       run: yarn docs:check
     - name: Typecheck published declarations
       run: yarn typecheck
+    - name: Typecheck the checked JavaScript sources
+      run: yarn typecheck:js
     - name: Test
       if: matrix.node-version != '24.x'
       run: yarn test --maxWorkers=$(nproc)

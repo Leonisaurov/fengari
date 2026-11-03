@@ -1,3 +1,4 @@
+// @ts-check
 "use strict";
 
 /**
@@ -79,7 +80,7 @@ const throw_error = function(L, status) {
     let message = to_jsstring(raw);
     luaL_traceback(L, L, raw, 1);
     let trace = lua_tostring(L, -1);
-    let error = new Error(message);
+    let error = /** @type {Error & { status: number, luaMessage: string, luaTraceback?: string }} */ (new Error(message));
     error.status = status;
     error.luaMessage = message;
     if (trace !== null)
@@ -307,7 +308,7 @@ const thread_error = function(thread) {
     let message = raw === null ? "async Lua error" : to_jsstring(raw);
     luaL_traceback(thread, thread, raw, 1);
     let trace = lua_tostring(thread, -1);
-    let error = new Error(message);
+    let error = /** @type {Error & { luaTraceback?: string }} */ (new Error(message));
     if (trace !== null)
         error.luaTraceback = to_jsstring(trace);
     return error;

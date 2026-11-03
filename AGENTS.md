@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Fengari is a port of the Lua 5.3 VM, parser and standard libraries to ES6 JavaScript (CommonJS). This repository is the core library plus a generated browser bundle (`dist/`); the CLI lives in `fengari-node-cli` and `fengari-web` provides additional browser integration. `src/` ships as-is: there is no transpile or full-source typecheck step, but `pnpm typecheck` validates the published declarations with a strict consumer, and `pnpm build` bundles `src/` for the browser.
+Fengari is a port of the Lua 5.3 VM, parser and standard libraries to ES6 JavaScript (CommonJS). This repository is the core library plus a generated browser bundle (`dist/`); the CLI lives in `fengari-node-cli` and `fengari-web` provides additional browser integration. `src/` ships as-is: there is no transpile step, but `pnpm typecheck` validates the published declarations with a strict consumer, `pnpm typecheck:js` checks the `@ts-check` entry-point files, and `pnpm build` bundles `src/` for the browser.
 
 ## Run
 
@@ -10,9 +10,9 @@ Fengari is a port of the Lua 5.3 VM, parser and standard libraries to ES6 JavaSc
 - `pnpm install` exits 1 with `ERR_PNPM_IGNORED_BUILDS` for `@parcel/watcher`; dependencies are still installed. Ignore it unless you need Jest watch mode.
 - Single file: `pnpm test test/lvm.test.js`. Single test: `pnpm test test/lvm.test.js -t "MOVE"`. Do **not** put `--` before `-t`; Jest treats it as a filename pattern.
 - `test/manual-tests/debug-cli.js` is not run by Jest (it needs an interactive stdin).
-- `pnpm check` runs lint, `docs:check`, `typecheck` and Jest. `pnpm test:diff` needs `lua5.3`/`lua5.4`/`lua` (or `LUA_BIN`); `pnpm test:browser` needs Brave, Chromium or Chrome and runs `scripts/browser-test.js` (`BRAVE_BIN` selects the binary, `--keep` preserves the profile).
+- `pnpm check` runs lint, `docs:check`, `typecheck`, `typecheck:js` and Jest. `pnpm test:diff` needs `lua5.3`/`lua5.4`/`lua` (or `LUA_BIN`); `pnpm test:browser` needs Brave, Chromium or Chrome and runs `scripts/browser-test.js` (`BRAVE_BIN` selects the binary, `--keep` preserves the profile).
 - `pnpm build` writes `dist/fengari.js`, `.js.map` and `.min.js`; `prepack` rebuilds them for publishing.
-- CI (`.github/workflows/ci.yaml`) uses **yarn** on Node 20/22/24/25/26 with `FENGARICONF='{"LUAI_MAXSTACK":100000}'`; it also runs the differential corpus, benchmarks, fuzzing and a browser job that installs Brave. Keep `package.json`/`yarn.lock` consistent; `pnpm-lock.yaml` is local-only.
+- CI (`.github/workflows/ci.yaml`) uses **yarn** on Node 20/22/24/25/26 with `FENGARICONF='{"LUAI_MAXSTACK":100000}'`; it also runs the differential corpus, benchmarks, fuzzing and a browser job that installs Brave. `.github/workflows/publish.yml` publishes tagged releases to npm with provenance. Keep `package.json`/`yarn.lock` consistent; `pnpm-lock.yaml` is local-only.
 
 ## Layout and flow
 
