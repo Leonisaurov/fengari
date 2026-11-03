@@ -137,6 +137,9 @@ unreleased
   - Match Lua 5.4 utf8 semantics in the 5.4 profile: strict/lax decoding,
     surrogates and U+10FFFF limits, extended code points up to 0x7FFFFFFF,
     the `lax` argument of len/codepoint/codes, and the 5.4 charpattern
+  - Match more Lua 5.4 string behaviour: valid flag/precision checks in
+    string.format, %q of inf/nan ("1e9999", "-1e9999", "(0/0)") and the
+    initial position argument of string.gmatch
   - Fix the "string contains zeros" message in string.pack("z")
 
 

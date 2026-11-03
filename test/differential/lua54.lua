@@ -230,3 +230,26 @@ local ncok, ncerr = coroutine.close(nco)
 check("close.coroutine.noyield", ncok == false and
     tostring(ncerr):find("attempt to yield", 1, true) ~= nil and
     table.concat(nlog, ",") == "1")
+
+-- Lua 5.4 utf8 strict/lax semantics
+check("utf8.strict", utf8.len("\xED\xA0\x80") == nil)
+check("utf8.lax", utf8.len("\xED\xA0\x80", 1, -1, true) == 1)
+check("utf8.extended", #utf8.char(0x7FFFFFFF) == 6 and
+    utf8.codepoint(utf8.char(0x7FFFFFFF), 1, -1, true) == 0x7FFFFFFF)
+
+-- Lua 5.4 string.format validation and %q of non-finite numbers
+check("format.flagsx", not pcall(string.format, "%+x", 5))
+check("format.flagsu", not pcall(string.format, "%+u", 5))
+check("format.flagss", not pcall(string.format, "%05s", "x"))
+check("format.qmod", not pcall(string.format, "%5q", 1))
+check("format.qinf", string.format("%q", 1/0) == "1e9999" and
+    string.format("%q", -1/0) == "-1e9999")
+check("format.qnan", string.format("%q", 0/0) == "(0/0)")
+
+-- Lua 5.4 string.gmatch accepts an initial position
+local gm = {}
+for w in string.gmatch("a,b,c", "[^,]+", 3) do gm[#gm + 1] = w end
+check("gmatch.init", table.concat(gm, "|") == "b|c")
+
+
+

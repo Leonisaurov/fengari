@@ -103,6 +103,16 @@ const posrelat = function(pos, len) {
     else return len + pos + 1;
 };
 
+/* Lua 5.4 version: clips to [1, len+1] */
+const posrelatI = function(pos, len) {
+    if (typeof pos === "bigint")
+        pos = Number(pos);
+    if (pos > 0) return pos;
+    else if (pos === 0) return 1;
+    else if (pos < -len) return 1;
+    else return len + pos + 1;
+};
+
 const str_sub = function(L) {
     let s = luaL_checkstring(L, 1);
     let l = s.length;
@@ -153,6 +163,11 @@ const str_dump = function(L) {
 
 const HEXDIGITS = "0123456789abcdef";
 const f64view = new DataView(new ArrayBuffer(8));
+
+const is54lib = function(L) {
+    let impl = L && L.l_G && L.l_G.impl;
+    return !!(impl && impl.version && impl.version.num >= 504);
+};
 const POW5 = [1n];
 const pow5 = function(k) {
     while (POW5.length <= k)
@@ -700,9 +715,14 @@ const addliteral = function(L, b, arg) {
             }
             let buff;
             if (!lua_isinteger(L, arg)) {  /* float? */
-                let n = lua_tonumber(L, arg);  /* write as hexa ('%a') */
-                buff = lua_number2strx(L, to_luastring(`%${LUA_INTEGER_FRMLEN}a`), n, true);
-                checkdp(L, buff);  /* ensure it uses a dot */
+                let n = lua_tonumber(L, arg);
+                if (is54lib(L) && (!isFinite(n) || Number.isNaN(n))) {
+                    buff = to_luastring(n === Infinity ? "1e9999" :
+                        (n === -Infinity ? "-1e9999" : "(0/0)"));
+                } else {
+                    buff = lua_number2strx(L, to_luastring(`%${LUA_INTEGER_FRMLEN}a`), n, true);
+                    checkdp(L, buff);  /* ensure it uses a dot */
+                }
             } else {  /* integers */
                 let n = lua_tointeger(L, arg);
                 if (typeof n === "bigint") {
@@ -762,6 +782,38 @@ const addlenmod = function(form, lenmod) {
     // form[l + lm] = 0;
 };
 
+/*
+** Lua 5.4 validates the allowed flags and whether a precision is valid
+** for each conversion. 'form' starts with '%' and ends with the specifier.
+*/
+const checkformat54 = function(L, form, flags, precision) {
+    let i = 1;
+    while (i < form.length && flags.indexOf(String.fromCharCode(form[i])) >= 0)
+        i++;
+    if (form[i] === 48 /* '0' */ && flags.indexOf("0") < 0)
+        return luaL_error(L, to_luastring("invalid conversion specification: '%s'"),
+            to_luastring(String.fromCharCode(...form)));
+    if (isdigit(form[i])) {  /* width: at most two digits */
+        i++;
+        if (isdigit(form[i])) i++;
+    }
+    if (form[i] === 46 /* '.' */ && precision) {
+        i++;
+        if (isdigit(form[i])) i++;
+        if (isdigit(form[i])) i++;
+    }
+    if (!isalpha(form[i]))
+        return luaL_error(L, to_luastring("invalid conversion specification: '%s'"),
+            to_luastring(String.fromCharCode(...form)));
+};
+
+/* valid flags per conversion in Lua 5.4 */
+const FLAGS_FLOAT = "-+#0 ";
+const FLAGS_SIGNED = "-+0 ";
+const FLAGS_UNSIGNED = "-0";
+const FLAGS_HEX = "-#0";
+const FLAGS_CHAR = "-";
+
 const str_format = function(L) {
     let top = lua_gettop(L);
     let arg = 1;
@@ -781,6 +833,8 @@ const str_format = function(L) {
             i = scanformat(L, strfrmt, i, form);
             switch (String.fromCharCode(strfrmt[i++])) {
                 case 'c': {
+                    if (is54lib(L))
+                        checkformat54(L, form, FLAGS_CHAR, false);
                     // sprintf(String.fromCharCode(...form), luaL_checkinteger(L, arg));
                     luaL_addchar(b, Number(luaL_checkinteger(L, arg)));
                     break;
@@ -789,6 +843,11 @@ const str_format = function(L) {
                 case 'o': case 'u': case 'x': case 'X': {
                     let n = luaL_checkinteger(L, arg);
                     let spec = String.fromCharCode(strfrmt[i - 1]);
+                    if (is54lib(L)) {
+                        let flags = (spec === 'd' || spec === 'i') ? FLAGS_SIGNED :
+                            (spec === 'u') ? FLAGS_UNSIGNED : FLAGS_HEX;
+                        checkformat54(L, form, flags, true);
+                    }
                     let opts = parse_format(form);
                     luaL_addstring(b, to_luastring(format_integer(
                         n, spec, opts.flags, opts.width, opts.precision)));
@@ -799,6 +858,8 @@ const str_format = function(L) {
                         L.l_G.impl.version.num < 502)
                         return luaL_error(L, to_luastring("invalid option '%%%c' to 'format'"),
                             strfrmt[i-1]);
+                    if (is54lib(L))
+                        checkformat54(L, form, FLAGS_FLOAT, true);
                     addlenmod(form, to_luastring(LUA_INTEGER_FRMLEN, true));
                     luaL_addstring(b, lua_number2strx(L, form, luaL_checknumber(L, arg)));
                     break;
@@ -806,6 +867,8 @@ const str_format = function(L) {
                 case 'e': case 'E': case 'f':
                 case 'g': case 'G': {
                     let spec = String.fromCharCode(strfrmt[i - 1]);
+                    if (is54lib(L))
+                        checkformat54(L, form, FLAGS_FLOAT, true);
                     let opts = parse_format(form);
                     luaL_addstring(b, to_luastring(num2strf(
                         L, luaL_checknumber(L, arg), spec, opts.flags,
@@ -813,6 +876,8 @@ const str_format = function(L) {
                     break;
                 }
                 case 'q': {
+                    if (is54lib(L) && form.length > 2)
+                        return luaL_error(L, to_luastring("specifier '%%q' cannot have modifiers"));
                     addliteral(L, b, arg);
                     break;
                 }
@@ -826,6 +891,8 @@ const str_format = function(L) {
                             /* no precision and string is too long to be formatted */
                             luaL_addvalue(b);  /* keep entire string */
                         } else {  /* format the string into the buffer */
+                            if (is54lib(L))
+                                checkformat54(L, form, FLAGS_CHAR, true);
                             let opts = parse_format(form);
                             addstring_format(b, s, opts.flags, opts.width, opts.precision);
                             lua_pop(L, 1);  /* remove result from 'luaL_tolstring' */
@@ -1816,11 +1883,17 @@ const str_gmatch = function(L) {
     let p = luaL_checkstring(L, 2);
     let ls = s.length;
     let lp = p.length;
+    let initarg = is54lib(L) ? luaL_optinteger(L, 3, 1) : 1;
     lua_settop(L, 2);  /* keep them on closure to avoid being collected */
     let gm = new GMatchState();
     lua_pushlightuserdata(L, gm);
     prepstate(gm.ms, L, s, ls, p, lp);
-    gm.src = 0;
+    let start = 0;
+    if (is54lib(L)) {
+        start = posrelatI(initarg, ls) - 1;
+        if (start > ls) start = ls + 1;  /* start after the end */
+    }
+    gm.src = start;
     gm.p = 0;
     gm.lastmatch = null;
     lua_pushcclosure(L, gmatch_aux, 3);
