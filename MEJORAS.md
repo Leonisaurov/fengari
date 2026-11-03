@@ -2,14 +2,14 @@
 
 Catálogo de trabajo sobre `fengari` **v0.1.5** (commit `ac8c387`, semántica Lua 5.3).
 Estado de partida: 40 suites de Jest, 589 tests que pasan y 21 skips, lint OK, sin build ni typecheck.
-Estado actual (noviembre 2026): **59 suites, 822 tests que pasan y 2 skips** (solo los
+Estado actual (noviembre 2026): **61 suites, 825 tests que pasan y 2 skips** (solo los
 diferenciales de 5.1/5.2 cuando no hay intérprete), `checkJs` completo sobre `src/`,
-corpus diferenciales de 5.1, 5.2, 5.3 y 5.4, y **7.6x** frente a PUC en la suite de
-benchmarks. Mejoras de rendimiento de esta pasada frente al commit anterior: strings
-−57 %, nbody −33 %, tables −23 %, binary-trees −19 %, mandelbrot −12 %. El compilador
-reutiliza los `TValue` del plegado de constantes y `bench/compile.js`/`bench/startup.js`
-miden compilación y arranque (86.7 ms de carga, 0.9 ms de estado + librerías, bundle
-de 797.5/540.9 KiB).
+corpus diferenciales de 5.1, 5.2, 5.3, 5.4 y LuaJIT `bit`, y **7.6x** frente a PUC
+en la suite de benchmarks. Mejoras de rendimiento de esta pasada frente al commit
+anterior: strings −57 %, nbody −33 %, tables −23 %, binary-trees −19 %, mandelbrot
+−12 %. El compilador reutiliza los `TValue` del plegado de constantes y
+`bench/compile.js`/`bench/startup.js` miden compilación y arranque (41–87 ms de
+carga, 1.4 ms de estado + librerías, bundle de 799.2/542.1 KiB).
 Estado actual tras resolver el P0: 40 suites, 597 tests que pasan y 21 skips, cobertura ~93% de líneas con umbral en CI.
 Estado actual tras tablas débiles y `__gc`: 41 suites, 614 tests que pasan y 20 skips.
 Estado actual tras GC automático/incremental y `count` real: 41 suites, 620 tests que pasan y 20 skips.
@@ -175,3 +175,10 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - Benchmarks estables (mismo hardware, varias ejecuciones) y sin regresiones.
 - Tamaño del bundle de navegador y tiempo de arranque.
 - Cobertura de líneas/ramas y número de bugs de semántica abiertos.
+
+## Decisión de alcance pendiente
+
+El backend WASM y el FFI WebAssembly no son mejoras incrementales: requieren un
+compilador/ABI y una representación de memoria nuevos, con su propio corpus y
+benchmarks. Quedan fuera de esta pasada hasta que se decida explícitamente
+entre descoparlos o abrir un spike de diseño separado.
