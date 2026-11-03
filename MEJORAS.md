@@ -86,7 +86,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - [x] **Strings** — P1, M. Buffers que crecen sin crear una vista por carácter, `gsub` con salida preasignada y fast path para patrones literales, y `%f`/`%q` exactos (`src/lauxlib.js`, `src/lstrlib.js`).
 - [x] **Compilador** — P2, M. Plegado de constantes sin asignar tres `TValue` por operación (scratch reutilizado, eliminado el `FIXME` de `lcode.js`), peephole para `#"constante"` y banco `bench/compile.js`. Verificado con `test/test-suite/code.test.js` y el corpus diferencial.
 - [x] **Presión de GC** — P1, M. Menos asignaciones temporales: buffers de strings sin vistas por carácter, `gsub` preasignado, fast paths de tablas y plegado de constantes con `TValue` reutilizados. `collectgarbage("count")` sigue midiendo objetos Lua vivos.
-- **Arranque y tamaño** — P2, S. Carga perezosa de librerías, no requerir `io`/`os` en navegador y medir el tamaño del bundle (`src/linit.js`, `src/lualib.js`).
+- [x] **Arranque y tamaño** — P2, S. Medido con `bench/startup.js`: 86.7 ms de carga de módulos, 0.9 ms de `luaL_newstate` + `luaL_openlibs`, bundle de 797.5 KiB (540.9 KiB minificado). No se añade carga perezosa porque `lua.js`/`lauxlib.js`/`lualib.js` dominan la carga y se usan en prácticamente todos los hosts; `sprintf-js` ya salió del bundle.
 - **Backend WASM** — P3, L. Compilar PUC Lua a WebAssembly y mantener la misma fachada JS; comparar rendimiento y tamaño. Es la apuesta grande si el objetivo es velocidad cercana a nativa.
 - **Caché de bytecode** — P3, M. Persistir `lua_dump` y cargar chunks precompilados para arranques repetidos.
 

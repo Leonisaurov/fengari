@@ -144,6 +144,8 @@ unreleased
     the GC mode is reported accurately while the collector remains incremental
   - Reuse scratch values during constant folding and fold the length of string
     constants, with a new bench/compile.js compile-time benchmark
+  - Add bench/startup.js for module-load, state-creation and bundle-size
+    measurements (86.7 ms, 0.9 ms and 797.5/540.9 KiB on this machine)
   - Fix the "string contains zeros" message in string.pack("z")
 
 

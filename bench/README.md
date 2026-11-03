@@ -12,6 +12,8 @@ creation, `luaL_openlibs`, load and run.
   both sides.
 - `node bench/compile.js` measures parser + code generation on a chunk with
   many constant-folded expressions (`--repeat`, `--funcs`, `--locals`).
+- `node bench/startup.js` measures module loading, state creation and library
+  registration, and reports the generated browser bundle sizes.
 
 Caveats:
 
