@@ -141,6 +141,24 @@ For a blocking synchronous bridge from a worker, see
 `api.createSyncBridge`/`api.serveSyncBridge` and the browser tests in
 `scripts/browser-test.js`.
 
+## LuaJIT `bit` extension
+
+Set `FENGARICONF='{"LUAJIT_BIT":true}'` before loading Fengari to register a
+LuaJIT-compatible signed 32-bit `bit` library:
+
+```js
+const state = api.createState();
+state.run(`
+    assert(bit.tobit(0xFFFFFFFF) == -1)
+    assert(bit.band(0xF0F0, 0xFF00) == 0xF000)
+    assert(bit.tohex(-1) == "ffffffff")
+`);
+```
+
+It provides `tobit`, `tohex`, `bnot`, `band`, `bor`, `bxor`, `lshift`,
+`rshift`, `arshift`, `rol`, `ror` and `bswap`. It is opt-in because it is a
+LuaJIT extension, not part of standard Lua.
+
 ## Next steps
 
 - [`high-level-api.md`](high-level-api.md): conversion rules, promises, async

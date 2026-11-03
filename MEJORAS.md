@@ -145,7 +145,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - [x] **`coroutine.close`, `warn`, `math.random` nuevo** — P2, M. Perfil `5.4` con `coroutine.close` (suspended/dead/error, ejecutando los `__close` pendientes), `warn` con `lua_setwarnf`/`lua_warning` y un `math.random`/`randomseed` 5.4 con xoshiro128**, semillas por estado y soporte de 0/1/2 argumentos. El parser/VM siguen siendo 5.3 y el entero es de 32 bits, así que no se replica la secuencia exacta de PUC.
 - [x] **Paridad de `utf8` y `string`** — P3, S. Revisar diferencias 5.3→5.4 y casos límite. Hecho: `utf8` estricto/lax, `%q` de inf/nan, validación de flags de `string.format`, `gmatch` con posición inicial y `charpattern` de 5.4.
 - [x] **`debug`/`os` de 5.4** — P3, S. Añadidos `debug.setcstacklimit` y los modos `incremental`/`generational` de `collectgarbage` (el GC sigue siendo incremental); `os.exit` ya soporta `close`. Los uservalues múltiples de userdata quedan pendientes por la representación actual.
-- **Extensiones tipo LuaJIT** — P3, L. **Largo plazo / no planificado**: solo si hay un caso de uso claro (FFI, `bit`, `jit.*`); no forman parte de Lua estándar.
+- [x] **Extensiones tipo LuaJIT** — P3, L. Implementada la librería `bit` compatible con LuaJIT (32 bits con signo, `tobit`/`tohex`/shifts/rotates/`bswap`), opt-in con `FENGARICONF.LUAJIT_BIT=true`, con corpus diferencial contra LuaJIT real. `FFI` y `jit.*` quedan fuera de alcance.
 
 ---
 

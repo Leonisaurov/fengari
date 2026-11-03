@@ -151,6 +151,8 @@ unreleased
     game-loop examples
   - Convert JS Maps, Sets and iterables in api.pushJS
   - Add scripts/changelog.js and document the tagged-release process
+  - Add an opt-in LuaJIT-compatible signed 32-bit `bit` library
+    (FENGARICONF.LUAJIT_BIT) with a differential corpus against LuaJIT
   - Fix the "string contains zeros" message in string.pack("z")
 
 

@@ -686,6 +686,7 @@ Source: [`src/luaconf.js`](../src/luaconf.js)
 | `LUA_VDIR` | `LUA_VERSION_MAJOR + "." + LUA_VERSION_MINOR` |
 | `LUA_VERSION` | `"Lua " + LUA_VERSION_MAJOR + "." + LUA_VERSION_MINOR` |
 | `LUAI_MAXSTACK` | `conf.LUAI_MAXSTACK \|\| 1000000` |
+| `LUAJIT_BIT` | `conf.LUAJIT_BIT === true` |
 | `LUAL_BUFFERSIZE` | `conf.LUAL_BUFFERSIZE \|\| 8192` |
 
 ## Version profiles

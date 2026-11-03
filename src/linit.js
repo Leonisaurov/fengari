@@ -3,6 +3,8 @@
 const { lua_pop, lua_pushstring, lua_setglobal } = require('./lua.js');
 const { luaL_requiref } = require('./lauxlib.js');
 const { to_luastring } = require("./fengaricore.js");
+const { LUAJIT_BIT } = require('./luaconf.js');
+const { luaopen_bit } = require('./ljbitlib.js');
 
 const loadedlibs = {};
 
@@ -16,6 +18,10 @@ const luaL_openlibs = function(L) {
     if (!L.l_G.profile_opened && L.l_G.impl && L.l_G.impl.openlibs) {
         L.l_G.profile_opened = true;
         L.l_G.impl.openlibs(L);
+    }
+    if (LUAJIT_BIT) {
+        luaL_requiref(L, to_luastring("bit"), luaopen_bit, 1);
+        lua_pop(L, 1);
     }
     if (L.l_G.impl && L.l_G.impl.version && L.l_G.impl.version.string) {
         lua_pushstring(L, to_luastring(L.l_G.impl.version.string));

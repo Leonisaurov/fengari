@@ -132,6 +132,8 @@ const LUA_COMPAT_FLOATSTRING = conf.LUA_COMPAT_FLOATSTRING || false;
 
 const LUA_INT64 = conf.LUA_INT64 === true;
 
+const LUAJIT_BIT = conf.LUAJIT_BIT === true;
+
 const LUA_MAXINTEGER = LUA_INT64 ? 9223372036854775807n : 2147483647;
 const LUA_MININTEGER = LUA_INT64 ? -9223372036854775808n : -2147483648;
 
@@ -322,6 +324,7 @@ module.exports.LUA_COMPAT_FLOATSTRING = LUA_COMPAT_FLOATSTRING;
 module.exports.LUA_IDSIZE             = LUA_IDSIZE;
 module.exports.LUA_VERSION            = conf.LUA_VERSION || "5.3";
 module.exports.LUA_INT64              = LUA_INT64;
+module.exports.LUAJIT_BIT             = LUAJIT_BIT;
 module.exports.LUA_INTEGER_FMT        = LUA_INTEGER_FMT;
 module.exports.LUA_INTEGER_FRMLEN     = LUA_INTEGER_FRMLEN;
 module.exports.LUA_MAXINTEGER         = LUA_MAXINTEGER;
