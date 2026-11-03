@@ -9,7 +9,9 @@ en la suite de benchmarks. Mejoras de rendimiento de esta pasada frente al commi
 anterior: strings −57 %, nbody −33 %, tables −23 %, binary-trees −19 %, mandelbrot
 −12 %. El compilador reutiliza los `TValue` del plegado de constantes y
 `bench/compile.js`/`bench/startup.js` miden compilación y arranque (41–87 ms de
-carga, 1.4 ms de estado + librerías, bundle de 799.2/542.1 KiB).
+carga, 1.4 ms de estado + librerías, bundle de 799.2/542.1 KiB). Todos los ítems
+accionables están cerrados; el backend WASM y el FFI quedaron fuera de alcance por
+decisión explícita del usuario (2026-11-03).
 Estado actual tras resolver el P0: 40 suites, 597 tests que pasan y 21 skips, cobertura ~93% de líneas con umbral en CI.
 Estado actual tras tablas débiles y `__gc`: 41 suites, 614 tests que pasan y 20 skips.
 Estado actual tras GC automático/incremental y `count` real: 41 suites, 620 tests que pasan y 20 skips.
@@ -90,7 +92,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - [x] **Compilador** — P2, M. Plegado de constantes sin asignar tres `TValue` por operación (scratch reutilizado, eliminado el `FIXME` de `lcode.js`), peephole para `#"constante"` y banco `bench/compile.js`. Verificado con `test/test-suite/code.test.js` y el corpus diferencial.
 - [x] **Presión de GC** — P1, M. Menos asignaciones temporales: buffers de strings sin vistas por carácter, `gsub` preasignado, fast paths de tablas y plegado de constantes con `TValue` reutilizados. `collectgarbage("count")` sigue midiendo objetos Lua vivos.
 - [x] **Arranque y tamaño** — P2, S. Medido con `bench/startup.js`: 86.7 ms de carga de módulos, 0.9 ms de `luaL_newstate` + `luaL_openlibs`, bundle de 797.5 KiB (540.9 KiB minificado). No se añade carga perezosa porque `lua.js`/`lauxlib.js`/`lualib.js` dominan la carga y se usan en prácticamente todos los hosts; `sprintf-js` ya salió del bundle.
-- **Backend WASM** — P3, L. **Largo plazo / no planificado**: compilar PUC Lua a WebAssembly y mantener la misma fachada JS; comparar rendimiento y tamaño.
+- **Backend WASM** — P3, L. **Fuera de alcance por decisión del usuario (2026-11-03)**: requeriría compilar PUC Lua a WebAssembly y mantener una fachada JS separada, con su propio corpus y benchmarks.
 - [x] **Caché de bytecode** — P3, M. `api.compile(source)` devuelve el chunk binario (`Uint8Array`) y `run`/`dostring` lo aceptan, de modo que el host puede cachearlo en memoria o disco. Documentado en `docs/high-level-api.md` y cubierto por `test/api.test.js`.
 
 ---
@@ -108,7 +110,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - [x] **Web Workers** — P2, M. El backend en memoria y la E/S funcionan sin `window`/`process`; la suite de Brave prueba un Web Worker real, RPC asíncrono y un puente bloqueante con `SharedArrayBuffer`/`Atomics`. `test/worker.test.js` cubre io/os en `worker_threads`.
 - [x] **Detección de entorno** — P2, S. Evitar falsos positivos de `typeof process` cuando un bundler inyecta un shim; centralizar la detección en un módulo.
 - [x] **Sandbox** — P1, M. `api.sandbox` oculta `io`/`os`/`package`/`debug`/`dofile`/`loadfile`/`require` y limita instrucciones, tiempo y memoria aproximada (`collectgarbage("count")`).
-- **FFI WebAssembly** — P3, L. **Largo plazo / no planificado**: llamar funciones WASM desde Lua y viceversa, con manejo de memoria y tipos.
+- **FFI WebAssembly** — P3, L. **Fuera de alcance por decisión del usuario (2026-11-03)**: llamar funciones WASM desde Lua y viceversa exige definir una ABI y una representación de memoria nuevas.
 
 ---
 
@@ -176,9 +178,9 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - Tamaño del bundle de navegador y tiempo de arranque.
 - Cobertura de líneas/ramas y número de bugs de semántica abiertos.
 
-## Decisión de alcance pendiente
+## Alcance cerrado
 
-El backend WASM y el FFI WebAssembly no son mejoras incrementales: requieren un
-compilador/ABI y una representación de memoria nuevos, con su propio corpus y
-benchmarks. Quedan fuera de esta pasada hasta que se decida explícitamente
-entre descoparlos o abrir un spike de diseño separado.
+Todos los ítems accionables del catálogo están implementados y verificados. El
+backend WASM y el FFI WebAssembly quedan **fuera de alcance por decisión
+explícita del usuario** (2026-11-03); no son mejoras incrementales y requerirían
+un proyecto de arquitectura separado.
