@@ -192,6 +192,7 @@ export interface ApiState {
     L: LuaState;
     run(source: string | LuaString, chunkname?: string): any;
     dostring(source: string | LuaString, chunkname?: string): any;
+    compile(source: string | LuaString, chunkname?: string): LuaString;
     runAsync(source: string | LuaString, chunkname?: string): Promise<any>;
     dofile(filename: string): any;
     call(fn: string | number, args?: any[]): any;
@@ -238,6 +239,7 @@ export interface Sandbox {
 export interface ApiHelpers {
     createState(options?: { version?: string; openlibs?: boolean }): ApiState;
     run(L: LuaState, source: string | LuaString, chunkname?: string): any;
+    compile(L: LuaState, source: string | LuaString, chunkname?: string): LuaString;
     dostring(L: LuaState, source: string | LuaString, chunkname?: string): any;
     runAsync(L: LuaState, source: string | LuaString, chunkname?: string): Promise<any>;
     dofile(L: LuaState, filename: string): any;

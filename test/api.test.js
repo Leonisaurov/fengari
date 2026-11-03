@@ -15,6 +15,21 @@ test('api.run and api.createState evaluate code', () => {
     }
 });
 
+test('api.compile caches a binary chunk', () => {
+    const state = api.createState();
+    try {
+        const chunk = state.compile("return 6 * 7", "=(cached)");
+        expect(chunk).toBeInstanceOf(Uint8Array);
+        expect(chunk[0]).toBe(27);  /* Lua signature */
+        expect(state.run(chunk)).toBe(42);
+        expect(state.run(chunk)).toBe(42);
+        expect(() => state.compile("this is not lua")).toThrow(/syntax|unexpected|near/);
+    } finally {
+        state.close();
+    }
+});
+
+
 test('api.dostring reports errors with a traceback', () => {
     const state = api.createState();
     try {

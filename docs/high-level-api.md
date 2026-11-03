@@ -31,6 +31,19 @@ with `luaMessage` and `luaTraceback`.
 `run`/`dostring` accept a JS string or a `Uint8Array` and return one value, an
 array of values, or `undefined`. `call` accepts a global name or a stack index.
 
+## Compiled chunks
+
+`state.compile(source, chunkname)` returns the binary chunk as a `Uint8Array`:
+
+```js
+const chunk = state.compile("return 6 * 7", "=(answer)");
+state.run(chunk);                  // 42
+```
+
+`run`/`dostring` accept that representation, so hosts can cache compiled
+chunks in memory or on disk. Binary chunks are tied to the state's version
+profile and should be regenerated when the source or profile changes.
+
 ## Values
 
 - `toJS(L, index)` converts nil, booleans, numbers, strings, tables and

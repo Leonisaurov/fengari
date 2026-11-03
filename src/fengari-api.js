@@ -21,6 +21,7 @@ const {
     lua_close,
     lua_createtable,
     lua_gc,
+    lua_dump,
     lua_getglobal,
     lua_gettop,
     lua_isinteger,
@@ -675,6 +676,37 @@ const run = function(L, source, chunkname) {
     return run_code(L, bytes, chunkname || "=(run)");
 };
 
+/*
+** Compile a source chunk and return its binary representation, ready to be
+** passed back to run()/load(). This lets hosts cache compiled chunks.
+*/
+const compile = function(L, source, chunkname) {
+    let bytes = typeof source === "string" ? to_luastring(source) : source;
+    let base = lua_gettop(L);
+    let status = luaL_loadbuffer(L, bytes, bytes.length,
+        to_luastring(chunkname || "=(compile)"));
+    if (status !== LUA_OK)
+        throw_error(L, status);
+    let parts = [];
+    let writer = function(L1, chunk, size) {
+        parts.push(new Uint8Array(chunk.subarray(0, size)));
+        return 0;
+    };
+    if (lua_dump(L, writer, null, 0) !== 0) {
+        lua_settop(L, base);
+        throw new Error("unable to dump the compiled chunk");
+    }
+    lua_settop(L, base);
+    let total = parts.reduce((n, part) => n + part.length, 0);
+    let result = new Uint8Array(total);
+    let offset = 0;
+    for (const part of parts) {
+        result.set(part, offset);
+        offset += part.length;
+    }
+    return result;
+};
+
 const dofile = function(L, filename) {
     let base = lua_gettop(L);
     let status = luaL_loadfile(L, to_luastring(filename));
@@ -728,6 +760,7 @@ const createState = function(options) {
         L: L,
         run: (source, chunkname) => run(L, source, chunkname),
         dostring: (source, chunkname) => run(L, source, chunkname),
+        compile: (source, chunkname) => compile(L, source, chunkname),
         runAsync: (source, chunkname) => runAsync(L, source, chunkname),
         dofile: (filename) => dofile(L, filename),
         call: (fn, args) => call(L, fn, args),
@@ -811,6 +844,7 @@ const sandbox = function(options) {
 
 module.exports.createState = createState;
 module.exports.run = run;
+module.exports.compile = compile;
 module.exports.dostring = run;
 module.exports.dofile = dofile;
 module.exports.call = call;

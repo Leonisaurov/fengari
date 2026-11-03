@@ -146,6 +146,7 @@ unreleased
     constants, with a new bench/compile.js compile-time benchmark
   - Add bench/startup.js for module-load, state-creation and bundle-size
     measurements (86.7 ms, 0.9 ms and 797.5/540.9 KiB on this machine)
+  - Add api.compile()/state.compile() to cache binary chunks across runs
   - Fix the "string contains zeros" message in string.pack("z")
 
 
