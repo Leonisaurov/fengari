@@ -3,9 +3,8 @@
 /*
 ** Minimal CommonJS bundler for the browser build.
 **
-** It resolves the static `require("literal")` calls in src/ and in the few
-** npm modules that run in the browser (sprintf-js), stubs Node built-ins and
-** emits an IIFE that exposes the package as `globalThis.fengari`.
+** It resolves the static `require("literal")` calls in src/, stubs Node
+** built-ins and emits an IIFE that exposes the package as `globalThis.fengari`.
 **
 ** Usage: node scripts/build-browser.js [--out=dist/fengari.js]
 */

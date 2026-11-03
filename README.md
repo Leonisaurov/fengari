@@ -105,7 +105,7 @@ await vfs.loadFromURL("/modules/plugin.lua", "/plugins/plugin.lua");
 
 ### Browser bundle and tests
 
-`pnpm build` generates `dist/fengari.js` (with `dist/fengari.js.map`) and `dist/fengari.min.js`, a self-contained IIFE that exposes the package as `window.fengari` (it includes `sprintf-js` and stubs Node-only modules). The `.min` file strips comments and indentation (no identifier mangling) and is built on `pnpm pack` as well, so the tarball ships both.
+`pnpm build` generates `dist/fengari.js` (with `dist/fengari.js.map`) and `dist/fengari.min.js`, a self-contained IIFE that exposes the package as `window.fengari` (it stubs Node-only modules). The `.min` file strips comments and indentation (no identifier mangling) and is built on `pnpm pack` as well, so the tarball ships both.
 
 `pnpm test:browser` runs the browser suite without Playwright: it serves the bundle from a local HTTP server, launches **Brave in headless mode** through the Chrome DevTools Protocol (falling back to Chromium/Chrome if Brave is not installed) and checks the VFS, mounted `require`/`dofile`, async `require`, CommonJS/ES modules with import maps, localStorage, IndexedDB, OPFS snapshots, direct/nested OPFS in a worker, SharedArrayBuffer, a real Web Worker (async RPC and a blocking SAB bridge), `debug.debug`, the minified bundle/source map, stdout handlers and the sandbox. Set `BRAVE_BIN` to point at a specific Brave build.
 

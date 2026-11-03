@@ -14,7 +14,7 @@ pnpm build
 generates:
 
 - `dist/fengari.js` — self-contained IIFE, exposes `window.fengari`;
-  includes `sprintf-js` and stubs Node built-ins.
+  stubs Node built-ins.
 - `dist/fengari.js.map` — source map with `sourcesContent`.
 - `dist/fengari.min.js` — same bundle with comments and indentation removed
   (no identifier mangling), about 30 % smaller.

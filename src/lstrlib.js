@@ -1,10 +1,7 @@
 "use strict";
 
-const { sprintf } = require('sprintf-js');
-
 const {
     LUA_INT64,
-    LUA_INTEGER_FMT,
     LUA_INTEGER_FRMLEN,
     LUA_MININTEGER,
     lua_getlocaledecpoint
@@ -75,7 +72,6 @@ const lualib = require('./lualib.js');
 const {
     luastring_eq,
     luastring_indexOf,
-    to_jsstring,
     to_luastring
 } = require("./fengaricore.js");
 
@@ -179,6 +175,101 @@ const parse_format = function(fmt) {
             precision = precision * 10 + (fmt[i] - 48);
     }
     return { flags, width, precision };
+};
+
+/*
+** Format an integer like C's printf does for %d/%i/%o/%u/%x/%X.
+** 'n' is a Number in the 32-bit profile and a BigInt in LUA_INT64 mode.
+** Unsigned conversions wrap to the width of lua_Integer, so negative
+** values print the same bits PUC would print.
+*/
+const format_integer = function(n, spec, flags, width, precision) {
+    if (LUA_INT64)
+        n = BigInt(n);
+
+    const signed = spec === 'd' || spec === 'i';
+    const base = (signed || spec === 'u') ? 10 : (spec === 'o' ? 8 : 16);
+    let negative = false;
+    let iszero;
+    let digits;
+
+    if (typeof n === "bigint") {
+        iszero = n === 0n;
+        if (signed) {
+            negative = n < 0n;
+            digits = (negative ? -n : n).toString(base);
+        } else {
+            digits = BigInt.asUintN(64, n).toString(base);
+        }
+    } else if (signed) {
+        iszero = n === 0;
+        negative = n < 0;
+        digits = Math.abs(n).toString(base);
+    } else {
+        iszero = n === 0;
+        digits = (n >>> 0).toString(base);  /* 32-bit unsigned */
+    }
+
+    if (spec === 'X')
+        digits = digits.toUpperCase();
+
+    /* precision is the minimum number of digits; 0 with a zero value is empty */
+    if (precision !== null) {
+        if (precision === 0 && digits === "0")
+            digits = "";
+        else if (digits.length < precision)
+            digits = "0".repeat(precision - digits.length) + digits;
+    }
+
+    let prefix = "";
+    if (signed) {
+        if (negative)
+            prefix = "-";
+        else if (flags.indexOf("+") >= 0)
+            prefix = "+";
+        else if (flags.indexOf(" ") >= 0)
+            prefix = " ";
+    } else if (flags.indexOf("#") >= 0) {
+        if (base === 16 && !iszero) {
+            prefix = spec === 'X' ? "0X" : "0x";
+        } else if (base === 8 && (digits === "" || digits[0] !== "0")) {
+            digits = "0" + digits;
+        }
+    }
+
+    const full = prefix + digits;
+    if (width <= full.length)
+        return full;
+
+    const missing = width - full.length;
+    if (flags.indexOf("-") >= 0)
+        return full + " ".repeat(missing);
+    /* the 0 flag is ignored when a precision is given (as in C) */
+    if (flags.indexOf("0") >= 0 && precision === null)
+        return prefix + "0".repeat(missing) + digits;
+    return " ".repeat(missing) + full;
+};
+
+/*
+** Add a string formatted with C's %s semantics. Lua strings are byte
+** strings, so width and precision count bytes, not JS code units, and
+** the '0' flag is ignored.
+*/
+const addstring_format = function(b, s, flags, width, precision) {
+    let len = s.length;
+    if (precision !== null && precision < len)
+        len = precision;
+
+    const missing = width > len ? width - len : 0;
+    if (missing > 0 && flags.indexOf("-") < 0) {
+        for (let i = 0; i < missing; i++)
+            luaL_addchar(b, 32 /* ' ' */);
+    }
+    luaL_addlstring(b, s, len);
+    if (missing > 0 && flags.indexOf("-") >= 0) {
+        for (let i = 0; i < missing; i++)
+            luaL_addchar(b, 32 /* ' ' */);
+    }
 };
 
 const num2straux = function(x, precision, flags, width) {
@@ -518,10 +609,9 @@ const addliteral = function(L, b, arg) {
                         ? "0x" + BigInt.asUintN(64, n).toString(16)
                         : n.toString());
                 } else {
-                    let format = (n === LUA_MININTEGER)  /* corner case? */
-                        ? "0x%" + LUA_INTEGER_FRMLEN + "x"  /* use hexa */
-                        : LUA_INTEGER_FMT;  /* else use default format */
-                    buff = to_luastring(sprintf(format, n));
+                    buff = to_luastring(n === LUA_MININTEGER
+                        ? "0x" + (n >>> 0).toString(16)  /* unsigned form */
+                        : String(n));
                 }
             }
             luaL_addstring(b, buff);
@@ -597,22 +687,10 @@ const str_format = function(L) {
                 case 'd': case 'i':
                 case 'o': case 'u': case 'x': case 'X': {
                     let n = luaL_checkinteger(L, arg);
-                    if (typeof n === "bigint") {
-                        let conv = String.fromCharCode(strfrmt[i - 1]);
-                        let s;
-                        if (conv === 'd' || conv === 'i')
-                            s = n.toString();
-                        else {
-                            let base = conv === 'o' ? 8 : (conv === 'u' ? 10 : 16);
-                            let u = BigInt.asUintN(64, n);
-                            s = u.toString(base);
-                            if (conv === 'X') s = s.toUpperCase();
-                        }
-                        luaL_addstring(b, to_luastring(s));
-                        break;
-                    }
-                    addlenmod(form, to_luastring(LUA_INTEGER_FRMLEN, true));
-                    luaL_addstring(b, to_luastring(sprintf(String.fromCharCode(...form), n)));
+                    let spec = String.fromCharCode(strfrmt[i - 1]);
+                    let opts = parse_format(form);
+                    luaL_addstring(b, to_luastring(format_integer(
+                        n, spec, opts.flags, opts.width, opts.precision)));
                     break;
                 }
                 case 'a': case 'A': {
@@ -646,9 +724,9 @@ const str_format = function(L) {
                         if (luastring_indexOf(form, 46 /* '.'.charCodeAt(0) */) < 0 && s.length >= 100) {
                             /* no precision and string is too long to be formatted */
                             luaL_addvalue(b);  /* keep entire string */
-                        } else {  /* format the string into 'buff' */
-                            // TODO: will fail if s is not valid UTF-8
-                            luaL_addstring(b, to_luastring(sprintf(String.fromCharCode(...form), to_jsstring(s))));
+                        } else {  /* format the string into the buffer */
+                            let opts = parse_format(form);
+                            addstring_format(b, s, opts.flags, opts.width, opts.precision);
                             lua_pop(L, 1);  /* remove result from 'luaL_tolstring' */
                         }
                     }
@@ -937,7 +1015,7 @@ const str_pack = function(L) {
             case Kzstr: {  /* zero-terminated string */
                 let s = luaL_checkstring(L, arg);
                 let len = s.length;
-                luaL_argcheck(L, luastring_indexOf(s, 0) < 0, arg, "strings contains zeros");
+                luaL_argcheck(L, luastring_indexOf(s, 0) < 0, arg, "string contains zeros");
                 luaL_addlstring(b, s, len);
                 luaL_addchar(b, 0);  /* add zero at the end */
                 totalsize += len + 1;

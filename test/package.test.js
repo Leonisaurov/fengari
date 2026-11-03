@@ -34,10 +34,11 @@ test("published files include the runtime and exclude tests", () => {
 });
 
 test("runtime dependencies are declared", () => {
-    for (const name of ["readline-sync", "sprintf-js", "tmp"])
+    for (const name of ["readline-sync", "tmp"])
         expect(pkg.dependencies).toHaveProperty(name);
-    for (const name of ["eslint", "globals", "jest", "typescript"])
+    for (const name of ["eslint", "globals", "jest", "sprintf-js", "typescript"])
         expect(pkg.devDependencies).toHaveProperty(name);
+    expect(pkg.dependencies).not.toHaveProperty("sprintf-js");
 });
 
 test("the typecheck config covers the declaration consumer", () => {

@@ -200,6 +200,82 @@ test('string.format %a/%A', () => {
 });
 
 
+test('string.format integer flags and precision', () => {
+    let L = lauxlib.luaL_newstate();
+    if (!L) throw Error("failed to create lua state");
+
+    let luaCode = `
+        return string.format("% d", 5),
+               string.format("% d", -5),
+               string.format("%.3d", 0),
+               string.format("%.3d", 5),
+               string.format("%5.3d", 5),
+               string.format("%08.3d", 5),
+               string.format("%#05x", 5),
+               string.format("%#o", 5),
+               string.format("%#x", 0),
+               string.format("%.0d", 0),
+               string.format("%.0x", 0),
+               string.format("%+x", 5)
+    `;
+    {
+        lualib.luaL_openlibs(L);
+        expect(lauxlib.luaL_loadstring(L, to_luastring(luaCode))).toBe(lua.LUA_OK);
+        lua.lua_call(L, 0, -1);
+    }
+
+    const expected = [" 5", "-5", "000", "005", "  005", "     005",
+        "0x005", "05", "0", "", "", "5"];
+    for (let i = 0; i < expected.length; i++)
+        expect(lua.lua_tojsstring(L, i - expected.length)).toBe(expected[i]);
+});
+
+
+test('string.format %s counts bytes and ignores zero padding', () => {
+    let L = lauxlib.luaL_newstate();
+    if (!L) throw Error("failed to create lua state");
+
+    let luaCode = `
+        return string.format("%5s", "é"),
+               string.format("%05s", "abc"),
+               string.format("%.2s", "é😀"),
+               string.format("%5.2s", "é😀"),
+               string.format("%.0s", "abc")
+    `;
+    {
+        lualib.luaL_openlibs(L);
+        expect(lauxlib.luaL_loadstring(L, to_luastring(luaCode))).toBe(lua.LUA_OK);
+        lua.lua_call(L, 0, -1);
+    }
+
+    const expected = ["   é", "  abc", "é", "   é", ""];
+    for (let i = 0; i < expected.length; i++)
+        expect(lua.lua_tojsstring(L, i - expected.length)).toBe(expected[i]);
+});
+
+
+test('string.format %q at the integer limits', () => {
+    let L = lauxlib.luaL_newstate();
+    if (!L) throw Error("failed to create lua state");
+
+    let luaCode = `
+        return string.format("%q", 0), string.format("%q", -1),
+               string.format("%q", math.mininteger),
+               string.format("%q", math.maxinteger)
+    `;
+    {
+        lualib.luaL_openlibs(L);
+        expect(lauxlib.luaL_loadstring(L, to_luastring(luaCode))).toBe(lua.LUA_OK);
+        lua.lua_call(L, 0, -1);
+    }
+
+    expect(lua.lua_tojsstring(L, -4)).toBe("0");
+    expect(lua.lua_tojsstring(L, -3)).toBe("-1");
+    expect(lua.lua_tojsstring(L, -2)).toBe("0x80000000");
+    expect(lua.lua_tojsstring(L, -1)).toBe("2147483647");
+});
+
+
 test('string.sub', () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
