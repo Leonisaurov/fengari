@@ -132,6 +132,11 @@ unreleased
     nbody, mandelbrot and binary-trees improve by 15-35%
   - Add a publish workflow (npm provenance and tag/version check) and a
     gradual `@ts-check` pass over the public entry points
+  - Run `checkJs` over all of `src/` with `@types/node` and the small browser
+    global shims needed by the typechecker
+  - Match Lua 5.4 utf8 semantics in the 5.4 profile: strict/lax decoding,
+    surrogates and U+10FFFF limits, extended code points up to 0x7FFFFFFF,
+    the `lax` argument of len/codepoint/codes, and the 5.4 charpattern
   - Fix the "string contains zeros" message in string.pack("z")
 
 

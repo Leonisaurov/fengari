@@ -29,6 +29,46 @@ test('the 5.4 profile is registered and keeps the 5.3 default', () => {
     expect(versions.get("5.4").features.random54).toBe(true);
 });
 
+test('utf8 follows the 5.4 strict/lax rules', () => {
+    let L53 = open("5.3");
+    let L54 = open("5.4");
+
+    run(L54, `
+        -- strict by default: surrogates and code points above U+10FFFF fail
+        assert(utf8.len("\\xED\\xA0\\x80") == nil)
+        assert(utf8.len("\\xED\\xA0\\x80", 1, -1, true) == 1)
+        local big = utf8.char(0x110000)
+        assert(not pcall(utf8.codepoint, big))
+        assert(utf8.codepoint(big, 1, -1, true) == 0x110000)
+
+        -- 5.4 allows extended UTF-8 up to 0x7FFFFFFF
+        assert(#utf8.char(0x7FFFFFFF) == 6)
+        assert(utf8.codepoint(utf8.char(0x7FFFFFFF), 1, -1, true) == 0x7FFFFFFF)
+        assert(not pcall(utf8.char, 0x80000000))
+
+        -- lax codes and rejection of an initial continuation byte
+        local n = 0
+        for _ in utf8.codes("\\xED\\xA0\\x80", true) do n = n + 1 end
+        assert(n == 1)
+        assert(not pcall(utf8.codes, "\\x80"))
+
+        assert(utf8.charpattern:byte(7) == 253)
+        return true
+    `);
+    expect(lua.lua_toboolean(L54, -1)).toBe(true);
+
+    run(L53, `
+        assert(utf8.len("\\xED\\xA0\\x80") == 1)
+        assert(utf8.charpattern:byte(7) == 244)
+        return true
+    `);
+    expect(lua.lua_toboolean(L53, -1)).toBe(true);
+
+    lua.lua_close(L53);
+    lua.lua_close(L54);
+});
+
+
 test('the 5.4 surface is opt-in', () => {
     let L53 = open("5.3");
     let L54 = open("5.4");
