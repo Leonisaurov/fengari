@@ -82,22 +82,24 @@ const hasjumps = function(e) {
 };
 
 /*
-** If expression is a numeric constant returns either true or a new TValue
-** (depending on 'make_tvalue'). Otherwise, returns false.
+** If expression is a numeric constant, store it in 'out' when given and
+** return true (or the output value); otherwise return false.
 */
-const tonumeral = function(e, make_tvalue) {
+const tonumeral = function(e, out) {
     let ek = lparser.expkind;
     if (hasjumps(e))
         return false;  /* not a numeral */
     switch (e.k) {
         case ek.VKINT:
-            if (make_tvalue) {
-                return new TValue(LUA_TNUMINT, e.u.ival);
+            if (out) {
+                out.setivalue(e.u.ival);
+                return out;
             }
             return true;
         case ek.VKFLT:
-            if (make_tvalue) {
-                return new TValue(LUA_TNUMFLT, e.u.nval);
+            if (out) {
+                out.setfltvalue(e.u.nval);
+                return out;
             }
             return true;
         default: return false;
@@ -981,22 +983,29 @@ const validop = function(op, v1, v2) {
 };
 
 /*
+** Scratch values reused by constant folding. Folding is synchronous and
+** the result is copied into the expression, so a single set is enough.
+*/
+const foldv1 = new TValue();
+const foldv2 = new TValue();
+const foldres = new TValue();
+
+/*
 ** Try to "constant-fold" an operation; return 1 iff successful.
 ** (In this case, 'e1' has the final result.)
 */
 const constfolding = function(op, e1, e2) {
     let ek = lparser.expkind;
     let v1, v2;
-    if (!(v1 = tonumeral(e1, true)) || !(v2 = tonumeral(e2, true)) || !validop(op, v1, v2))
+    if (!(v1 = tonumeral(e1, foldv1)) || !(v2 = tonumeral(e2, foldv2)) || !validop(op, v1, v2))
         return 0;  /* non-numeric operands or not safe to fold */
-    let res = new TValue(); /* FIXME */
-    lobject.luaO_arith(null, op, v1, v2, res);  /* does operation */
-    if (res.ttisinteger()) {
+    lobject.luaO_arith(null, op, v1, v2, foldres);  /* does operation */
+    if (foldres.ttisinteger()) {
         e1.k = ek.VKINT;
-        e1.u.ival = res.value;
+        e1.u.ival = foldres.value;
     }
     else {  /* folds neither NaN nor 0.0 (to avoid problems with -0.0) */
-        let n = res.value;
+        let n = foldres.value;
         if (isNaN(n) || n === 0)
             return false;
         e1.k = ek.VKFLT;
@@ -1089,6 +1098,13 @@ const luaK_prefix = function(fs, op, e, line) {
                 break;
             /* FALLTHROUGH */
         case UnOpr.OPR_LEN:
+            /* peephole: the length of a string constant is constant */
+            if (op === UnOpr.OPR_LEN && e.k === lparser.expkind.VK &&
+                fs.f.k[e.u.info].ttisstring()) {
+                e.k = lparser.expkind.VKINT;
+                e.u.ival = fs.f.k[e.u.info].vslen();
+                break;
+            }
             codeunexpval(fs, op + OpCodesI.OP_UNM, e, line);
             break;
         case UnOpr.OPR_NOT: codenot(fs, e); break;

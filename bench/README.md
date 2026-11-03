@@ -10,6 +10,8 @@ creation, `luaL_openlibs`, load and run.
   `lua5.3`, `lua5.4`, `lua`) and prints the ratio. PUC time is measured with
   `os.clock()` inside a single process, so process startup is excluded from
   both sides.
+- `node bench/compile.js` measures parser + code generation on a chunk with
+  many constant-folded expressions (`--repeat`, `--funcs`, `--locals`).
 
 Caveats:
 

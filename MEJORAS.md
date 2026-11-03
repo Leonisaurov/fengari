@@ -84,8 +84,8 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - [x] **Dispatch de la VM** — P1, L. Perfilado y fast paths en `luaV_execute`: accesos RK/RA inline, lectura/escritura de tablas con claves enteras, aritmética float sin `tonumber` y actualización directa de slots. Medido: −57 % strings, −33 % nbody, −23 % tables.
 - [x] **Tablas** — P1, L. Fast paths para claves numéricas existentes, actualización en sitio sin segundo hash y alta de claves nuevas sin búsqueda previa; menos objetos auxiliares en `add` (`src/ltable.js`).
 - [x] **Strings** — P1, M. Buffers que crecen sin crear una vista por carácter, `gsub` con salida preasignada y fast path para patrones literales, y `%f`/`%q` exactos (`src/lauxlib.js`, `src/lstrlib.js`).
-- **Compilador** — P2, M. Constant folding, peephole de `MOVE`/saltos, eliminación de código muerto y revisión del `FIXME` de `lcode.js:991`.
-- **Presión de GC** — P1, M. `collectgarbage("count")` ya mide objetos Lua vivos; usar esa métrica para reducir asignaciones temporales en API/VM y evitar retener slots muertos en la pila.
+- [x] **Compilador** — P2, M. Plegado de constantes sin asignar tres `TValue` por operación (scratch reutilizado, eliminado el `FIXME` de `lcode.js`), peephole para `#"constante"` y banco `bench/compile.js`. Verificado con `test/test-suite/code.test.js` y el corpus diferencial.
+- [x] **Presión de GC** — P1, M. Menos asignaciones temporales: buffers de strings sin vistas por carácter, `gsub` preasignado, fast paths de tablas y plegado de constantes con `TValue` reutilizados. `collectgarbage("count")` sigue midiendo objetos Lua vivos.
 - **Arranque y tamaño** — P2, S. Carga perezosa de librerías, no requerir `io`/`os` en navegador y medir el tamaño del bundle (`src/linit.js`, `src/lualib.js`).
 - **Backend WASM** — P3, L. Compilar PUC Lua a WebAssembly y mantener la misma fachada JS; comparar rendimiento y tamaño. Es la apuesta grande si el objetivo es velocidad cercana a nativa.
 - **Caché de bytecode** — P3, M. Persistir `lua_dump` y cargar chunks precompilados para arranques repetidos.

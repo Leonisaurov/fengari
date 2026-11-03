@@ -142,6 +142,8 @@ unreleased
     initial position argument of string.gmatch
   - Expose the Lua 5.4 collectgarbage mode switches and debug.setcstacklimit;
     the GC mode is reported accurately while the collector remains incremental
+  - Reuse scratch values during constant folding and fold the length of string
+    constants, with a new bench/compile.js compile-time benchmark
   - Fix the "string contains zeros" message in string.pack("z")
 
 

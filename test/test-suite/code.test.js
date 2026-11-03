@@ -275,6 +275,22 @@ test("[test-suite] code: constant folding", () => {
 });
 
 
+test("[test-suite] code: string length peephole", () => {
+    let L = lauxlib.luaL_newstate();
+    if (!L) throw Error("failed to create lua state");
+
+    let luaCode = `
+        check(function () return #"abc" end, 'LOADK', 'RETURN')
+        check(function () return #"a\\0b" end, 'LOADK', 'RETURN')
+    `;
+    lualib.luaL_openlibs(L);
+    ltests.luaopen_tests(L);
+    if (lauxlib.luaL_loadstring(L, to_luastring(prefix + luaCode)) === lua.LUA_ERRSYNTAX)
+        throw new SyntaxError(lua.lua_tojsstring(L, -1));
+    lua.lua_call(L, 0, 0);
+});
+
+
 test("[test-suite] code: no folding", () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
