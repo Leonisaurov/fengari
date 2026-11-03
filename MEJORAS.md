@@ -2,11 +2,14 @@
 
 Catálogo de trabajo sobre `fengari` **v0.1.5** (commit `ac8c387`, semántica Lua 5.3).
 Estado de partida: 40 suites de Jest, 589 tests que pasan y 21 skips, lint OK, sin build ni typecheck.
-Estado actual (noviembre 2026): **59 suites, 816 tests que pasan y 2 skips** (solo los
+Estado actual (noviembre 2026): **59 suites, 822 tests que pasan y 2 skips** (solo los
 diferenciales de 5.1/5.2 cuando no hay intérprete), `checkJs` completo sobre `src/`,
 corpus diferenciales de 5.1, 5.2, 5.3 y 5.4, y **7.6x** frente a PUC en la suite de
 benchmarks. Mejoras de rendimiento de esta pasada frente al commit anterior: strings
-−57 %, nbody −33 %, tables −23 %, binary-trees −19 %, mandelbrot −12 %.
+−57 %, nbody −33 %, tables −23 %, binary-trees −19 %, mandelbrot −12 %. El compilador
+reutiliza los `TValue` del plegado de constantes y `bench/compile.js`/`bench/startup.js`
+miden compilación y arranque (86.7 ms de carga, 0.9 ms de estado + librerías, bundle
+de 797.5/540.9 KiB).
 Estado actual tras resolver el P0: 40 suites, 597 tests que pasan y 21 skips, cobertura ~93% de líneas con umbral en CI.
 Estado actual tras tablas débiles y `__gc`: 41 suites, 614 tests que pasan y 20 skips.
 Estado actual tras GC automático/incremental y `count` real: 41 suites, 620 tests que pasan y 20 skips.
@@ -87,7 +90,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - [x] **Compilador** — P2, M. Plegado de constantes sin asignar tres `TValue` por operación (scratch reutilizado, eliminado el `FIXME` de `lcode.js`), peephole para `#"constante"` y banco `bench/compile.js`. Verificado con `test/test-suite/code.test.js` y el corpus diferencial.
 - [x] **Presión de GC** — P1, M. Menos asignaciones temporales: buffers de strings sin vistas por carácter, `gsub` preasignado, fast paths de tablas y plegado de constantes con `TValue` reutilizados. `collectgarbage("count")` sigue midiendo objetos Lua vivos.
 - [x] **Arranque y tamaño** — P2, S. Medido con `bench/startup.js`: 86.7 ms de carga de módulos, 0.9 ms de `luaL_newstate` + `luaL_openlibs`, bundle de 797.5 KiB (540.9 KiB minificado). No se añade carga perezosa porque `lua.js`/`lauxlib.js`/`lualib.js` dominan la carga y se usan en prácticamente todos los hosts; `sprintf-js` ya salió del bundle.
-- **Backend WASM** — P3, L. Compilar PUC Lua a WebAssembly y mantener la misma fachada JS; comparar rendimiento y tamaño. Es la apuesta grande si el objetivo es velocidad cercana a nativa.
+- **Backend WASM** — P3, L. **Largo plazo / no planificado**: compilar PUC Lua a WebAssembly y mantener la misma fachada JS; comparar rendimiento y tamaño.
 - [x] **Caché de bytecode** — P3, M. `api.compile(source)` devuelve el chunk binario (`Uint8Array`) y `run`/`dostring` lo aceptan, de modo que el host puede cachearlo en memoria o disco. Documentado en `docs/high-level-api.md` y cubierto por `test/api.test.js`.
 
 ---
@@ -105,7 +108,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - [x] **Web Workers** — P2, M. El backend en memoria y la E/S funcionan sin `window`/`process`; la suite de Brave prueba un Web Worker real, RPC asíncrono y un puente bloqueante con `SharedArrayBuffer`/`Atomics`. `test/worker.test.js` cubre io/os en `worker_threads`.
 - [x] **Detección de entorno** — P2, S. Evitar falsos positivos de `typeof process` cuando un bundler inyecta un shim; centralizar la detección en un módulo.
 - [x] **Sandbox** — P1, M. `api.sandbox` oculta `io`/`os`/`package`/`debug`/`dofile`/`loadfile`/`require` y limita instrucciones, tiempo y memoria aproximada (`collectgarbage("count")`).
-- **FFI WebAssembly** — P3, L. Llamar funciones WASM desde Lua y viceversa, con manejo de memoria y tipos.
+- **FFI WebAssembly** — P3, L. **Largo plazo / no planificado**: llamar funciones WASM desde Lua y viceversa, con manejo de memoria y tipos.
 
 ---
 
@@ -142,7 +145,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - [x] **`coroutine.close`, `warn`, `math.random` nuevo** — P2, M. Perfil `5.4` con `coroutine.close` (suspended/dead/error, ejecutando los `__close` pendientes), `warn` con `lua_setwarnf`/`lua_warning` y un `math.random`/`randomseed` 5.4 con xoshiro128**, semillas por estado y soporte de 0/1/2 argumentos. El parser/VM siguen siendo 5.3 y el entero es de 32 bits, así que no se replica la secuencia exacta de PUC.
 - [x] **Paridad de `utf8` y `string`** — P3, S. Revisar diferencias 5.3→5.4 y casos límite. Hecho: `utf8` estricto/lax, `%q` de inf/nan, validación de flags de `string.format`, `gmatch` con posición inicial y `charpattern` de 5.4.
 - [x] **`debug`/`os` de 5.4** — P3, S. Añadidos `debug.setcstacklimit` y los modos `incremental`/`generational` de `collectgarbage` (el GC sigue siendo incremental); `os.exit` ya soporta `close`. Los uservalues múltiples de userdata quedan pendientes por la representación actual.
-- **Extensiones tipo LuaJIT** — P3, L. Solo si hay un caso de uso claro (FFI, `bit`, `jit.*`); no forman parte de Lua estándar.
+- **Extensiones tipo LuaJIT** — P3, L. **Largo plazo / no planificado**: solo si hay un caso de uso claro (FFI, `bit`, `jit.*`); no forman parte de Lua estándar.
 
 ---
 
