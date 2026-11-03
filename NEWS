@@ -110,6 +110,14 @@ unreleased
     finalization during collection and locale categories
   - os.setlocale returns nil for collate/ctype/monetary/time instead of
     reporting support that is not implemented
+  - Implement C printf integer formatting for string.format (%d/%i/%o/%u/%x/%X)
+    with flags, width, precision, # prefixes and the 32/64-bit unsigned wrap;
+    %s now pads and truncates by bytes instead of UTF-16 code units
+  - Drop the runtime sprintf-js dependency; it remains a test-only dependency
+  - ipairs and the lua_geti/lua_seti/lua_rawgeti/lua_rawseti API accept BigInt
+    keys in LUA_INT64 mode
+  - os.date("*t") reports isdst and supports the ISO-8601 %G/%g/%V specifiers
+  - Fix the "string contains zeros" message in string.pack("z")
 
 
 0.1.5 - 2025-12-26

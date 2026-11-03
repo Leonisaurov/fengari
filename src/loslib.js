@@ -74,7 +74,7 @@ const lfs = require('./lfs.js');
       - %l: TZ extension: space-padded 12-hour
       - %P: GNU extension: lower-case am/pm
 */
-const LUA_STRFTIMEOPTIONS = to_luastring("aAbBcCdDeFhHIjklmMnpPrRStTuUwWxXyYzZ%");
+const LUA_STRFTIMEOPTIONS = to_luastring("aAbBcCdDeFgGhHIjklmMnpPrRStTuUVwWxXyYzZ%");
 
 
 const setfield = function(L, key, value) {
@@ -99,7 +99,20 @@ const setallfields = function(L, time, utc) {
     setfield(L, "year",  utc ? time.getUTCFullYear() : time.getFullYear());
     setfield(L, "wday",  (utc ? time.getUTCDay()     : time.getDay()) + 1);
     setfield(L, "yday",  day_of_year(time, utc));
-    // setboolfield(L, "isdst", time.get);
+    /* JavaScript has no direct tm_isdst: compare the offset of this date
+       with the standard offset of the year (computed from January and July,
+       which works in both hemispheres). */
+    lua_pushboolean(L, is_dst(time, utc));
+    lua_setfield(L, -2, to_luastring("isdst", true));
+};
+
+const is_dst = function(time, utc) {
+    if (utc)
+        return false;
+    const jan = new Date(time.getFullYear(), 0, 1).getTimezoneOffset();
+    const jul = new Date(time.getFullYear(), 6, 1).getTimezoneOffset();
+    const standard = Math.max(jan, jul);  /* larger offset == standard time */
+    return time.getTimezoneOffset() < standard;
 };
 
 const L_MAXDATEFIELD = (Number.MAX_SAFE_INTEGER / 2);
@@ -161,6 +174,37 @@ const week_number = function(date, start_of_week, utc) {
     return Math.floor((yday + 7 - weekday) / 7);
 };
 
+const is_leap_year = function(year) {
+    return (year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0));
+};
+
+/* number of ISO-8601 weeks (52 or 53) in the given year */
+const iso_weeks_in_year = function(year) {
+    let jan1 = new Date(Date.UTC(year, 0, 1)).getUTCDay();  /* 0 = Sunday */
+    return (jan1 === 4 || (is_leap_year(year) && jan1 === 3)) ? 53 : 52;
+};
+
+/* ISO-8601 week number and week-based year (%V and %G/%g) */
+const iso_week = function(date, utc) {
+    let year = utc ? date.getUTCFullYear() : date.getFullYear();
+    let yday = day_of_year(date, utc);  /* 1-based */
+    let weekday = utc ? date.getUTCDay() : date.getDay();
+    let isoweekday = weekday === 0 ? 7 : weekday;  /* 1 = Monday ... 7 = Sunday */
+    let week = Math.floor((yday - isoweekday + 10) / 7);
+    let isoyear = year;
+
+    if (week < 1) {  /* belongs to the last week of the previous year */
+        isoyear = year - 1;
+        let prev_yday = yday + (is_leap_year(isoyear) ? 366 : 365);
+        week = Math.floor((prev_yday - isoweekday + 10) / 7);
+    } else if (week > iso_weeks_in_year(year)) {  /* first week of next year */
+        isoyear = year + 1;
+        week = 1;
+    }
+
+    return { year: isoyear, week: week };
+};
+
 const push_pad_2 = function(b, n, pad) {
     if (n < 10)
         luaL_addchar(b, pad);
@@ -216,6 +260,18 @@ const strftime = function(L, b, s, date, utc) {
                     strftime(L, b, locale.formats.F, date, utc);
                     break;
 
+                // '70'
+                case 103 /* g */: {
+                    let iso = iso_week(date, utc);
+                    push_pad_2(b, ((iso.year % 100) + 100) % 100, 48 /* 0 */);
+                    break;
+                }
+
+                // '1970'
+                case 71 /* G */:
+                    luaL_addstring(b, to_luastring(String(iso_week(date, utc).year)));
+                    break;
+
                 // '00'
                 case 72 /* H */:
                     push_pad_2(b, hours, 48 /* 0 */);
@@ -254,6 +310,11 @@ const strftime = function(L, b, s, date, utc) {
                 // '00'
                 case 85 /* U */:
                     push_pad_2(b, week_number(date, "sunday", utc), 48 /* 0 */);
+                    break;
+
+                // '00' (ISO-8601 week number)
+                case 86 /* V */:
+                    push_pad_2(b, iso_week(date, utc).week, 48 /* 0 */);
                     break;
 
                 // '00'

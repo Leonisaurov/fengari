@@ -3,6 +3,7 @@
 const fs      = require('fs');
 const os      = require('os');
 const path    = require('path');
+const { execFileSync } = require('child_process');
 
 const lua     = require('../src/lua.js');
 const lauxlib = require('../src/lauxlib.js');
@@ -106,6 +107,71 @@ test('os.date normalisation', () => {
     }
 
     expect(lua.lua_tojsstring(L, -1)).toBe("2013-11-30");
+});
+
+
+test('os.date isdst and ISO-8601 week fields', () => {
+    let L = lauxlib.luaL_newstate();
+    if (!L) throw Error("failed to create lua state");
+
+    let luaCode = `
+        return os.date("!%G-%V-%g", 0),
+               os.date("!%G-%V-%g", 1293840000),
+               os.date("!%G-%V-%g", 1451606400),
+               os.date("!%G-%V-%g", 1546214400),
+               os.date("!%G-%V-%g", 1609459200),
+               os.date("!%G-%V-%g", 1720000000),
+               os.date("!*t", 1451606400).isdst
+    `;
+    {
+        lualib.luaL_openlibs(L);
+        expect(lauxlib.luaL_loadstring(L, to_luastring(luaCode))).toBe(lua.LUA_OK);
+        lua.lua_call(L, 0, -1);
+    }
+
+    const expected = ["1970-01-70", "2010-52-10", "2015-53-15",
+        "2019-01-19", "2020-53-20", "2024-27-24"];
+    for (let i = 0; i < expected.length; i++)
+        expect(lua.lua_tojsstring(L, i - 7)).toBe(expected[i]);
+    expect(lua.lua_toboolean(L, -1)).toBe(false);
+});
+
+
+test('os.date isdst follows local daylight saving time', () => {
+    if (process.platform === "win32")
+        return;
+
+    const luaCode = `
+        local out = {}
+        for _, t in ipairs{1720000000, 1700000000, 1705276800, 1721001600} do
+            out[#out + 1] = tostring(os.date("*t", t).isdst)
+        end
+        io.write(table.concat(out, ","))
+    `;
+    const script = `
+        const lua = require("./src/lua.js");
+        const lauxlib = require("./src/lauxlib.js");
+        const lualib = require("./src/lualib.js");
+        const { to_luastring } = require("./src/fengaricore.js");
+        const L = lauxlib.luaL_newstate();
+        lualib.luaL_openlibs(L);
+        if (lauxlib.luaL_dostring(L, to_luastring(${JSON.stringify(luaCode)})) !== lua.LUA_OK) {
+            console.error(lua.lua_tojsstring(L, -1));
+            process.exit(1);
+        }
+    `;
+    const run = function(tz) {
+        return execFileSync(process.execPath, ["-e", script], {
+            cwd: path.join(__dirname, ".."),
+            env: Object.assign({}, process.env, { TZ: tz }),
+            encoding: "utf8"
+        }).trim();
+    };
+
+    expect(run("America/New_York")).toBe("true,false,false,true");
+    expect(run("Australia/Sydney")).toBe("false,true,true,false");
+    expect(run("Europe/Madrid")).toBe("true,false,false,true");
+    expect(run("UTC")).toBe("false,false,false,false");
 });
 
 
