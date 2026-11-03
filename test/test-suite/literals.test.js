@@ -24,7 +24,6 @@ test("[test-suite] literals: dostring", () => {
 });
 
 
-// TODO: bell character '\a' in JS is parsed as 'a'
 test("[test-suite] literals: escape sequences", () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
@@ -34,6 +33,7 @@ test("[test-suite] literals: escape sequences", () => {
 
 "'\\]])
         assert(string.find("\\b\\f\\n\\r\\t\\v", "^%c%c%c%c%c%c$"))
+        assert("\\a" == string.char(7) and #"\\a" == 1)
     `;
     lualib.luaL_openlibs(L);
     if (lauxlib.luaL_loadstring(L, to_luastring(luaCode)) === lua.LUA_ERRSYNTAX)

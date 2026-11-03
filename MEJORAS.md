@@ -57,9 +57,9 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - [x] **`string.pack`/`unpack`** — P2, M. Endianness, alineación, tamaños variables, strings con longitud y mensajes de error; ampliar tests de `test/test-suite/strings.test.js`.
 - [x] **`utf8`** — P3, S. Casos límite de secuencias inválidas, `utf8.offset` y `utf8.codepoint` (`src/lutf8lib.js`). El perfil 5.4 implementa el modo estricto/lax, límites U+10FFFF/0x7FFFFFFF, surrogates, `charpattern` y `gmatch` con posición inicial; verificado contra PUC 5.4.
 - [x] **Librería `debug`** — P2, M. Hooks `call`/`return`/`line`/`count`, `getinfo` completo (qué, fuente, líneas, upvalues), `upvalueid`/`upvaluejoin` (`src/ldblib.js`, `src/ldebug.js`).
-- **Cobertura de metamétodos** — P2, S. Verificar `__eq`, `__lt`, `__le`, `__concat`, `__len`, `__call`, `__index`/`__newindex` encadenados y errores cuando el metamétodo no es función.
-- **Escapes y literales** — P3, S. `\u{}`, `\z`, corchetes largos, escapes decimales/hexadecimales y mensajes de error del lexer (`src/llex.js`).
-- **Conversión de strings** — P3, S. Revisar `luaO_tostring`, strings largos vs cortos, interning y comparación por bytes.
+- [x] **Cobertura de metamétodos** — P2, S. Tests explícitos para `__eq` (solo mismo tipo), `__lt`/`__le`, `__concat`, `__len`, `__call`, `__index`/`__newindex`, `__tostring`, `__unm` y errores con metamétodos no función (`test/fidelity.test.js`).
+- [x] **Escapes y literales** — P3, S. Cubiertos `\u{}`, `\z`, corchetes largos, escapes decimales/hexadecimales y `\a` en la suite oficial; se eliminó el TODO del carácter BEL (`test/test-suite/literals.test.js`).
+- [x] **Conversión de strings** — P3, S. Tests de bytes con `\0`/`\255`, strings largos, interning y comparación por bytes (`test/fidelity.test.js`).
 
 ---
 

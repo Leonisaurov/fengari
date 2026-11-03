@@ -203,6 +203,63 @@ test('table.sort detects invalid comparators', () => {
     expect(lua.lua_toboolean(L, -1)).toBe(true);
 });
 
+test('string bytes, interning and long strings', () => {
+    let L = run(`
+        local a = string.rep("x", 100)
+        local b = string.rep("x", 100)
+        assert(a == b and a ~= string.rep("x", 101))
+        local s = "a\\0b\\255"
+        assert(#s == 4)
+        assert(string.byte(s, 1, -1) == 97 and string.byte(s, 2) == 0 and
+               string.byte(s, 3) == 98 and string.byte(s, 4) == 255)
+        assert(s:sub(2, 2) == "\\0")
+        return true
+    `);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+});
+
+
+test('metamethod dispatch and edge cases', () => {
+    let L = run(`
+        local mt = {
+            __eq = function(a, b) return true end,
+            __lt = function(a, b) return true end,
+            __le = function(a, b) return false end,
+            __concat = function(a, b) return "cat" end,
+            __len = function() return 42 end,
+            __call = function(self, x) return x * 2 end,
+            __index = function(t, k) return "idx:" .. k end,
+            __newindex = function(t, k, v) rawset(t, "raw:" .. k, v) end,
+            __tostring = function() return "OBJ" end,
+            __unm = function() return "unm" end,
+        }
+        local a = setmetatable({}, mt)
+        local b = setmetatable({}, mt)
+        assert(a == b and a < b and not (a <= b))
+        assert(#a == 42 and a .. b == "cat" and a(21) == 42)
+        assert(a.foo == "idx:foo")
+        a.bar = 1
+        assert(rawget(a, "raw:bar") == 1)
+        assert(tostring(a) == "OBJ" and -a == "unm")
+
+        -- __eq is not consulted for different types
+        local eqcalled = false
+        local x = setmetatable({}, { __eq = function() eqcalled = true; return true end })
+        assert(x ~= 1 and not eqcalled)
+
+        -- <= falls back to __lt when __le is absent
+        local lmt = { __lt = function() return false end }
+        local l1, l2 = setmetatable({}, lmt), setmetatable({}, lmt)
+        assert(l1 <= l2)
+
+        -- an invalid metamethod raises an error
+        assert(not pcall(function() return setmetatable({}, { __index = 42 }).x end))
+        assert(not pcall(function() return setmetatable({}, { __concat = 42 }) .. "x" end))
+        return true
+    `);
+    expect(lua.lua_toboolean(L, -1)).toBe(true);
+});
+
 test('error honours level and non-string objects', () => {
     let L = run(`
         local function f() error("boom", 2) end
