@@ -144,10 +144,11 @@ test("LUA_INT64 covers math, string.pack, table and os", () => {
         '"42,9223372036854775807"]');
 
     expect(eval_child(`
-        return os.time({year = 2020, month = 1, day = 1,
-                        hour = 0, min = 0, sec = 0}),
-               os.difftime(10, 3)
-    `)).toBe('["1577858400n",7]');
+        local t = os.time({year = 2020, month = 1, day = 1,
+                           hour = 0, min = 0, sec = 0})
+        local d = os.date("*t", t)
+        return d.year, d.month, d.day, d.hour, os.difftime(10, 3)
+    `)).toBe('["2020n","1n","1n","0n",7]');
 });
 
 test("LUA_INT64 and 32-bit bytecode interoperate when values fit", () => {
