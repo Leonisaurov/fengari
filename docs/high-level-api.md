@@ -50,7 +50,8 @@ profile and should be regenerated when the source or profile changes.
   functions. Tables with a `1..n` sequence become arrays; other tables become
   objects. Cycles and nesting deeper than 100 throw.
 - `pushJS(L, value)` converts the reverse direction. Arrays become `1..n`
-  tables, plain objects become string-keyed tables, functions become C
+  tables, `Map`s become keyed tables, `Set`s and other JS iterables become
+  `1..n` tables, plain objects become string-keyed tables, functions become C
   functions whose arguments/results are converted recursively, and
   `Uint8Array` becomes a Lua string.
 

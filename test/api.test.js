@@ -1,6 +1,7 @@
 "use strict";
 
 const { api, lua } = require('../src/fengari.js');
+const { to_luastring } = require('../src/fengaricore.js');
 
 test('api.run and api.createState evaluate code', () => {
     const state = api.createState();
@@ -98,6 +99,30 @@ test('api.pushJS exposes JS functions and values to Lua', () => {
         state.close();
     }
 });
+
+test('api.pushJS converts Maps, Sets and iterables', () => {
+    const state = api.createState();
+    try {
+        state.pushJS(new Map([["a", 1], ["b", 2]]));
+        lua.lua_setglobal(state.L, to_luastring("m"));
+        expect(state.run("return m.a, m.b")).toEqual([1, 2]);
+
+        state.pushJS(new Set([3, 4, 5]));
+        lua.lua_setglobal(state.L, to_luastring("s"));
+        expect(state.run("return s[1], s[2], s[3], #s")).toEqual([3, 4, 5, 3]);
+
+        function* numbers() {
+            yield 6;
+            yield 7;
+        }
+        state.pushJS(numbers());
+        lua.lua_setglobal(state.L, to_luastring("it"));
+        expect(state.run("return it[1], it[2], #it")).toEqual([6, 7, 2]);
+    } finally {
+        state.close();
+    }
+});
+
 
 test('api.toJS rejects deep nesting and pushJS handles bytes and errors', () => {
     const state = api.createState();

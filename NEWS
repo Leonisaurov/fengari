@@ -149,6 +149,8 @@ unreleased
   - Add api.compile()/state.compile() to cache binary chunks across runs
   - Add docs/getting-started.md with Node, browser, REPL, plugin-host and
     game-loop examples
+  - Convert JS Maps, Sets and iterables in api.pushJS
+  - Add scripts/changelog.js and document the tagged-release process
   - Fix the "string contains zeros" message in string.pack("z")
 
 

@@ -216,6 +216,22 @@ const pushJS = function(L, value) {
                 return luaL_error(L1, to_luastring("%s"), to_luastring(message));
             }
         });
+    } else if (value instanceof Map) {
+        lua_createtable(L, 0, value.size);
+        for (const [key, item] of value) {
+            pushJS(L, key);
+            pushJS(L, item);
+            lua_settable(L, -3);
+        }
+    } else if (value instanceof Set ||
+               (typeof value === "object" && value !== null &&
+                typeof value[Symbol.iterator] === "function")) {
+        lua_createtable(L, 0, 0);
+        let i = 0;
+        for (const item of value) {
+            pushJS(L, item);
+            lua_rawseti(L, -2, ++i);
+        }
     } else if (typeof value === "object") {
         lua_createtable(L, 0, 0);
         for (let key of Object.keys(value)) {

@@ -35,15 +35,19 @@ Useful commands:
 
 | Command | Purpose |
 | --- | --- |
-| `pnpm test` | Jest suite (52 suites, ~725 tests) |
+| `pnpm test` | Jest suite (59 suites, ~820 tests) |
 | `pnpm test test/lvm.test.js -t "MOVE"` | one file / one test |
 | `pnpm test:coverage` | coverage with the configured thresholds |
 | `pnpm test:diff` | differential corpus against PUC Lua (needs `lua`) |
 | `pnpm test:browser` | CDP integration tests (needs Brave/Chrome) |
 | `pnpm bench` | Lua benchmarks |
+| `pnpm bench:compile` | compile-time benchmark (`node bench/compile.js`) |
+| `pnpm bench:startup` | startup and bundle-size benchmark |
 | `pnpm fuzz` | parser/undump fuzzer |
 | `pnpm build` | regenerate `dist/` |
-| `pnpm check` | lint, generated API docs and tests |
+| `pnpm typecheck` / `pnpm typecheck:js` | declaration / source typecheck |
+| `pnpm changelog` | draft a NEWS section from git history |
+| `pnpm check` | lint, generated API docs, typechecks and tests |
 
 Do not put `--` before Jest's `-t`; Jest treats it as a filename pattern.
 
@@ -76,6 +80,16 @@ Do not put `--` before Jest's `-t`; Jest treats it as a filename pattern.
   `refactor:` or `chore:`.
 - Keep unrelated changes in separate commits.
 - Describe the behaviour and the tests in the PR. Link the issue it closes.
+
+## Releasing
+
+1. Update the version in `package.json` (and the matching `yarn.lock` entry).
+2. Run `pnpm check`, `pnpm test:diff` and, when possible, `pnpm test:browser`.
+3. Run `node scripts/changelog.js --version=X.Y.Z` (or `pnpm changelog`)
+   and merge the useful lines into the `unreleased` section of `NEWS`.
+4. Commit, tag `vX.Y.Z` and push the tag. `.github/workflows/publish.yml`
+   checks that the tag matches `package.json`, runs the full checks and
+   publishes to npm with provenance.
 
 By contributing you agree that your contributions are licensed under the MIT
 license.
