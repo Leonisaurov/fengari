@@ -123,7 +123,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - **Documentación de uso** — P1, M. Guía de inicio en navegador, ejemplos (REPL, host de plugins, bucle de juego) y una referencia con JSDoc enriquecido; el generador actual usa las declaraciones y comentarios existentes.
 - [x] **Contribución** — P2, S. `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, plantillas de issue/PR y enlaces desde el README.
 - **Changelog** — P2, S. Automatizar `NEWS` desde commits etiquetados y documentar el proceso de release.
-- **Higiene de dependencias** — P2, S. Revisar `tmp` y `sprintf-js` y añadir auditoría periódica (`readline-sync` ya es opcional en tiempo de ejecución).
+- [x] **Higiene de dependencias** — P2, S. `pnpm audit --prod` sin vulnerabilidades; `sprintf-js` pasó a devDependency y `readline-sync` sigue siendo opcional en runtime.
 - [x] **Política de lockfiles** — `yarn.lock` es la fuente de verdad, `pnpm-lock.yaml` está ignorado y CI instala con `--frozen-lockfile`.
 - [x] **Tamaño del paquete** — P2, M. `sprintf-js` ya no es dependencia de runtime ni se incluye en el bundle; buffers y `gsub` reducen asignaciones. `npm pack` verifica el contenido en CI.
 
