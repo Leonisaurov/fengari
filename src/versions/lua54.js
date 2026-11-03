@@ -3,9 +3,11 @@
 /*
 ** Lua 5.4 library surface on top of the 5.3 parser/VM.
 **
-** Implemented here: coroutine.close, warn and the 5.4 math.random API.
-** Still missing: to-be-closed variables (<close>), <const>, 64-bit integers,
-** the new gc generational modes and full 5.4 lexer/parser semantics.
+** Implemented here: coroutine.close, warn, the 5.4 math.random API, the
+** collectgarbage mode switches (labels; the collector stays incremental)
+** and debug.setcstacklimit.
+** Still missing: to-be-closed variables (<close>), <const>, 64-bit integers
+** and full 5.4 lexer/parser semantics.
 */
 
 const openlibs = function(L) {
@@ -25,6 +27,10 @@ const openlibs = function(L) {
     setfield("coroutine", "close", lcorolib.luaB_close);
     setfield("math", "random", lmathlib.math_random54);
     setfield("math", "randomseed", lmathlib.math_randomseed54);
+
+    /* Lua 5.4 starts in generational mode and uses a 100% step multiplier. */
+    L.l_G.gc_mode = "generational";
+    L.l_G.gc_stepmul = 100;
 
     lua.lua_pushcfunction(L, lbaselib.luaB_warn);
     lua.lua_setglobal(L, to_luastring("warn"));

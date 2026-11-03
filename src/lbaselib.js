@@ -225,8 +225,18 @@ const optsnum = [
     LUA_GCCOUNT, LUA_GCSTEP, LUA_GCSETPAUSE, LUA_GCSETSTEPMUL,
     LUA_GCISRUNNING
 ];
+const opts54 = opts.concat(["incremental", "generational"].map((e) => to_luastring(e)));
+const optsnum54 = optsnum.concat([-1, -2]);
 const luaB_collectgarbage = function(L) {
-    let o = optsnum[/** @type {number} */ (luaL_checkoption(L, 1, "collect", opts))];
+    let is54 = !!(L.l_G.impl && L.l_G.impl.version && L.l_G.impl.version.num >= 504);
+    let o = (is54 ? optsnum54 : optsnum)[
+        /** @type {number} */ (luaL_checkoption(L, 1, "collect", is54 ? opts54 : opts))];
+    if (o === -1 || o === -2) {  /* 5.4 gc mode switch */
+        let old = L.l_G.gc_mode;
+        L.l_G.gc_mode = o === -1 ? "incremental" : "generational";
+        lua_pushliteral(L, old);
+        return 1;
+    }
     let ex = luaL_optinteger(L, 2, 0);
     if (typeof ex === "bigint") ex = Number(ex);
     let res = lua_gc(L, o, ex);

@@ -140,6 +140,8 @@ unreleased
   - Match more Lua 5.4 string behaviour: valid flag/precision checks in
     string.format, %q of inf/nan ("1e9999", "-1e9999", "(0/0)") and the
     initial position argument of string.gmatch
+  - Expose the Lua 5.4 collectgarbage mode switches and debug.setcstacklimit;
+    the GC mode is reported accurately while the collector remains incremental
   - Fix the "string contains zeros" message in string.pack("z")
 
 

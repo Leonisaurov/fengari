@@ -251,5 +251,15 @@ local gm = {}
 for w in string.gmatch("a,b,c", "[^,]+", 3) do gm[#gm + 1] = w end
 check("gmatch.init", table.concat(gm, "|") == "b|c")
 
+-- Lua 5.4 GC mode API and debug.setcstacklimit
+check("gc.mode", collectgarbage("incremental") == "generational")
+check("gc.mode2", collectgarbage("generational") == "incremental")
+check("gc.mode3", collectgarbage("incremental") == "generational")
+check("gc.pause", collectgarbage("setpause", 200) == 200)
+check("gc.stepmul", collectgarbage("setstepmul", 100) == 100)
+check("debug.cstack", debug.setcstacklimit(50) == 200 and
+    debug.setcstacklimit(1000) == 200)
+
+
 
 

@@ -69,6 +69,37 @@ test('utf8 follows the 5.4 strict/lax rules', () => {
 });
 
 
+test('the 5.4 gc modes and debug.setcstacklimit', () => {
+    let L53 = open("5.3");
+    let L54 = open("5.4");
+
+    run(L54, `
+        local a = collectgarbage("incremental")
+        local b = collectgarbage("generational")
+        local c = collectgarbage("incremental")
+        return a, b, c, collectgarbage("setpause", 200),
+               collectgarbage("setstepmul", 100),
+               debug.setcstacklimit(50), debug.setcstacklimit(1000)
+    `);
+    expect(lua.lua_tojsstring(L54, -7)).toBe("generational");
+    expect(lua.lua_tojsstring(L54, -6)).toBe("incremental");
+    expect(lua.lua_tojsstring(L54, -5)).toBe("generational");
+    expect(lua.lua_tointeger(L54, -4)).toBe(200);
+    expect(lua.lua_tointeger(L54, -3)).toBe(100);
+    expect(lua.lua_tointeger(L54, -2)).toBe(200);
+    expect(lua.lua_tointeger(L54, -1)).toBe(200);
+
+    run(L53, `
+        return type(debug.setcstacklimit), not pcall(collectgarbage, "incremental")
+    `);
+    expect(lua.lua_tojsstring(L53, -2)).toBe("nil");
+    expect(lua.lua_toboolean(L53, -1)).toBe(true);
+
+    lua.lua_close(L53);
+    lua.lua_close(L54);
+});
+
+
 test('the 5.4 surface is opt-in', () => {
     let L53 = open("5.3");
     let L54 = open("5.4");

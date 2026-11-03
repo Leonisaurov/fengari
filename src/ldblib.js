@@ -31,6 +31,7 @@ const {
     lua_pcall,
     lua_pop,
     lua_pushboolean,
+    lua_pushcfunction,
     lua_pushfstring,
     lua_pushinteger,
     lua_pushlightuserdata,
@@ -456,6 +457,14 @@ const db_traceback = function(L) {
     return 1;
 };
 
+const db_setcstacklimit = function(L) {
+    luaL_checkinteger(L, 1);
+    /* Fengari's JS stack limit is fixed; Lua 5.4.9 ignores the new value
+       and returns the current limit (200). */
+    lua_pushinteger(L, 200);
+    return 1;
+};
+
 const dblib = {
     "gethook":      db_gethook,
     "getinfo":      db_getinfo,
@@ -541,6 +550,10 @@ dblib.debug = function(L) {
 
 const luaopen_debug = function(L) {
     luaL_newlib(L, dblib);
+    if (L.l_G.impl && L.l_G.impl.version && L.l_G.impl.version.num >= 504) {
+        lua_pushcfunction(L, db_setcstacklimit);
+        lua_setfield(L, -2, to_luastring("setcstacklimit"));
+    }
     return 1;
 };
 

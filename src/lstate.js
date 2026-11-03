@@ -108,6 +108,7 @@ class global_State {
         this.gc_running = true;        /* collectgarbage("stop") */
         this.gc_pause = 200;           /* allocation budget multiplier */
         this.gc_stepmul = 200;         /* work units per "step" */
+        this.gc_mode = "incremental";  /* 5.4 reports the active mode */
         this.gc_debt = 1024;           /* allocations until the next auto cycle */
         this.gc_threshold = 1024;
         this.gc_ctx = null;            /* unfinished incremental cycle */
