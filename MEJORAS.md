@@ -120,7 +120,7 @@ Las rutas son el punto de entrada sugerido, no una lista exhaustiva.
 - [x] **Scripts de desarrollo** — `test:watch`, `test:coverage`, `lint:fix` y `check`.
 - [x] **Typecheck** — P2, M. `tsc --checkJs` sobre todo `src/` con `@types/node` y shims de globals del navegador; `pnpm typecheck:js` se ejecuta en `pnpm check` y en CI.
 - [x] **Referencia de API generada y guía C→JS** — `scripts/generate-api-docs.js` genera `docs/api.md` desde las declaraciones y exports (con `docs:check` en CI), y `docs/migrating-from-c.md` cubre strings, enteros, pila, tablas, errores, userdata, registry, corrutinas, GC, versiones y diferencias con la API C.
-- **Documentación de uso** — P1, M. Guía de inicio en navegador, ejemplos (REPL, host de plugins, bucle de juego) y una referencia con JSDoc enriquecido; el generador actual usa las declaraciones y comentarios existentes.
+- [x] **Documentación de uso** — P1, M. `docs/getting-started.md` cubre Node, navegador, REPL, host de plugins, sandbox, bucle de juego y caché de chunks; enlazado desde el README.
 - [x] **Contribución** — P2, S. `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, plantillas de issue/PR y enlaces desde el README.
 - **Changelog** — P2, S. Automatizar `NEWS` desde commits etiquetados y documentar el proceso de release.
 - [x] **Higiene de dependencias** — P2, S. `pnpm audit --prod` sin vulnerabilidades; `sprintf-js` pasó a devDependency y `readline-sync` sigue siendo opcional en runtime.
