@@ -62,6 +62,35 @@ test("in-process LUA_INT64 integers and arithmetic", () => {
     lua.lua_close(L);
 });
 
+test("in-process LUA_INT64 ipairs and string.format", () => {
+    let L = open();
+    run(L, `
+        local sum = 0
+        for i, v in ipairs({10, 20, 30}) do
+            sum = sum + i * 100 + v
+        end
+        return sum,
+               string.format("%d", 255),
+               string.format("%.3d", 0),
+               string.format("% d", 5),
+               string.format("%#05x", 5),
+               string.format("%u", -1),
+               string.format("%o", -1),
+               string.format("%x", -1)
+    `);
+
+    expect(lua.lua_tointeger(L, -8)).toBe(660n);
+    expect(lua.lua_tojsstring(L, -7)).toBe("255");
+    expect(lua.lua_tojsstring(L, -6)).toBe("000");
+    expect(lua.lua_tojsstring(L, -5)).toBe(" 5");
+    expect(lua.lua_tojsstring(L, -4)).toBe("0x005");
+    expect(lua.lua_tojsstring(L, -3)).toBe("18446744073709551615");
+    expect(lua.lua_tojsstring(L, -2)).toBe("1777777777777777777777");
+    expect(lua.lua_tojsstring(L, -1)).toBe("ffffffffffffffff");
+    lua.lua_close(L);
+});
+
+
 test("in-process LUA_INT64 libraries", () => {
     let L = open("5.4");
     run(L, `

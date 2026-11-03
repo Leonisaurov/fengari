@@ -288,7 +288,8 @@ const luaB_pairs = function(L) {
 ** Traversal function for 'ipairs'
 */
 const ipairsaux = function(L) {
-    let i = luaL_checkinteger(L, 2) + 1;
+    let i = luaL_checkinteger(L, 2);
+    i = typeof i === "bigint" ? i + 1n : i + 1;
     lua_pushinteger(L, i);
     return lua_geti(L, 1, i) === LUA_TNIL ? 1 : 2;
 };

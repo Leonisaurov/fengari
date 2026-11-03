@@ -78,6 +78,16 @@ const fengari_argcheckinteger = function(n) {
     fengari_argcheck(typeof n === "number" && (n|0) === n);
 };
 
+/* integer keys may be BigInt in LUA_INT64 mode (all other integer
+   arguments in the C API are stack indices, lengths or counts) */
+const fengari_argcheckintkey = function(n) {
+    if (LUA_INT64)
+        fengari_argcheck(typeof n === "bigint" ||
+            (typeof n === "number" && (n|0) === n));
+    else
+        fengari_argcheckinteger(n);
+};
+
 const isvalid = function(o) {
     return o !== lobject.luaO_nilobject;
 };
@@ -473,7 +483,7 @@ const lua_setfield = function(L, idx, k) {
 };
 
 const lua_seti = function(L, idx, n) {
-    fengari_argcheckinteger(n);
+    fengari_argcheckintkey(n);
     api_checknelems(L, 1);
     let t = index2addr(L, idx);
     let tv = new TValue();
@@ -499,7 +509,7 @@ const lua_rawset = function(L, idx) {
 };
 
 const lua_rawseti = function(L, idx, n) {
-    fengari_argcheckinteger(n);
+    fengari_argcheckintkey(n);
     api_checknelems(L, 1);
     let o = index2addr(L, idx);
     api_check(L, o.ttistable(), "table expected");
@@ -531,7 +541,7 @@ const auxgetstr = function(L, t, k) {
 
 const lua_rawgeti = function(L, idx, n) {
     let t = index2addr(L, idx);
-    fengari_argcheckinteger(n);
+    fengari_argcheckintkey(n);
     api_check(L, t.ttistable(), "table expected");
     lobject.pushobj2s(L, ltable.luaH_getint(t.value, n));
     api_check(L, L.top <= L.ci.top, "stack overflow");
@@ -686,7 +696,7 @@ const lua_getfield = function(L, idx, k) {
 
 const lua_geti = function(L, idx, n) {
     let t = index2addr(L, idx);
-    fengari_argcheckinteger(n);
+    fengari_argcheckintkey(n);
     let tv = new TValue();
     lobject.luaO_setint(L, tv, n);
     L.stack[L.top] = tv;
