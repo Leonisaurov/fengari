@@ -182,6 +182,29 @@ test('package.loadlib reports missing libraries and symbols', () => {
 });
 
 
+test('package.cpath is exported and honors LUA_CPATH', () => {
+    const key = "LUA_CPATH" + lualib.LUA_VERSUFFIX;
+    const previous = process.env[key];
+    process.env[key] = "pre/?.so;;post/?.so";
+    try {
+        let L = lauxlib.luaL_newstate();
+        if (!L) throw Error("failed to create lua state");
+
+        lualib.luaL_openlibs(L);
+        expect(lauxlib.luaL_loadstring(L,
+            to_luastring("return package.cpath, type(package.jspath)"))).toBe(lua.LUA_OK);
+        lua.lua_call(L, 0, 2);
+
+        expect(lua.lua_tojsstring(L, -2)).toBe("pre/?.so;./?.so;post/?.so");
+        expect(lua.lua_tojsstring(L, -1)).toBe("string");
+    } finally {
+        if (previous === undefined)
+            delete process.env[key];
+        else
+            process.env[key] = previous;
+    }
+});
+
 test('package.path expands ;; with the default and versioned env vars', () => {
     const key = "LUA_PATH" + lualib.LUA_VERSUFFIX;
     const previous = process.env[key];

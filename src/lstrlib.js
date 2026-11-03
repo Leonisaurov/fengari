@@ -68,7 +68,7 @@ const {
     luaL_tolstring,
     luaL_typename
 } = require('./lauxlib.js');
-const lualib = require('./lualib.js');
+const { lua_assert } = require('./llimits.js');
 const {
     luastring_eq,
     luastring_indexOf,
@@ -153,6 +153,34 @@ const str_dump = function(L) {
 
 const HEXDIGITS = "0123456789abcdef";
 const f64view = new DataView(new ArrayBuffer(8));
+const POW5 = [1n];
+const pow5 = function(k) {
+    while (POW5.length <= k)
+        POW5.push(POW5[POW5.length - 1] * 5n);
+    return POW5[k];
+};
+
+/* Exact decimal digits and exponent for a finite non-zero Number. */
+const exact_decimal = function(n) {
+    f64view.setFloat64(0, n, false);
+    let hi = f64view.getUint32(0, false);
+    let lo = f64view.getUint32(4, false);
+    let neg = (hi >>> 31) === 1;
+    let expBits = (hi >>> 20) & 0x7ff;
+    let mant = (BigInt(hi & 0xfffff) << 32n) | BigInt(lo);
+    let exp2;
+    if (expBits === 0)
+        exp2 = -1074;  /* subnormal */
+    else {
+        mant |= (1n << 52n);
+        exp2 = expBits - 1075;
+    }
+    if (exp2 >= 0)
+        return { neg, digits: (mant << BigInt(exp2)).toString(), exp10: 0 };
+    let k = -exp2;
+    /* mant / 2^k == (mant * 5^k) / 10^k */
+    return { neg, digits: (mant * pow5(k)).toString(), exp10: -k };
+};
 
 /* parse a '%[flags][width][.precision]a' format */
 const parse_format = function(fmt) {
@@ -430,12 +458,85 @@ const expand_to_fixed = function(s, precision) {
     return precision > 0 ? intpart + "." + frac : intpart;
 };
 
-const format_fixed = function(x, precision, alt) {
-    let s = x.toFixed(precision);
-    if (s.indexOf("e") >= 0 || s.indexOf("E") >= 0)
-        s = expand_to_fixed(s, precision);
+/*
+** Exact fixed-point formatting for values >= 1e21, where toFixed switches
+** to exponential notation and the shortest decimal expansion would lose
+** the low digits that C's printf prints. The value is represented as the
+** exact integer 'digits' times 10^exp10, so rounding is just string work.
+*/
+const format_fixed_exact = function(x, precision, alt) {
+    let parts = exact_decimal(x);
+    let digits = parts.digits;
+    let point = digits.length + parts.exp10;  /* digits before the dot */
+    let intpart, frac;
+    if (point <= 0) {
+        intpart = "0";
+        frac = "0".repeat(-point) + digits;
+    } else if (point >= digits.length) {
+        intpart = digits + "0".repeat(point - digits.length);
+        frac = "";
+    } else {
+        intpart = digits.slice(0, point);
+        frac = digits.slice(point);
+    }
+
+    let keep = precision > 0 ? frac.slice(0, precision) : "";
+    let rest = precision > 0 ? frac.slice(precision) : frac;
+    let up = false;
+    if (rest.length > 0) {
+        let first = rest.charCodeAt(0) - 48;
+        if (first > 5)
+            up = true;
+        else if (first === 5) {
+            for (let i = 1; i < rest.length; i++) {
+                if (rest.charCodeAt(i) !== 48) {
+                    up = true;
+                    break;
+                }
+            }
+            if (!up) {  /* exact tie: round half to even */
+                let last = keep.length > 0 ? keep[keep.length - 1] : intpart[intpart.length - 1];
+                up = ((last.charCodeAt(0) - 48) & 1) === 1;
+            }
+        }
+    }
+    if (precision > keep.length)
+        keep = keep.padEnd(precision, "0");
+
+    if (up) {
+        let arr = (intpart + keep).split("");
+        let ip = intpart.length;
+        let i = arr.length - 1;
+        while (i >= 0 && arr[i] === "9") {
+            arr[i] = "0";
+            i--;
+        }
+        if (i < 0) {
+            arr.unshift("1");
+            ip++;
+        } else
+            arr[i] = String.fromCharCode(arr[i].charCodeAt(0) + 1);
+        intpart = arr.slice(0, ip).join("");
+        keep = arr.slice(ip).join("");
+    }
+
+    let s = precision > 0 ? intpart + "." + keep : intpart;
     if (alt && precision === 0)
         s += ".";
+    return s;
+};
+
+const format_fixed = function(x, precision, alt) {
+    let s;
+    if (x >= 1e21)
+        s = format_fixed_exact(x, precision, alt);
+    else {
+        s = x.toFixed(precision);
+        if (s.indexOf("e") >= 0 || s.indexOf("E") >= 0)
+            s = expand_to_fixed(s, precision);
+        if (alt && precision === 0)
+            s += ".";
+    }
     return s;
 };
 
@@ -824,13 +925,13 @@ const getoption = function(h, fmt) {
         case 76  /*'L'*/: r.size = 4; r.opt = Kuint;  return r;
         case 106 /*'j'*/: r.size = 4; r.opt = Kint;   return r; // sizeof(lua_Integer): 4
         case 74  /*'J'*/: r.size = 4; r.opt = Kuint;  return r;
-        case 84  /*'T'*/: r.size = 4; r.opt = Kuint;  return r; // sizeof(size_t): 4
+        case 84  /*'T'*/: r.size = 8; r.opt = Kuint;  return r; // sizeof(size_t): 8
         case 102 /*'f'*/: r.size = 4; r.opt = Kfloat; return r; // sizeof(float): 4
         case 100 /*'d'*/: r.size = 8; r.opt = Kfloat; return r; // sizeof(double): 8
         case 110 /*'n'*/: r.size = 8; r.opt = Kfloat; return r; // sizeof(lua_Number): 8
         case 105 /*'i'*/: r.size = getnumlimit(h, fmt, 4); r.opt = Kint;    return r; // sizeof(int): 4
         case 73  /*'I'*/: r.size = getnumlimit(h, fmt, 4); r.opt = Kuint;   return r;
-        case 115 /*'s'*/: r.size = getnumlimit(h, fmt, 4); r.opt = Kstring; return r;
+        case 115 /*'s'*/: r.size = getnumlimit(h, fmt, 8); r.opt = Kstring; return r;
         case 99  /*'c'*/: {
             r.size = getnum(fmt, -1);
             if (r.size === -1)
@@ -1005,7 +1106,7 @@ const str_pack = function(L) {
                 let s = luaL_checkstring(L, arg);
                 let len = s.length;
                 luaL_argcheck(L,
-                    size >= 4 /* sizeof(size_t) */ || len < (1 << (size * NB)),
+                    size >= 8 /* sizeof(size_t) */ || len < Math.pow(2, size * NB),
                     arg, "string length does not fit in given size");
                 packint(b, len, h.islittle, size, 0);  /* pack length */
                 luaL_addlstring(b, s, len);
@@ -1192,7 +1293,7 @@ const unpackint = function(L, str, islittle, size, issigned) {
 };
 
 const unpacknum = function(L, b, islittle, size) {
-    lualib.lua_assert(b.length >= size);
+    lua_assert(b.length >= size);
 
     let dv = new DataView(new ArrayBuffer(size));
     for (let i = 0; i < size; i++)
@@ -1615,7 +1716,7 @@ const prepstate = function(ms, L, s, ls, p, lp) {
 
 const reprepstate = function(ms) {
     ms.level = 0;
-    lualib.lua_assert(ms.matchdepth === MAXCCALLS);
+    lua_assert(ms.matchdepth === MAXCCALLS);
 };
 
 const find_subarray = function(arr, subarr, from_index) {
@@ -1793,10 +1894,36 @@ const str_gsub = function(L) {
     let b = new luaL_Buffer();
     luaL_argcheck(L, tr === LUA_TNUMBER || tr === LUA_TSTRING || tr === LUA_TFUNCTION || tr === LUA_TTABLE, 3,
         "string/function/table expected");
-    luaL_buffinit(L, b);
+    /* the result is at least as long as the subject */
+    luaL_buffinitsize(L, b, srcl);
     if (anchor) {
         p = p.subarray(1); lp--;  /* skip anchor character */
     }
+
+    /* Fast path for a literal pattern and a literal string replacement.
+       This is the common case and avoids the pattern matcher entirely. */
+    if (!anchor && tr === LUA_TSTRING && lp > 0 && nospecials(p, lp)) {
+        let repl = lua_tostring(L, 3);
+        if (luastring_indexOf(repl, 37 /* '%' */) < 0) {
+            let bb = new luaL_Buffer();
+            luaL_buffinitsize(L, bb, srcl);
+            let pos = 0;
+            let count = 0;
+            while (count < max_s) {
+                let idx = find_subarray(src, p, pos);
+                if (idx < 0) break;
+                luaL_addlstring(bb, src.subarray(pos, idx), idx - pos);
+                luaL_addlstring(bb, repl, repl.length);
+                pos = idx + lp;
+                count++;
+            }
+            luaL_addlstring(bb, src.subarray(pos), srcl - pos);
+            luaL_pushresult(bb);
+            lua_pushinteger(L, count);
+            return 2;
+        }
+    }
+
     prepstate(ms, L, src, srcl, p, lp);
     src = 0; p = 0;
     while (n < max_s) {

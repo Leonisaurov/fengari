@@ -82,12 +82,19 @@ const setfield = function(L, key, value) {
     lua_setfield(L, -2, to_luastring(key, true));
 };
 
+/* Date.UTC maps years 0..99 to 1900..1999; setUTCFullYear avoids that */
+const utc_midnight = function(year, month, day) {
+    let d = new Date(0);
+    d.setUTCFullYear(year, month, day);
+    return d.getTime();
+};
+
 const day_of_year = function(time, utc) {
     let year = utc ? time.getUTCFullYear() : time.getFullYear();
     let month = utc ? time.getUTCMonth() : time.getMonth();
     let day = utc ? time.getUTCDate() : time.getDate();
     /* day indexes from 0, so Jan 1st is day 1 (as in Lua/C) */
-    return Math.floor((Date.UTC(year, month, day) - Date.UTC(year, 0, 0)) / 86400000);
+    return Math.floor((utc_midnight(year, month, day) - utc_midnight(year, 0, 0)) / 86400000);
 };
 
 const setallfields = function(L, time, utc) {
@@ -180,7 +187,7 @@ const is_leap_year = function(year) {
 
 /* number of ISO-8601 weeks (52 or 53) in the given year */
 const iso_weeks_in_year = function(year) {
-    let jan1 = new Date(Date.UTC(year, 0, 1)).getUTCDay();  /* 0 = Sunday */
+    let jan1 = new Date(utc_midnight(year, 0, 1)).getUTCDay();  /* 0 = Sunday */
     return (jan1 === 4 || (is_leap_year(year) && jan1 === 3)) ? 53 : 52;
 };
 
@@ -508,14 +515,18 @@ const os_time = function(L) {
     else {
         luaL_checktype(L, 1, LUA_TTABLE);
         lua_settop(L, 1);  /* make sure table is at the top */
+        let year = getfield(L, "year", -1, 0);
         t = new Date(
-            getfield(L, "year", -1, 0),
+            year,
             getfield(L, "month", -1, 1),
             getfield(L, "day", -1, 0),
             getfield(L, "hour", 12, 0),
             getfield(L, "min", 0, 0),
             getfield(L, "sec", 0, 0)
         );
+        /* Date treats 0..99 as 1900..1999; Lua does not */
+        if (year >= 0 && year <= 99)
+            t.setFullYear(year);
         setallfields(L, t);
     }
 

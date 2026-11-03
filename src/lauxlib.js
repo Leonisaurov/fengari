@@ -456,14 +456,18 @@ const luaL_optinteger = function(L, arg, def) {
     return luaL_opt(L, luaL_checkinteger, arg, def);
 };
 
+const luaL_growbuffer = function(B, newend) {
+    /* start with a small capacity so short buffers do not grow one byte at a time */
+    let newsize = Math.max(B.b.length * 2, newend, 64);
+    let newbuff = new Uint8Array(newsize);  /* create larger buffer */
+    newbuff.set(B.b);  /* copy original content */
+    B.b = newbuff;
+};
+
 const luaL_prepbuffsize = function(B, sz) {
     let newend = B.n + sz;
-    if (B.b.length < newend) {
-        let newsize = Math.max(B.b.length * 2, newend);  /* double buffer size */
-        let newbuff = new Uint8Array(newsize);  /* create larger buffer */
-        newbuff.set(B.b);  /* copy original content */
-        B.b = newbuff;
-    }
+    if (B.b.length < newend)
+        luaL_growbuffer(B, newend);
     return B.b.subarray(B.n, newend);
 };
 
@@ -484,9 +488,11 @@ const luaL_prepbuffer = function(B) {
 const luaL_addlstring = function(B, s, l) {
     if (l > 0) {
         s = from_userstring(s);
-        let b = luaL_prepbuffsize(B, l);
-        b.set(s.subarray(0, l));
-        luaL_addsize(B, l);
+        let newend = B.n + l;
+        if (B.b.length < newend)
+            luaL_growbuffer(B, newend);
+        B.b.set(s.subarray(0, l), B.n);
+        B.n = newend;
     }
 };
 
@@ -503,7 +509,8 @@ const luaL_pushresult = function(B) {
 };
 
 const luaL_addchar = function(B, c) {
-    luaL_prepbuffsize(B, 1);
+    if (B.n >= B.b.length)
+        luaL_growbuffer(B, B.n + 1);
     B.b[B.n++] = c;
 };
 

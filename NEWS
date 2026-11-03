@@ -113,10 +113,25 @@ unreleased
   - Implement C printf integer formatting for string.format (%d/%i/%o/%u/%x/%X)
     with flags, width, precision, # prefixes and the 32/64-bit unsigned wrap;
     %s now pads and truncates by bytes instead of UTF-16 code units
+  - Print %f of huge finite numbers from the exact double expansion instead
+    of the shortest decimal form (1e300 now matches PUC digit for digit)
+  - Use a 64-bit size_t for string.pack's "s" and "T" options and for the
+    string.dump header, matching PUC on 64-bit platforms; undump still accepts
+    both 4- and 8-byte headers
   - Drop the runtime sprintf-js dependency; it remains a test-only dependency
   - ipairs and the lua_geti/lua_seti/lua_rawgeti/lua_rawseti API accept BigInt
     keys in LUA_INT64 mode
   - os.date("*t") reports isdst and supports the ISO-8601 %G/%g/%V specifiers
+  - Fix os.time/os.date for years 0..99 (Date's 1900 offset) and day-of-year
+    arithmetic for those years
+  - Expose package.cpath (LUA_CPATH is honored) even though C modules cannot be
+    loaded
+  - Reuse and grow string buffers without a temporary view per character, and
+    preallocate gsub output: the strings benchmark is about twice as fast
+  - Add fast paths for integer table reads/writes and float arithmetic:
+    nbody, mandelbrot and binary-trees improve by 15-35%
+  - Add a publish workflow (npm provenance and tag/version check) and a
+    gradual `@ts-check` pass over the public entry points
   - Fix the "string contains zeros" message in string.pack("z")
 
 

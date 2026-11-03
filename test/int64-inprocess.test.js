@@ -91,6 +91,22 @@ test("in-process LUA_INT64 ipairs and string.format", () => {
 });
 
 
+test("in-process LUA_INT64 os.time years 0..99", () => {
+    let L = open();
+    run(L, `
+        local t = os.time({year = 50, month = 1, day = 1, hour = 12})
+        local d = os.date("*t", t)
+        return d.year, d.month, d.day, os.date("%j", t)
+    `);
+
+    expect(lua.lua_tointeger(L, -4)).toBe(50n);
+    expect(lua.lua_tointeger(L, -3)).toBe(1n);
+    expect(lua.lua_tointeger(L, -2)).toBe(1n);
+    expect(lua.lua_tojsstring(L, -1)).toBe("001");
+    lua.lua_close(L);
+});
+
+
 test("in-process LUA_INT64 libraries", () => {
     let L = open("5.4");
     run(L, `

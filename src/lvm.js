@@ -23,8 +23,7 @@ const {
     to_luastring
 } = require('./defs.js');
 const {
-    INDEXK,
-    ISK,
+    BITRK,
     LFIELDS_PER_FLUSH,
     OpCodesI: {
         OP_ADD,
@@ -175,10 +174,6 @@ const luaV_finishOp = function(L) {
     }
 };
 
-const RA = function(L, base, i) {
-    return base + i.A;
-};
-
 const RB = function(L, base, i) {
     return base + i.B;
 };
@@ -188,11 +183,13 @@ const RB = function(L, base, i) {
 // };
 
 const RKB = function(L, base, k, i) {
-    return ISK(i.B) ? k[INDEXK(i.B)] : L.stack[base + i.B];
+    let b = i.B;
+    return (b & BITRK) !== 0 ? k[b & ~BITRK] : L.stack[base + b];
 };
 
 const RKC = function(L, base, k, i) {
-    return ISK(i.C) ? k[INDEXK(i.C)] : L.stack[base + i.C];
+    let c = i.C;
+    return (c & BITRK) !== 0 ? k[c & ~BITRK] : L.stack[base + c];
 };
 
 const luaV_execute = function(L) {
@@ -212,7 +209,7 @@ const luaV_execute = function(L) {
             ldebug.luaG_traceexec(L);
         }
 
-        let ra = RA(L, base, i);
+        let ra = base + i.A;
         let opcode = i.opcode;
 
         switch (opcode) {
@@ -258,6 +255,14 @@ const luaV_execute = function(L) {
             case OP_GETTABLE: {
                 let rb = L.stack[RB(L, base, i)];
                 let rc = RKC(L, base, k, i);
+                if (rb.type === LUA_TTABLE &&
+                    (rc.type === LUA_TNUMINT || rc.type === LUA_TNUMFLT)) {
+                    let entry = rb.value.strong.get(rc.value);
+                    if (entry) {
+                        L.stack[ra].setfrom(entry.value);
+                        break;
+                    }
+                }
                 luaV_gettable(L, rb, rc, ra);
                 break;
             }
@@ -278,6 +283,18 @@ const luaV_execute = function(L) {
                 let key = RKB(L, base, k, i);
                 let v = RKC(L, base, k, i);
 
+                if (table.type === LUA_TTABLE &&
+                    (key.type === LUA_TNUMINT || key.type === LUA_TNUMFLT)) {
+                    let entry = table.value.strong.get(key.value);
+                    if (entry) {
+                        if (v.ttisnil())
+                            ltable.luaH_setfrom(L, table.value, key, v);
+                        else
+                            ltable.luaH_setexisting(table.value, key, v, entry.value);
+                        ltable.invalidateTMcache(table.value);
+                        break;
+                    }
+                }
                 settable(L, table, key, v);
                 break;
             }
@@ -303,6 +320,10 @@ const luaV_execute = function(L) {
 
                 if (op1.ttisinteger() && op2.ttisinteger()) {
                     lobject.luaO_setint(L, L.stack[ra], lobject.intarith(L, LUA_OPADD, op1.value, op2.value));
+                } else if (op1.type === LUA_TNUMFLT && op2.type === LUA_TNUMFLT) {
+                    let slot = L.stack[ra];
+                    slot.type = LUA_TNUMFLT;
+                    slot.value = op1.value + op2.value;
                 } else if ((numberop1 = tonumber(op1)) !== false && (numberop2 = tonumber(op2)) !== false) {
                     L.stack[ra].setfltvalue(numberop1 + numberop2);
                 } else {
@@ -317,6 +338,10 @@ const luaV_execute = function(L) {
 
                 if (op1.ttisinteger() && op2.ttisinteger()) {
                     lobject.luaO_setint(L, L.stack[ra], lobject.intarith(L, LUA_OPSUB, op1.value, op2.value));
+                } else if (op1.type === LUA_TNUMFLT && op2.type === LUA_TNUMFLT) {
+                    let slot = L.stack[ra];
+                    slot.type = LUA_TNUMFLT;
+                    slot.value = op1.value - op2.value;
                 } else if ((numberop1 = tonumber(op1)) !== false && (numberop2 = tonumber(op2)) !== false) {
                     L.stack[ra].setfltvalue(numberop1 - numberop2);
                 } else {
@@ -331,6 +356,10 @@ const luaV_execute = function(L) {
 
                 if (op1.ttisinteger() && op2.ttisinteger()) {
                     lobject.luaO_setint(L, L.stack[ra], luaV_imul(op1.value, op2.value));
+                } else if (op1.type === LUA_TNUMFLT && op2.type === LUA_TNUMFLT) {
+                    let slot = L.stack[ra];
+                    slot.type = LUA_TNUMFLT;
+                    slot.value = op1.value * op2.value;
                 } else if ((numberop1 = tonumber(op1)) !== false && (numberop2 = tonumber(op2)) !== false) {
                     L.stack[ra].setfltvalue(numberop1 * numberop2);
                 } else {
@@ -345,6 +374,8 @@ const luaV_execute = function(L) {
 
                 if (op1.ttisinteger() && op2.ttisinteger()) {
                     lobject.luaO_setint(L, L.stack[ra], luaV_mod(L, op1.value, op2.value));
+                } else if (op1.type === LUA_TNUMFLT && op2.type === LUA_TNUMFLT) {
+                    L.stack[ra].setfltvalue(luai_nummod(L, op1.value, op2.value));
                 } else if ((numberop1 = tonumber(op1)) !== false && (numberop2 = tonumber(op2)) !== false) {
                     L.stack[ra].setfltvalue(luai_nummod(L, numberop1, numberop2));
                 } else {
@@ -357,7 +388,9 @@ const luaV_execute = function(L) {
                 let op2 = RKC(L, base, k, i);
                 let numberop1, numberop2;
 
-                if ((numberop1 = tonumber(op1)) !== false && (numberop2 = tonumber(op2)) !== false) {
+                if (op1.type === LUA_TNUMFLT && op2.type === LUA_TNUMFLT) {
+                    L.stack[ra].setfltvalue(Math.pow(op1.value, op2.value));
+                } else if ((numberop1 = tonumber(op1)) !== false && (numberop2 = tonumber(op2)) !== false) {
                     L.stack[ra].setfltvalue(Math.pow(numberop1, numberop2));
                 } else {
                     ltm.luaT_trybinTM(L, op1, op2, L.stack[ra], ltm.TMS.TM_POW);
@@ -369,7 +402,11 @@ const luaV_execute = function(L) {
                 let op2 = RKC(L, base, k, i);
                 let numberop1, numberop2;
 
-                if ((numberop1 = tonumber(op1)) !== false && (numberop2 = tonumber(op2)) !== false) {
+                if (op1.type === LUA_TNUMFLT && op2.type === LUA_TNUMFLT) {
+                    let slot = L.stack[ra];
+                    slot.type = LUA_TNUMFLT;
+                    slot.value = op1.value / op2.value;
+                } else if ((numberop1 = tonumber(op1)) !== false && (numberop2 = tonumber(op2)) !== false) {
                     L.stack[ra].setfltvalue(numberop1 / numberop2);
                 } else {
                     ltm.luaT_trybinTM(L, op1, op2, L.stack[ra], ltm.TMS.TM_DIV);
@@ -383,6 +420,8 @@ const luaV_execute = function(L) {
 
                 if (op1.ttisinteger() && op2.ttisinteger()) {
                     lobject.luaO_setint(L, L.stack[ra], luaV_div(L, op1.value, op2.value));
+                } else if (op1.type === LUA_TNUMFLT && op2.type === LUA_TNUMFLT) {
+                    L.stack[ra].setfltvalue(Math.floor(op1.value / op2.value));
                 } else if ((numberop1 = tonumber(op1)) !== false && (numberop2 = tonumber(op2)) !== false) {
                     L.stack[ra].setfltvalue(Math.floor(numberop1 / numberop2));
                 } else {
@@ -456,6 +495,8 @@ const luaV_execute = function(L) {
 
                 if (op.ttisinteger()) {
                     lobject.luaO_setint(L, L.stack[ra], lobject.intarith(L, LUA_OPUNM, op.value, 0));
+                } else if (op.type === LUA_TNUMFLT) {
+                    L.stack[ra].setfltvalue(-op.value);
                 } else if ((numberop = tonumber(op)) !== false) {
                     L.stack[ra].setfltvalue(-numberop);
                 } else {
@@ -695,7 +736,7 @@ const luaV_execute = function(L) {
                 ldo.adjust_top(L, ci.top);
                 /* go straight to OP_TFORLOOP */
                 i = ci.l_code[ci.l_savedpc++];
-                ra = RA(L, base, i);
+                ra = base + i.A;
                 lua_assert(i.opcode === OP_TFORLOOP);
             }
             /* fall through */
@@ -1231,10 +1272,20 @@ const settable = function(L, t, key, val) {
         if (t.ttistable()) {
             let h = t.value; /* save 't' table */
             let slot = ltable.luaH_get(L, h, key);
-            if (!slot.ttisnil() || (tm = ltm.fasttm(L, h.metatable, ltm.TMS.TM_NEWINDEX)) === null) {
-                if (slot.ttisnil() && L.l_G.totalmem_limit > 0)
-                    require('./lgc.js').luaC_allocated(L, 64);
-                ltable.luaH_setfrom(L, h, key, val);
+            if (!slot.ttisnil()) {  /* existing key: update in place */
+                if (val.ttisnil())  /* deleting the key */
+                    ltable.luaH_setfrom(L, h, key, val);
+                else
+                    ltable.luaH_setexisting(h, key, val, slot);
+                ltable.invalidateTMcache(h);
+                return;
+            }
+            if ((tm = ltm.fasttm(L, h.metatable, ltm.TMS.TM_NEWINDEX)) === null) {
+                if (!val.ttisnil()) {  /* inserting a new key */
+                    if (L.l_G.totalmem_limit > 0)
+                        require('./lgc.js').luaC_allocated(L, 64);
+                    ltable.luaH_setnew(L, h, key, val);
+                }
                 ltable.invalidateTMcache(h);
                 return;
             }

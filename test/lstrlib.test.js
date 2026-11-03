@@ -276,6 +276,51 @@ test('string.format %q at the integer limits', () => {
 });
 
 
+test('string.format exact fixed-point for huge floats', () => {
+    let L = lauxlib.luaL_newstate();
+    if (!L) throw Error("failed to create lua state");
+
+    let luaCode = `
+        return string.format("%.0f", 1e300),
+               string.format("%.3f", 1e300),
+               string.format("%.0f", 1e21)
+    `;
+    {
+        lualib.luaL_openlibs(L);
+        expect(lauxlib.luaL_loadstring(L, to_luastring(luaCode))).toBe(lua.LUA_OK);
+        lua.lua_call(L, 0, -1);
+    }
+
+    const huge = lua.lua_tojsstring(L, -3);
+    expect(huge.length).toBe(301);
+    expect(huge.startsWith("1000000000000000052504760")).toBe(true);
+    expect(huge.endsWith("0540160")).toBe(true);
+    expect(lua.lua_tojsstring(L, -2)).toBe(huge + ".000");
+    expect(lua.lua_tojsstring(L, -1)).toBe("1000000000000000000000");
+});
+
+
+test('string.pack uses a 64-bit size_t for s and T', () => {
+    let L = lauxlib.luaL_newstate();
+    if (!L) throw Error("failed to create lua state");
+
+    let luaCode = `
+        local s = string.pack("s", "abc")
+        local value = string.unpack("s", s)
+        return #s, #string.pack("T", 1), value
+    `;
+    {
+        lualib.luaL_openlibs(L);
+        expect(lauxlib.luaL_loadstring(L, to_luastring(luaCode))).toBe(lua.LUA_OK);
+        lua.lua_call(L, 0, -1);
+    }
+
+    expect(lua.lua_tointeger(L, -3)).toBe(11);
+    expect(lua.lua_tointeger(L, -2)).toBe(8);
+    expect(lua.lua_tojsstring(L, -1)).toBe("abc");
+});
+
+
 test('string.sub', () => {
     let L = lauxlib.luaL_newstate();
     if (!L) throw Error("failed to create lua state");
@@ -484,6 +529,34 @@ test('string.gsub', () => {
 
     expect(lua.lua_tojsstring(L, -2)).toBe("hello hello world world");
     expect(lua.lua_tointeger(L, -1)).toBe(2);
+});
+
+
+test('string.gsub literal fast path', () => {
+    let L = lauxlib.luaL_newstate();
+    if (!L) throw Error("failed to create lua state");
+
+    let luaCode = `
+        local a, b = string.gsub("a.b.a", "a", "X")
+        local c, d = string.gsub("abc", "b", "")
+        local e, f = string.gsub("aaaa", "aa", "b")
+        local g, h = string.gsub("abc", "x", "y")
+        local i, j = string.gsub("abc", "b", "X", 0)
+        return a, b, c, d, e, f, g, h, i, j
+    `;
+    {
+        lualib.luaL_openlibs(L);
+        expect(lauxlib.luaL_loadstring(L, to_luastring(luaCode))).toBe(lua.LUA_OK);
+        lua.lua_call(L, 0, -1);
+    }
+
+    const expected = [
+        ["X.b.X", 2], ["ac", 1], ["bb", 2], ["abc", 0], ["abc", 0]
+    ];
+    for (let i = 0; i < expected.length; i++) {
+        expect(lua.lua_tojsstring(L, i * 2 - 10)).toBe(expected[i][0]);
+        expect(lua.lua_tointeger(L, i * 2 - 9)).toBe(expected[i][1]);
+    }
 });
 
 

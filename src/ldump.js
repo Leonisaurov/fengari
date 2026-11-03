@@ -179,7 +179,7 @@ const DumpHeader = function(D, version) {
     DumpByte(LUAC_FORMAT, D);
     DumpBlock(LUAC_DATA, LUAC_DATA.length, D);
     DumpByte(4, D); // intSize
-    DumpByte(4, D); // size_tSize
+    DumpByte(8, D); // size_tSize (64-bit platform)
     DumpByte(4, D); // instructionSize
     DumpByte(LUA_INT64 ? 8 : 4, D); // integerSize
     DumpByte(8, D); // numberSize

@@ -176,7 +176,7 @@ Weak tables (`__mode` = `"k"`, `"v"` or `"kv"`, including ephemerons) and `__gc`
 
 ### _Differences_
 
-- `package.jspath` instead of `package.cpath`
+- `package.jspath` instead of `package.cpath` for loading JS modules; `package.cpath` is still exposed for compatibility, but C libraries cannot be loaded
 - `LUA_JSPATH_DEFAULT` instead of `LUA_CPATH_DEFAULT` (and contains .js extensions rather than .so or .dll extensions)
 - `lua_tointegerx` and `lua_tonumberx` do not have out-parameters indicating conversion success. Instead, ``false`` is returned when conversion fails.
 - `luaL_execresult` takes an extra argument: an error object. The error object should have fields `status`, `signal` and `errno`.

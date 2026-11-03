@@ -586,6 +586,8 @@ const luaopen_package = function(L) {
     /* set paths */
     setpath(L, to_luastring("path", true), LUA_PATH_VAR, LUA_PATH_DEFAULT);
     setpath(L, to_luastring("jspath", true), LUA_JSPATH_VAR, LUA_JSPATH_DEFAULT);
+    /* C modules are not loadable in JS, but keep the field PUC programs read */
+    setpath(L, to_luastring("cpath", true), "LUA_CPATH", to_luastring("./?.so"));
     /* store config information */
     lua_pushliteral(L, LUA_DIRSEP + "\n" + LUA_PATH_SEP + "\n" + LUA_PATH_MARK + "\n" +
                         LUA_EXEC_DIR + "\n" + LUA_IGMARK + "\n");

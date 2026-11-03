@@ -243,10 +243,11 @@ Do not rely on JavaScript finalizers for Lua objects.
 
 ## Modules and `require`
 
-`package.jspath` replaces `package.cpath`; `LUA_JSPATH_DEFAULT` replaces
-`LUA_CPATH_DEFAULT`. Node loads `.js` modules; browsers used to fall back to
-synchronous XHR. In an embedded host, register modules in `package.preload`
-or set `package.jspath` explicitly.
+`package.jspath` replaces `package.cpath` for loading JS modules (the `cpath`
+field is still present for compatibility, but C libraries cannot be loaded);
+`LUA_JSPATH_DEFAULT` replaces `LUA_CPATH_DEFAULT`. Node loads `.js` modules;
+browsers used to fall back to synchronous XHR. In an embedded host, register
+modules in `package.preload` or set `package.jspath` explicitly.
 
 ## `io` and `os`
 

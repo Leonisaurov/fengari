@@ -136,8 +136,10 @@ const invalidateTMcache = function(t) {
 };
 
 const add = function(t, hash, key, value) {
-    t.dead_strong.clear();
-    t.dead_weak = void 0;
+    if (t.dead_strong.size !== 0)
+        t.dead_strong.clear();
+    if (t.dead_weak !== void 0)
+        t.dead_weak = void 0;
     let prev = null;
     let entry = {
         key: key,
@@ -339,7 +341,14 @@ const luaH_getstr = function(t, key) {
 
 const luaH_get = function(L, t, key) {
     lua_assert(key instanceof lobject.TValue);
-    if (key.ttisnil() || (key.ttisfloat() && isNaN(key.value)))
+    let type = key.type;
+    if (type === LUA_TNUMINT || type === LUA_TNUMFLT) {
+        if (type === LUA_TNUMFLT && isNaN(key.value))
+            return lobject.luaO_nilobject;
+        let v = t.strong.get(key.value);
+        return v ? v.value : lobject.luaO_nilobject;
+    }
+    if (type === LUA_TNIL)
         return lobject.luaO_nilobject;
     return getgeneric(t, table_hash(L, key));
 };
@@ -369,6 +378,26 @@ const luaH_setint = function(t, key, value) {
     }
 };
 
+const luaH_setnew = function(L, t, key, value, hash) {
+    if (t.g && t.g.gc_ctx) {
+        barrier(t.g, key);
+        barrier(t.g, value);
+    }
+    puc_newkey(t, puc_intkey(key));
+    let k;
+    let kv = key.value;
+    if (typeof kv === "bigint") {
+        k = new lobject.TValue(LUA_TNUMINT, kv);
+    } else if ((key.ttisfloat() && (kv|0) === kv)) { /* does index fit in an integer? */
+        /* insert it as an integer */
+        k = new lobject.TValue(LUA_TNUMINT, kv);
+    } else {
+        k = new lobject.TValue(key.type, kv);
+    }
+    let v = new lobject.TValue(value.type, value.value);
+    add(t, hash === undefined ? table_hash(L, key) : hash, k, v);
+};
+
 const luaH_setfrom = function(L, t, key, value) {
     lua_assert(key instanceof lobject.TValue);
     let hash = table_hash(L, key);
@@ -376,29 +405,29 @@ const luaH_setfrom = function(L, t, key, value) {
         mark_dead(t, hash);
         return;
     }
+
+    let e = t.strong.get(hash);
+    if (e) {
+        if (t.g && t.g.gc_ctx) {
+            barrier(t.g, key);
+            barrier(t.g, value);
+        }
+        e.value.setfrom(value);
+    } else {
+        luaH_setnew(L, t, key, value, hash);
+    }
+};
+
+/*
+** Store 'value' in an entry that is already known to exist. This avoids
+** hashing the key a second time when the caller has the slot (settable).
+*/
+const luaH_setexisting = function(t, key, value, slot) {
     if (t.g && t.g.gc_ctx) {
         barrier(t.g, key);
         barrier(t.g, value);
     }
-
-    let e = t.strong.get(hash);
-    if (e) {
-        e.value.setfrom(value);
-    } else {
-        puc_newkey(t, puc_intkey(key));
-        let k;
-        let kv = key.value;
-        if (typeof kv === "bigint") {
-            k = new lobject.TValue(LUA_TNUMINT, kv);
-        } else if ((key.ttisfloat() && (kv|0) === kv)) { /* does index fit in an integer? */
-            /* insert it as an integer */
-            k = new lobject.TValue(LUA_TNUMINT, kv);
-        } else {
-            k = new lobject.TValue(key.type, kv);
-        }
-        let v = new lobject.TValue(value.type, value.value);
-        add(t, hash, k, v);
-    }
+    slot.setfrom(value);
 };
 
 /*
@@ -479,6 +508,8 @@ module.exports.luaH_getint  = luaH_getint;
 module.exports.luaH_getn    = luaH_getn;
 module.exports.luaH_getstr  = luaH_getstr;
 module.exports.luaH_setfrom = luaH_setfrom;
+module.exports.luaH_setnew = luaH_setnew;
+module.exports.luaH_setexisting = luaH_setexisting;
 module.exports.luaH_setint  = luaH_setint;
 module.exports.luaH_new     = luaH_new;
 module.exports.luaH_next    = luaH_next;

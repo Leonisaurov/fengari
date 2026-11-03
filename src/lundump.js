@@ -266,7 +266,8 @@ class BytecodeParser {
         this.numberSize      = this.LoadByte();
 
         this.checksize(this.intSize, 4, "int");
-        this.checksize(this.size_tSize, 4, "size_t");
+        if (this.size_tSize !== 4 && this.size_tSize !== 8)  /* 32- or 64-bit size_t */
+            this.error("size_t size mismatch in");
         this.checksize(this.instructionSize, 4, "instruction");
         this.checksize(this.integerSize, this.format === 1 ? 8 : 4, "integer");
         this.checksize(this.numberSize, 8, "number");
