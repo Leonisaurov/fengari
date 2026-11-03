@@ -9,12 +9,12 @@ in [`api.md`](api.md), the high-level helpers in
 ## Node.js
 
 ```js
-const { lua, lauxlib, lualib, api } = require("fengari");
+const { lua, lauxlib, lualib, api, to_luastring } = require("fengari");
 
 // Low level: one state per isolate/worker.
 const L = lauxlib.luaL_newstate();
 lualib.luaL_openlibs(L);
-lauxlib.luaL_dostring(L, lua.to_luastring("print('hello from Lua')"));
+lauxlib.luaL_dostring(L, to_luastring("print('hello from Lua')"));
 lua.lua_close(L);
 
 // High level: state + conversions + error handling.
@@ -97,10 +97,10 @@ Mount modules in the VFS and load them synchronously, or use the async module
 loader when sources come from the network:
 
 ```js
-const { lua, api } = require("fengari");
+const { lua, api, to_luastring } = require("fengari");
 const state = api.createState();
 state.pushJS({ log: (...args) => console.log(...args) });
-lua.lua_setglobal(state.L, lua.to_luastring("host"));
+lua.lua_setglobal(state.L, to_luastring("host"));
 state.run("host.log('from Lua', 1 + 2)");
 
 state.installAsyncModules({
